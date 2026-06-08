@@ -18,12 +18,33 @@
       "Bash(rm -rf /c/Users/lenovo/.claude/projects/d--Vscoding-practice1/)",
       "Bash(rm -rf /d/Vscoding/practice1/)",
       "Bash(go build *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(curl -s -X POST http://localhost:8080/api/send-code -H \"Content-Type: application/json\" -d '{\"phone\":\"13800138000\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://localhost:8080/api/register/phone -H \"Content-Type: application/json\" -d '{\"phone\":\"13800138000\",\"code\":\"000000\"}')",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"go run\")",
+      "Bash(pkill edu-market *)",
+      "Bash(curl -s -X POST http://localhost:8080/api/send-code -H \"Content-Type: application/json\" -d '{\"phone\":\"13812345678\"}')",
+      "Read(//tmp/**)",
+      "Bash(pkill -f \"go run\" 2>/dev/null; pkill edu-market 2>/dev/null; sleep 1 *)",
+      "Bash(curl -s -X POST http://localhost:8080/api/send-code -H 'Content-Type: application/json' -d '{\"phone\":\"__TRACKED_VAR__\"}')",
+      "Bash(grep -v '^\\\\s*$')",
+      "Bash(taskkill //F //IM edu-market.exe)",
+      "Bash(taskkill //F //IM go.exe)",
+      "Bash(taskkill //F //IM main.exe)",
+      "Bash(netstat -ano)",
+      "Bash(tee /tmp/server2.log)",
+      "Bash(curl -s -X POST http://localhost:8080/api/send-code -H 'Content-Type: application/json' -d '{\"phone\":\"13955556666\"}')",
+      "Bash(go test *)",
+      "Bash(go get *)",
+      "Bash(redis-cli ping *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\lenovo\\.claude\\projects\\d--Vscoding-edu_market\\memory",
       "C:\\Users\\lenovo\\.claude\\projects\\d--Vscoding-practice1\\",
-      "D:\\Vscoding\\practice1\\"
+      "D:\\Vscoding\\practice1\\",
+      "\\tmp"
     ]
   }
 }

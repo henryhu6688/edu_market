@@ -11,9 +11,11 @@ import (
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
+	Redis    RedisConfig    `mapstructure:"redis"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	AI       AIConfig       `mapstructure:"ai"`
 	Upload   UploadConfig   `mapstructure:"upload"`
+	Captcha  CaptchaConfig  `mapstructure:"captcha"`
 }
 
 // ServerConfig 服务配置
@@ -40,6 +42,13 @@ func (d *DatabaseConfig) DSN() string {
 		d.User, d.Password, d.Host, d.Port, d.DBName, d.Charset)
 }
 
+// RedisConfig Redis 配置
+type RedisConfig struct {
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+}
+
 // JWTConfig JWT 配置
 type JWTConfig struct {
 	Secret      string `mapstructure:"secret"`
@@ -52,6 +61,13 @@ type AIConfig struct {
 	APIKey   string `mapstructure:"api_key"`
 	APIURL   string `mapstructure:"api_url"`
 	Model    string `mapstructure:"model"`
+}
+
+// CaptchaConfig 验证码配置
+type CaptchaConfig struct {
+	Length         int `mapstructure:"length"`
+	ExpireSeconds  int `mapstructure:"expire_seconds"`
+	ResendSeconds  int `mapstructure:"resend_seconds"`
 }
 
 // UploadConfig 上传配置

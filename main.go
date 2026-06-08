@@ -7,12 +7,19 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/router"
+	"edu_market/utils"
 )
 
 // main 程序入口，加载配置、初始化数据库、注册路由并启动服务
 func main() {
 	// 加载配置
 	config.Load()
+
+	// 初始化 Redis
+	database.InitRedis()
+
+	// 初始化验证码存储器
+	utils.InitCaptcha()
 
 	// 初始化数据库
 	database.Init()

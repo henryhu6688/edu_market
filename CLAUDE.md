@@ -14,12 +14,26 @@ cd web && npm run dev
 
 后端默认监听 `:8080`，前端 Vite 开发服务器在 `:5173` 并自动代理 `/api` 和 `/uploads` 到后端。
 
+```bash
+# 运行所有测试（需要 MySQL + Redis）
+go test ./...
+
+# 运行单个包的测试
+go test ./utils/ -v
+go test ./middleware/ -v
+go test ./service/ -v
+
+# 运行单个测试用例
+go test ./utils/ -run TestGenerateCode -v
+```
+
 ## 架构概览
 
 **在线学习资料售卖 + AI答疑平台**，前后端大仓模式。
 
 ```
 请求 → router (Gin) → middleware (CORS/Logger/JWT) → controller → service → model (GORM) → MySQL
+                                                                          ↘ utils/captcha → Redis
 ```
 
 | 层 | 职责 |
@@ -32,12 +46,12 @@ cd web && npm run dev
 | `dto/request/` | 请求体结构 + Gin binding 校验规则 |
 | `dto/response/` | 统一响应 `{code, message, data}` + 分页 `PageData` |
 | `config/` | Viper 读取 `config/app.yml`，全局 `config.App` 可用 |
-| `database/` | GORM + MySQL 初始化，启动时自动迁移所有 model |
-| `utils/` | JWT 生成/解析 (HS256)、统一响应函数（Success/Created/BadRequest/Unauthorized/Forbidden/NotFound/InternalError/PageSuccess） |
+| `database/` | GORM + MySQL 初始化(自动迁移) + Redis 客户端初始化 |
+| `utils/` | JWT 生成/解析 (HS256)、统一响应函数、验证码存储 `CodeStore` (Redis 版，支持限频/过期/一次性) |
 
 ### 数据模型
 
-- **User**: `student` | `admin`，bcrypt 密码
+- **User**: `student` | `admin`，bcrypt 密码，支持 `Phone` 字段（手机号注册/登录）
 - **Course**: 属于 Category + User（发布者），状态 `draft|published|off`，有价格/封面/文件URL
 - **Category**: 支持二级分类（`ParentID` 可为 nil）
 - **Order**: 订单号 `order_no`，状态 `pending|paid|cancelled`，软删除
@@ -48,8 +62,11 @@ cd web && npm run dev
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| POST | `/api/register` | 无 | 注册 |
-| POST | `/api/login` | 无 | 登录，返回 JWT |
+| POST | `/api/send-code` | 无 | 发送手机验证码（Redis存储，5分钟有效，60s限频） |
+| POST | `/api/register` | 无 | 用户名+邮箱+密码注册 |
+| POST | `/api/register/phone` | 无 | 手机号+验证码注册（自动生成用户名和随机密码） |
+| POST | `/api/login` | 无 | 用户名+密码登录，返回 JWT |
+| POST | `/api/login/phone` | 无 | 手机号+验证码登录，返回 JWT |
 | GET | `/api/courses` | 无 | 课程列表 |
 | GET | `/api/courses/:id` | 无 | 课程详情 |
 | GET | `/api/courses/:id/reviews` | 无 | 课程评论 |
@@ -81,6 +98,10 @@ cd web && npm run dev
 
 - 新增功能按 **model → dto → service → controller → router** 这条流水线开发
 - 所有 HTTP 响应统一走 `utils/response.go` 的响应函数，不直接 `c.JSON`
-- JWT token 通过 `Authorization: Bearer <token>` 传递
+- JWT token 通过 `Authorization: Bearer <token>` 传递，24h 过期，HS256 签名
+- 验证码 6 位数字，Redis 存储自动过期，限频 60s（`utils/codeStore`），开发阶段控制台打印
+- 启动顺序：`config.Load` → `database.InitRedis` → `utils.InitCaptcha` → `database.Init`
+- 验证码校验后立即删除（一次性），同时释放同手机号限频 key 方便连续操作
 - 文件上传存在 `uploads/`（gitignore 了除 `.gitkeep` 外的所有文件）
 - 开发阶段启动时自动 `AutoMigrate`，生产注意关闭
+- 测试文件与源码同目录放（`*_test.go`），`go test ./...` 一键运行
