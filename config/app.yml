@@ -1,0 +1,27 @@
+server:
+  port: 8080
+  mode: debug  # debug | release | test
+
+database:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: 123456
+  dbname: edu_market
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 100
+
+jwt:
+  secret: edu-market-secret-key-change-in-production
+  expire_hours: 24
+
+ai:
+  provider: deepseek
+  api_key: sk-8824eb182c644131a9af83be8cd0443d
+  api_url: https://api.deepseek.com/v1/chat/completions
+  model: deepseek-chat
+
+upload:
+  max_size: 10485760  # 10MB
+  allowed_exts: [".jpg", ".jpeg", ".png", ".pdf", ".docx", ".pptx", ".zip"]

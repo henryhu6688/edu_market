@@ -1,0 +1,30 @@
+# --- Go ---
+edu-market.exe
+*.exe
+*.test
+*.out
+vendor/
+
+# --- Node / Vue ---
+web/node_modules/
+web/dist/
+.DS_Store
+*.log
+npm-debug.log*
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Env / Secrets ---
+.env
+.env.local
+
+# --- Uploads ---
+uploads/*
+!uploads/.gitkeep
+
+# --- OS ---
+Thumbs.db

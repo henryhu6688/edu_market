@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod *)",
+      "Bash(npm --version)",
+      "Bash(rm -rf web)",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(npx vite *)",
+      "Bash(mysqladmin ping *)",
+      "Bash(go run *)",
+      "Bash(npm run *)"
+    ]
+  }
+}
