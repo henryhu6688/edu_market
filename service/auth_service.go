@@ -3,9 +3,9 @@ package service
 import (
 	"errors"
 
-	"edu-market/database"
-	"edu-market/model"
-	"edu-market/utils"
+	"edu_market/database"
+	"edu_market/model"
+	"edu_market/utils"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

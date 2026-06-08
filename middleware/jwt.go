@@ -3,7 +3,7 @@ package middleware
 import (
 	"strings"
 
-	"edu-market/utils"
+	"edu_market/utils"
 
 	"github.com/gin-gonic/gin"
 )

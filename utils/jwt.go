@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"edu-market/config"
+	"edu_market/config"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -26,7 +26,7 @@ func GenerateToken(userID uint, username, role string) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(config.App.JWT.ExpireHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "edu-market",
+			Issuer:    "edu_market",
 		},
 	}
 

@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"edu-market/config"
-	"edu-market/database"
-	"edu-market/model"
+	"edu_market/config"
+	"edu_market/database"
+	"edu_market/model"
 )
 
 // AIService AI 对话服务

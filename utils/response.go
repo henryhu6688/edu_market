@@ -3,7 +3,7 @@ package utils
 import (
 	"net/http"
 
-	"edu-market/dto/response"
+	"edu_market/dto/response"
 
 	"github.com/gin-gonic/gin"
 )

@@ -3,8 +3,8 @@ package controller
 import (
 	"strconv"
 
-	"edu-market/service"
-	"edu-market/utils"
+	"edu_market/service"
+	"edu_market/utils"
 
 	"github.com/gin-gonic/gin"
 )

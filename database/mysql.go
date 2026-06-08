@@ -4,8 +4,8 @@ import (
 	"log"
 	"time"
 
-	"edu-market/config"
-	"edu-market/model"
+	"edu_market/config"
+	"edu_market/model"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"

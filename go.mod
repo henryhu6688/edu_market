@@ -1,4 +1,4 @@
-module edu-market
+module edu_market
 
 go 1.25.6
 

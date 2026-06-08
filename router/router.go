@@ -1,8 +1,8 @@
 package router
 
 import (
-	"edu-market/controller"
-	"edu-market/middleware"
+	"edu_market/controller"
+	"edu_market/middleware"
 
 	"github.com/gin-gonic/gin"
 )

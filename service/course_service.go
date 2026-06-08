@@ -4,8 +4,8 @@ import (
 	"errors"
 	"math"
 
-	"edu-market/database"
-	"edu-market/model"
+	"edu_market/database"
+	"edu_market/model"
 
 	"gorm.io/gorm"
 )

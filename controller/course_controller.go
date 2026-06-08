@@ -3,10 +3,10 @@ package controller
 import (
 	"strconv"
 
-	"edu-market/dto/request"
-	"edu-market/model"
-	"edu-market/service"
-	"edu-market/utils"
+	"edu_market/dto/request"
+	"edu_market/model"
+	"edu_market/service"
+	"edu_market/utils"
 
 	"github.com/gin-gonic/gin"
 )

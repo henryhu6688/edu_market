@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"edu-market/config"
-	"edu-market/database"
-	"edu-market/router"
+	"edu_market/config"
+	"edu_market/database"
+	"edu_market/router"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 
 	// 启动服务
 	addr := fmt.Sprintf(":%d", config.App.Server.Port)
-	log.Printf("edu-market 服务启动于 http://localhost%s", addr)
+	log.Printf("edu_market 服务启动于 http://localhost%s", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("服务启动失败: %v", err)
 	}
