@@ -9,6 +9,7 @@ import (
 	"edu_market/router"
 )
 
+// main 程序入口，加载配置、初始化数据库、注册路由并启动服务
 func main() {
 	// 加载配置
 	config.Load()

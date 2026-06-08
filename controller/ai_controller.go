@@ -13,7 +13,7 @@ type AIController struct {
 	svc service.AIService
 }
 
-// Chat POST /api/ai/chat
+// Chat 发起 AI 答疑对话
 func (ctr *AIController) Chat(c *gin.Context) {
 	var req request.ChatReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -31,7 +31,7 @@ func (ctr *AIController) Chat(c *gin.Context) {
 	utils.Success(c, conv)
 }
 
-// History GET /api/ai/history
+// History 获取当前用户的 AI 对话历史
 func (ctr *AIController) History(c *gin.Context) {
 	var req request.HistoryReq
 	if err := c.ShouldBindQuery(&req); err != nil {

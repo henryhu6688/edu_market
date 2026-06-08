@@ -14,7 +14,7 @@ type CategoryController struct {
 	svc service.CategoryService
 }
 
-// List GET /api/categories
+// List 获取所有分类列表
 func (ctr *CategoryController) List(c *gin.Context) {
 	categories, err := ctr.svc.List()
 	if err != nil {
@@ -24,7 +24,7 @@ func (ctr *CategoryController) List(c *gin.Context) {
 	utils.Success(c, categories)
 }
 
-// Create POST /api/admin/categories
+// Create 管理员创建分类
 func (ctr *CategoryController) Create(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required"`
@@ -45,7 +45,7 @@ func (ctr *CategoryController) Create(c *gin.Context) {
 	utils.Created(c, category)
 }
 
-// Update PUT /api/admin/categories/:id
+// Update 管理员更新分类
 func (ctr *CategoryController) Update(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -70,7 +70,7 @@ func (ctr *CategoryController) Update(c *gin.Context) {
 	utils.Success(c, nil)
 }
 
-// Delete DELETE /api/admin/categories/:id
+// Delete 管理员删除分类
 func (ctr *CategoryController) Delete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {

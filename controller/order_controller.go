@@ -13,7 +13,7 @@ type OrderController struct {
 	svc service.OrderService
 }
 
-// Create POST /api/orders
+// Create 创建订单
 func (ctr *OrderController) Create(c *gin.Context) {
 	var req request.CreateOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -31,7 +31,7 @@ func (ctr *OrderController) Create(c *gin.Context) {
 	utils.Created(c, order)
 }
 
-// List GET /api/orders
+// List 当前用户订单列表
 func (ctr *OrderController) List(c *gin.Context) {
 	var req request.OrderListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -50,7 +50,7 @@ func (ctr *OrderController) List(c *gin.Context) {
 	utils.PageSuccess(c, orders, total, req.Page, req.PageSize)
 }
 
-// Pay POST /api/orders/:order_no/pay
+// Pay 模拟支付订单
 func (ctr *OrderController) Pay(c *gin.Context) {
 	orderNo := c.Param("order_no")
 	userID := c.GetUint("user_id")

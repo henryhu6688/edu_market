@@ -13,7 +13,7 @@ type AuthController struct {
 	svc service.AuthService
 }
 
-// Register POST /api/register
+// Register 用户注册
 func (ctr *AuthController) Register(c *gin.Context) {
 	var req request.RegisterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -30,7 +30,7 @@ func (ctr *AuthController) Register(c *gin.Context) {
 	utils.Created(c, gin.H{"id": user.ID, "username": user.Username})
 }
 
-// Login POST /api/login
+// Login 用户登录
 func (ctr *AuthController) Login(c *gin.Context) {
 	var req request.LoginReq
 	if err := c.ShouldBindJSON(&req); err != nil {

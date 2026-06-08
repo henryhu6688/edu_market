@@ -13,7 +13,7 @@ type UserController struct {
 	svc service.UserService
 }
 
-// GetProfile GET /api/user/profile
+// GetProfile 获取当前登录用户信息
 func (ctr *UserController) GetProfile(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	user, err := ctr.svc.GetProfile(userID)
@@ -25,7 +25,7 @@ func (ctr *UserController) GetProfile(c *gin.Context) {
 	utils.Success(c, user)
 }
 
-// UpdateProfile PUT /api/user/profile
+// UpdateProfile 更新当前登录用户信息
 func (ctr *UserController) UpdateProfile(c *gin.Context) {
 	var req request.UpdateProfileReq
 	if err := c.ShouldBindJSON(&req); err != nil {

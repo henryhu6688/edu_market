@@ -15,7 +15,7 @@ type ReviewController struct {
 	svc service.ReviewService
 }
 
-// Create POST /api/reviews
+// Create 创建课程评论
 func (ctr *ReviewController) Create(c *gin.Context) {
 	var req request.CreateReviewReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -33,7 +33,7 @@ func (ctr *ReviewController) Create(c *gin.Context) {
 	utils.Created(c, review)
 }
 
-// ListByCourse GET /api/courses/:id/reviews
+// ListByCourse 获取指定课程的评论列表
 func (ctr *ReviewController) ListByCourse(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {

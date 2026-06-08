@@ -9,7 +9,21 @@
       "Bash(npx vite *)",
       "Bash(mysqladmin ping *)",
       "Bash(go run *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(ls -la \"C:\\\\Users\\\\lenovo\\\\.claude\\\\projects\\\\\" 2>/dev/null || echo \"Directory not found\")",
+      "Read(//c/Users/lenovo/.claude/projects\" 2>/dev/**)",
+      "Bash(ls -la /c/Users/lenovo/.claude/projects/ 2>/dev/null || echo \"Directory not found\")",
+      "Read(//c/Users/lenovo/.claude/projects//**)",
+      "Bash(cp /c/Users/lenovo/.claude/projects/d--Vscoding-edu_market/memory/*.md /c/Users/lenovo/.claude/projects/d--Vscoding-edu-market/memory/)",
+      "Bash(rm -rf /c/Users/lenovo/.claude/projects/d--Vscoding-practice1/)",
+      "Bash(rm -rf /d/Vscoding/practice1/)",
+      "Bash(go build *)",
+      "Bash(git stash *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\lenovo\\.claude\\projects\\d--Vscoding-edu_market\\memory",
+      "C:\\Users\\lenovo\\.claude\\projects\\d--Vscoding-practice1\\",
+      "D:\\Vscoding\\practice1\\"
     ]
   }
 }

@@ -16,7 +16,7 @@ type CourseController struct {
 	svc service.CourseService
 }
 
-// List GET /api/courses
+// List 课程列表，支持分页、分类筛选和关键词搜索
 func (ctr *CourseController) List(c *gin.Context) {
 	var req request.CourseListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -34,7 +34,7 @@ func (ctr *CourseController) List(c *gin.Context) {
 	utils.PageSuccess(c, courses, total, req.Page, req.PageSize)
 }
 
-// GetByID GET /api/courses/:id
+// GetByID 根据ID获取课程详情
 func (ctr *CourseController) GetByID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -51,7 +51,7 @@ func (ctr *CourseController) GetByID(c *gin.Context) {
 	utils.Success(c, course)
 }
 
-// Create POST /api/admin/courses
+// Create 管理员创建课程
 func (ctr *CourseController) Create(c *gin.Context) {
 	var req request.CreateCourseReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -77,7 +77,7 @@ func (ctr *CourseController) Create(c *gin.Context) {
 	utils.Created(c, course)
 }
 
-// Update PUT /api/admin/courses/:id
+// Update 管理员更新课程信息
 func (ctr *CourseController) Update(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -116,7 +116,7 @@ func (ctr *CourseController) Update(c *gin.Context) {
 	utils.Success(c, nil)
 }
 
-// Delete DELETE /api/admin/courses/:id
+// Delete 管理员删除课程
 func (ctr *CourseController) Delete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
