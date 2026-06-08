@@ -5,12 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 启动与运行
 
 ```bash
-# 后端 — 确保 MySQL 运行且 config/app.yml 配置正确
+# 后端 — 先杀旧进程（避免旧版占端口），确保 MySQL + Redis 运行
+taskkill //F //IM edu_market.exe 2>/dev/null; taskkill //F //IM main.exe 2>/dev/null
 go run .
+
+# 验证后端是否成功启动（看是否 Redis 连接成功）
+# 日志应出现: "Redis 连接成功" 和 "验证码存储器初始化完成"
 
 # 前端开发服务器 (web/)
 cd web && npm run dev
 ```
+
+> **常见坑**：`go run .` 编译失败或被旧进程占 8080 端口时不会报明显错误，curl 打到了旧版上。
+> 解决：`netstat -ano | grep ":8080 " | grep LISTENING` 查 PID → `taskkill //F //PID <pid>` 杀掉 → 重试。
 
 后端默认监听 `:8080`，前端 Vite 开发服务器在 `:5173` 并自动代理 `/api` 和 `/uploads` 到后端。
 
@@ -105,3 +112,5 @@ go test ./utils/ -run TestGenerateCode -v
 - 文件上传存在 `uploads/`（gitignore 了除 `.gitkeep` 外的所有文件）
 - 开发阶段启动时自动 `AutoMigrate`，生产注意关闭
 - 测试文件与源码同目录放（`*_test.go`），`go test ./...` 一键运行
+- service 测试用独立数据库 `edu_market_test`（`TestMain` 自动创建），与开发库隔离，跑完自动清空
+- 开发阶段查验证码：`redis-cli GET captcha:code:<phone>`（Redis 存的是真实验证码值）

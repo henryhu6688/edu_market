@@ -20,7 +20,7 @@ func TestReviewCreateNoPurchase(t *testing.T) {
 	defer cleanTestCourse(t, course)
 
 	svc := &ReviewService{}
-	_, err := svc.Create(1, course.ID, 5, "好评")
+	_, err := svc.Create(course.UserID, course.ID, 5, "好评")
 	if err == nil {
 		t.Error("未购买课程应该不能评论")
 	}
@@ -67,19 +67,19 @@ func TestReviewCreateWithPurchase(t *testing.T) {
 
 	// 创建订单并支付
 	orderSvc := &OrderService{}
-	order, err := orderSvc.Create(1, course.ID)
+	order, err := orderSvc.Create(course.UserID, course.ID)
 	if err != nil {
 		t.Fatalf("创建订单失败: %v", err)
 	}
 	defer database.DB.Where("order_no = ?", order.OrderNo).Delete(&model.Order{})
 
-	if err := orderSvc.Pay(order.OrderNo, 1); err != nil {
+	if err := orderSvc.Pay(order.OrderNo, course.UserID); err != nil {
 		t.Fatalf("支付失败: %v", err)
 	}
 
 	// 评论
 	svc := &ReviewService{}
-	review, err := svc.Create(1, course.ID, 4, "还不错")
+	review, err := svc.Create(course.UserID, course.ID, 4, "还不错")
 	if err != nil {
 		t.Fatalf("创建评论失败: %v", err)
 	}

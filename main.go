@@ -16,7 +16,9 @@ func main() {
 	config.Load()
 
 	// 初始化 Redis
-	database.InitRedis()
+	if err := database.InitRedis(); err != nil {
+		log.Fatalf("Redis 连接失败: %v", err)
+	}
 
 	// 初始化验证码存储器
 	utils.InitCaptcha()

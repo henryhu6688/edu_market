@@ -21,7 +21,7 @@ func TestOrderCreate(t *testing.T) {
 	defer cleanTestCourse(t, course)
 
 	svc := &OrderService{}
-	order, err := svc.Create(1, course.ID)
+	order, err := svc.Create(course.UserID, course.ID)
 	if err != nil {
 		t.Fatalf("创建订单失败: %v", err)
 	}
@@ -53,10 +53,10 @@ func TestOrderListByUser(t *testing.T) {
 	defer cleanTestCourse(t, course)
 
 	svc := &OrderService{}
-	order, _ := svc.Create(1, course.ID)
+	order, _ := svc.Create(course.UserID, course.ID)
 	defer cleanTestOrders(t, order.OrderNo)
 
-	orders, total, err := svc.ListByUser(1, 1, 10, "")
+	orders, total, err := svc.ListByUser(course.UserID, 1, 10, "")
 	if err != nil {
 		t.Fatalf("获取订单列表失败: %v", err)
 	}
@@ -74,10 +74,10 @@ func TestOrderPay(t *testing.T) {
 	defer cleanTestCourse(t, course)
 
 	svc := &OrderService{}
-	order, _ := svc.Create(1, course.ID)
+	order, _ := svc.Create(course.UserID, course.ID)
 	defer cleanTestOrders(t, order.OrderNo)
 
-	err := svc.Pay(order.OrderNo, 1)
+	err := svc.Pay(order.OrderNo, course.UserID)
 	if err != nil {
 		t.Fatalf("支付失败: %v", err)
 	}
@@ -108,11 +108,11 @@ func TestOrderPayAlreadyPaid(t *testing.T) {
 	defer cleanTestCourse(t, course)
 
 	svc := &OrderService{}
-	order, _ := svc.Create(1, course.ID)
+	order, _ := svc.Create(course.UserID, course.ID)
 	defer cleanTestOrders(t, order.OrderNo)
 
-	svc.Pay(order.OrderNo, 1)
-	err := svc.Pay(order.OrderNo, 1)
+	svc.Pay(order.OrderNo, course.UserID)
+	err := svc.Pay(order.OrderNo, course.UserID)
 	if err == nil {
 		t.Error("重复支付应该返回错误")
 	}
@@ -124,11 +124,11 @@ func TestOrderListByStatus(t *testing.T) {
 	defer cleanTestCourse(t, course)
 
 	svc := &OrderService{}
-	order, _ := svc.Create(1, course.ID)
+	order, _ := svc.Create(course.UserID, course.ID)
 	defer cleanTestOrders(t, order.OrderNo)
 
 	// 查 pending 状态
-	_, total, err := svc.ListByUser(1, 1, 10, "pending")
+	_, total, err := svc.ListByUser(course.UserID, 1, 10, "pending")
 	if err != nil {
 		t.Fatalf("获取pending订单失败: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestOrderListByStatus(t *testing.T) {
 	}
 
 	// 查 paid 状态（还未支付，应该为空）
-	_, total, _ = svc.ListByUser(1, 1, 10, "paid")
+	_, total, _ = svc.ListByUser(course.UserID, 1, 10, "paid")
 	if total > 0 {
 		t.Log("有 paid 订单（可能是之前测试残留）")
 	}

@@ -39,6 +39,10 @@ func (s *CodeStore) limitKey(phone string) string {
 
 // Generate 生成验证码并存入 Redis
 func (s *CodeStore) Generate(phone string) (string, error) {
+	if database.RDB == nil {
+		return "", fmt.Errorf("Redis 未连接")
+	}
+
 	ctx := context.Background()
 
 	// 检查发送间隔
@@ -69,6 +73,10 @@ func (s *CodeStore) Generate(phone string) (string, error) {
 
 // Verify 校验验证码，匹配后删除（一次性）
 func (s *CodeStore) Verify(phone, code string) bool {
+	if database.RDB == nil {
+		return false
+	}
+
 	ctx := context.Background()
 
 	// 从 Redis 获取验证码

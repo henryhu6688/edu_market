@@ -15,14 +15,16 @@ func setupCaptchaTest(t *testing.T) {
 		config.App.Redis = config.RedisConfig{
 			Addr:     "127.0.0.1:6379",
 			Password: "",
-			DB:       1, // 使用 DB 1 避免污染开发数据
+			DB:       1,
 		}
 		config.App.Captcha = config.CaptchaConfig{
 			Length:        6,
 			ExpireSeconds: 300,
 			ResendSeconds: 1,
 		}
-		database.InitRedis()
+		if err := database.InitRedis(); err != nil {
+			t.Fatalf("Redis 连接失败: %v", err)
+		}
 		InitCaptcha()
 	}
 	// 清理测试数据
