@@ -20,7 +20,7 @@ func setupMiddlewareTest() {
 		config.App = &config.Config{}
 	}
 	config.App.JWT.Secret = "test-secret-key"
-	config.App.JWT.ExpireHours = 24
+	config.App.JWT.AccessTTLMin = 30
 }
 
 // createTestRouter 创建带中间件的测试路由
@@ -96,7 +96,7 @@ func TestJWTAuthValidToken(t *testing.T) {
 	setupMiddlewareTest()
 	r := createTestRouter(JWTAuth())
 
-	token, err := utils.GenerateToken(1, "testuser", "student")
+	token, err := utils.GenerateAccessToken(1, "testuser", "student")
 	if err != nil {
 		t.Fatalf("生成Token失败: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestJWTAuthContextInjection(t *testing.T) {
 		})
 	})
 
-	token, _ := utils.GenerateToken(99, "admin_user", "admin")
+	token, _ := utils.GenerateAccessToken(99, "admin_user", "admin")
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/whoami", nil)

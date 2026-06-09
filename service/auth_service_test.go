@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"testing"
 
 	"edu_market/database"
@@ -9,134 +8,48 @@ import (
 	"edu_market/utils"
 )
 
-// cleanTestUsers 清理测试用户
-func cleanTestUsers(t *testing.T, usernames ...string) {
-	for _, name := range usernames {
-		database.DB.Where("username = ?", name).Delete(&model.User{})
+// cleanTestUserByPhone 清理测试用户
+func cleanTestUserByPhone(t *testing.T, phones ...string) {
+	for _, phone := range phones {
+		database.DB.Where("phone = ?", phone).Delete(&model.User{})
 	}
 }
 
-// TestRegister 测试用户名密码注册
-func TestRegister(t *testing.T) {
-	username := fmt.Sprintf("test_register_%s", t.Name())
-	email := fmt.Sprintf("test_reg_%s@test.com", t.Name())
-	defer cleanTestUsers(t, username)
-
+// TestSendCodeSuccess 测试发送短信验证码（Redis 环境）
+func TestSendCodeSuccess(t *testing.T) {
+	if database.RDB == nil {
+		t.Skip("Redis 未连接，跳过")
+	}
 	svc := &AuthService{}
-	user, err := svc.Register(username, email, "123456")
-	if err != nil {
-		t.Fatalf("注册失败: %v", err)
-	}
-	if user.ID == 0 {
-		t.Error("用户ID不应为0")
-	}
-	if user.Username != username {
-		t.Errorf("用户名应为 %s，实际: %s", username, user.Username)
-	}
-	if user.Role != "student" {
-		t.Errorf("默认角色应为 student，实际: %s", user.Role)
-	}
-}
-
-// TestRegisterDuplicateUsername 测试重复用户名注册
-func TestRegisterDuplicateUsername(t *testing.T) {
-	username := fmt.Sprintf("test_dup_%s", t.Name())
-	email1 := fmt.Sprintf("dup1_%s@test.com", t.Name())
-	email2 := fmt.Sprintf("dup2_%s@test.com", t.Name())
-	defer cleanTestUsers(t, username)
-
-	svc := &AuthService{}
-	svc.Register(username, email1, "123456")
-
-	_, err := svc.Register(username, email2, "123456")
-	if err == nil {
-		t.Error("重复用户名应该返回错误")
-	}
-	if err != nil && err.Error() != "用户名已存在" {
-		t.Errorf("错误信息应为'用户名已存在'，实际: %s", err.Error())
-	}
-}
-
-// TestRegisterDuplicateEmail 测试重复邮箱注册
-func TestRegisterDuplicateEmail(t *testing.T) {
-	username1 := fmt.Sprintf("test_dup1_%s", t.Name())
-	username2 := fmt.Sprintf("test_dup2_%s", t.Name())
-	email := fmt.Sprintf("dup_email_%s@test.com", t.Name())
-	defer cleanTestUsers(t, username1, username2)
-
-	svc := &AuthService{}
-	svc.Register(username1, email, "123456")
-
-	_, err := svc.Register(username2, email, "123456")
-	if err == nil {
-		t.Error("重复邮箱应该返回错误")
-	}
-}
-
-// TestLogin 测试用户名密码登录
-func TestLogin(t *testing.T) {
-	username := fmt.Sprintf("test_login_%s", t.Name())
-	email := fmt.Sprintf("login_%s@test.com", t.Name())
-	password := "mypassword123"
-	defer cleanTestUsers(t, username)
-
-	svc := &AuthService{}
-	svc.Register(username, email, password)
-
-	token, user, err := svc.Login(username, password)
-	if err != nil {
-		t.Fatalf("登录失败: %v", err)
-	}
-	if token == "" {
-		t.Error("Token不应为空")
-	}
-	if user.Username != username {
-		t.Errorf("用户名不匹配: %s", user.Username)
-	}
-}
-
-// TestLoginWrongPassword 测试错误密码登录
-func TestLoginWrongPassword(t *testing.T) {
-	username := fmt.Sprintf("test_wrongpass_%s", t.Name())
-	email := fmt.Sprintf("wrong_%s@test.com", t.Name())
-	defer cleanTestUsers(t, username)
-
-	svc := &AuthService{}
-	svc.Register(username, email, "correct_password")
-
-	_, _, err := svc.Login(username, "wrong_password")
-	if err == nil {
-		t.Error("错误密码应该返回错误")
-	}
-}
-
-// TestLoginUserNotFound 测试不存在的用户登录
-func TestLoginUserNotFound(t *testing.T) {
-	svc := &AuthService{}
-	_, _, err := svc.Login("nonexistent_user_12345", "password")
-	if err == nil {
-		t.Error("不存在的用户应该返回错误")
-	}
-}
-
-// TestSendCode 测试发送验证码
-func TestSendCode(t *testing.T) {
-	svc := &AuthService{}
-	err := svc.SendCode("13999000001")
+	err := svc.SendCode("13988000001")
 	if err != nil {
 		t.Fatalf("发送验证码失败: %v", err)
 	}
 }
 
-// TestPhoneRegister 测试手机号注册
-func TestPhoneRegister(t *testing.T) {
-	phone := "13999000002"
-	defer database.DB.Where("phone = ?", phone).Delete(&model.User{})
+// TestLoginByCodeNewUser 测试新用户首次登录自动注册
+func TestLoginByCodeNewUser(t *testing.T) {
+	if database.RDB == nil {
+		t.Skip("Redis 未连接，跳过")
+	}
+	phone := "13988000010"
+	defer cleanTestUserByPhone(t, phone)
 
 	svc := &AuthService{}
-	user, err := svc.PhoneRegister(phone)
+
+	// 发验证码
+	utils.CaptchaStore.Generate(phone)
+
+	// 登录（应该自动注册）
+	accessToken, refreshToken, user, err := svc.LoginByCode(phone)
 	if err != nil {
-		t.Fatalf("手机号注册失败: %v", err)
+		t.Fatalf("登录失败: %v", err)
+	}
+	if accessToken == "" {
+		t.Error("accessToken 不应为空")
+	}
+	if refreshToken == "" {
+		t.Error("refreshToken 不应为空")
 	}
 	if user.Phone != phone {
 		t.Errorf("手机号应为 %s，实际: %s", phone, user.Phone)
@@ -144,81 +57,76 @@ func TestPhoneRegister(t *testing.T) {
 	if user.Username == "" {
 		t.Error("用户名不应为空")
 	}
-}
-
-// TestPhoneRegisterDuplicate 测试重复手机号注册
-func TestPhoneRegisterDuplicate(t *testing.T) {
-	phone := "13999000003"
-	defer database.DB.Where("phone = ?", phone).Delete(&model.User{})
-
-	svc := &AuthService{}
-	svc.PhoneRegister(phone)
-
-	_, err := svc.PhoneRegister(phone)
-	if err == nil {
-		t.Error("重复手机号应该返回错误")
+	if user.Role != "student" {
+		t.Errorf("角色应为 student，实际: %s", user.Role)
 	}
 }
 
-// TestPhoneLogin 测试手机号登录
-func TestPhoneLogin(t *testing.T) {
-	phone := "13999000004"
-	defer database.DB.Where("phone = ?", phone).Delete(&model.User{})
+// TestLoginByCodeExistingUser 测试已有用户登录
+func TestLoginByCodeExistingUser(t *testing.T) {
+	if database.RDB == nil {
+		t.Skip("Redis 未连接，跳过")
+	}
+	phone := "13988000011"
+	defer cleanTestUserByPhone(t, phone)
 
 	svc := &AuthService{}
-	svc.PhoneRegister(phone)
 
-	token, user, err := svc.PhoneLogin(phone)
+	// 先注册一次
+	utils.CaptchaStore.Generate(phone)
+	svc.LoginByCode(phone)
+
+	// 再登录一次
+	utils.CaptchaStore.Generate(phone)
+	accessToken, refreshToken, user2, err := svc.LoginByCode(phone)
 	if err != nil {
-		t.Fatalf("手机号登录失败: %v", err)
+		t.Fatalf("第二次登录失败: %v", err)
 	}
-	if token == "" {
-		t.Error("Token不应为空")
+	if accessToken == "" || refreshToken == "" {
+		t.Error("双 Token 不应为空")
 	}
-	if user.Phone != phone {
-		t.Errorf("手机号不匹配: %s", user.Phone)
-	}
-}
-
-// TestPhoneLoginNotFound 测试未注册手机号登录
-func TestPhoneLoginNotFound(t *testing.T) {
-	svc := &AuthService{}
-	_, _, err := svc.PhoneLogin("13800000000")
-	if err == nil {
-		t.Error("未注册手机号应该返回错误")
+	if user2.Phone != phone {
+		t.Error("手机号不匹配")
 	}
 }
 
-// TestPhoneRegisterAndLoginFlow 测试完整注册→登录流程
-func TestPhoneRegisterAndLoginFlow(t *testing.T) {
-	phone := "13999000005"
-	defer database.DB.Where("phone = ?", phone).Delete(&model.User{})
+// TestRefreshToken 测试刷新 Token
+func TestRefreshToken(t *testing.T) {
+	phone := "13988000012"
+	defer cleanTestUserByPhone(t, phone)
 
 	svc := &AuthService{}
 
-	// 发验证码
-	err := svc.SendCode(phone)
-	if err != nil {
-		t.Fatalf("发送验证码失败: %v", err)
+	// 先登录获取 refresh_token
+	if database.RDB != nil {
+		utils.CaptchaStore.Generate(phone)
 	}
-
-	// 验证码应存在
-	code, _ := utils.CaptchaStore.Generate(phone) // 重新生成绕过限频
-	_ = code
-
-	// 注册
-	user, err := svc.PhoneRegister(phone)
-	if err != nil {
-		t.Fatalf("注册失败: %v", err)
-	}
-	t.Logf("注册成功: ID=%d Phone=%s", user.ID, user.Phone)
-
-	// 登录
-	token, loginUser, err := svc.PhoneLogin(phone)
+	_, oldRefresh, _, err := svc.LoginByCode(phone)
 	if err != nil {
 		t.Fatalf("登录失败: %v", err)
 	}
-	if token == "" || loginUser.ID != user.ID {
-		t.Error("登录返回数据不一致")
+
+	// 刷新
+	access, newRefresh, err := svc.Refresh(oldRefresh)
+	if err != nil {
+		t.Fatalf("刷新失败: %v", err)
+	}
+	if access == "" {
+		t.Error("新 accessToken 不应为空")
+	}
+	if newRefresh == "" {
+		t.Error("新 refreshToken 不应为空")
+	}
+	if newRefresh == oldRefresh {
+		t.Error("新 refreshToken 应与旧的不同")
+	}
+}
+
+// TestRefreshTokenInvalid 测试无效刷新
+func TestRefreshTokenInvalid(t *testing.T) {
+	svc := &AuthService{}
+	_, _, err := svc.Refresh("invalid-refresh-token")
+	if err == nil {
+		t.Error("无效 refreshToken 应该返回错误")
 	}
 }

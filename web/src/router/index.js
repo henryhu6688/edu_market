@@ -15,12 +15,6 @@ const routes = [
     meta: { title: '登录 - EduMarket', guest: true }
   },
   {
-    path: '/register',
-    name: 'Register',
-    component: () => import('@/views/Register.vue'),
-    meta: { title: '注册 - EduMarket', guest: true }
-  },
-  {
     path: '/course/:id',
     name: 'CourseDetail',
     component: () => import('@/views/CourseDetail.vue'),

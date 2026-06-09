@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"edu_market/database"
 	"edu_market/model"
@@ -16,118 +17,84 @@ import (
 // AuthService 认证服务
 type AuthService struct{}
 
-// Register 用户注册
-func (s *AuthService) Register(username, email, password string) (*model.User, error) {
-	// 检查用户名是否存在
-	var existUser model.User
-	if err := database.DB.Where("username = ?", username).First(&existUser).Error; err == nil {
-		return nil, errors.New("用户名已存在")
-	}
-
-	// 检查邮箱是否存在
-	if err := database.DB.Where("email = ?", email).First(&existUser).Error; err == nil {
-		return nil, errors.New("邮箱已注册")
-	}
-
-	// 密码加密
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, errors.New("密码加密失败")
-	}
-
-	user := &model.User{
-		Username:     username,
-		Email:        email,
-		PasswordHash: string(hash),
-		Role:         "student",
-	}
-
-	if err := database.DB.Create(user).Error; err != nil {
-		return nil, errors.New("注册失败")
-	}
-
-	return user, nil
-}
-
-// Login 用户登录
-func (s *AuthService) Login(username, password string) (string, *model.User, error) {
-	var user model.User
-	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", nil, errors.New("用户名或密码错误")
-		}
-		return "", nil, err
-	}
-
-	// 验证密码
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", nil, errors.New("用户名或密码错误")
-	}
-
-	// 生成 JWT
-	token, err := utils.GenerateToken(user.ID, user.Username, user.Role)
-	if err != nil {
-		return "", nil, errors.New("Token生成失败")
-	}
-
-	return token, &user, nil
-}
-
-// SendCode 发送手机验证码（开发阶段控制台打印）
+// SendCode 发送短信验证码
 func (s *AuthService) SendCode(phone string) error {
 	_, err := utils.CaptchaStore.Generate(phone)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
-// PhoneRegister 手机号注册（验证码已由 controller 校验通过）
-func (s *AuthService) PhoneRegister(phone string) (*model.User, error) {
-	// 检查手机号是否已注册
-	var existUser model.User
-	if err := database.DB.Where("phone = ?", phone).First(&existUser).Error; err == nil {
-		return nil, errors.New("手机号已注册")
-	}
-
-	// 自动生成用户名和随机密码
-	username := fmt.Sprintf("user_%s", phone[7:]) // 用手机号后4位生成用户名
-	password := fmt.Sprintf("%08d", rand.Intn(100000000)) // 8位随机密码
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, errors.New("密码加密失败")
-	}
-
-	user := &model.User{
-		Username:     username,
-		Phone:        phone,
-		PasswordHash: string(hash),
-		Role:         "student",
-	}
-
-	if err := database.DB.Create(user).Error; err != nil {
-		return nil, errors.New("注册失败")
-	}
-
-	return user, nil
-}
-
-// PhoneLogin 手机号验证码登录
-func (s *AuthService) PhoneLogin(phone string) (string, *model.User, error) {
-	var user model.User
-	if err := database.DB.Where("phone = ?", phone).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", nil, errors.New("手机号未注册")
+// LoginByCode 统一入口：手机号+验证码登录/注册
+func (s *AuthService) LoginByCode(phone string) (accessToken, refreshToken string, user *model.User, err error) {
+	var u model.User
+	result := database.DB.Where("phone = ?", phone).First(&u)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// 新用户 → 自动注册
+		u = model.User{
+			Username:     fmt.Sprintf("user_%s", phone[7:]),
+			Phone:        phone,
+			PasswordHash: randomBcryptHash(),
+			Role:         "student",
 		}
-		return "", nil, err
+		if err := database.DB.Create(&u).Error; err != nil {
+			return "", "", nil, errors.New("自动注册失败")
+		}
+	} else if result.Error != nil {
+		return "", "", nil, result.Error
 	}
 
-	// 生成 JWT
-	token, err := utils.GenerateToken(user.ID, user.Username, user.Role)
+	// 生成双 Token
+	accessToken, err = utils.GenerateAccessToken(u.ID, u.Username, u.Role)
 	if err != nil {
-		return "", nil, errors.New("Token生成失败")
+		return "", "", nil, errors.New("Token生成失败")
 	}
 
-	return token, &user, nil
+	refreshToken, err = utils.GenerateRefreshToken()
+	if err != nil {
+		return "", "", nil, errors.New("RefreshToken生成失败")
+	}
+
+	// 存 refresh token 到用户表
+	expiresAt := time.Now().Add(utils.RefreshTTL())
+	database.DB.Model(&u).Updates(map[string]interface{}{
+		"refresh_token":      refreshToken,
+		"refresh_expires_at": &expiresAt,
+	})
+
+	return accessToken, refreshToken, &u, nil
+}
+
+// Refresh 刷新双 Token
+func (s *AuthService) Refresh(oldRefreshToken string) (accessToken, newRefreshToken string, err error) {
+	var u model.User
+	if err := database.DB.Where("refresh_token = ?", oldRefreshToken).First(&u).Error; err != nil {
+		return "", "", errors.New("无效的refresh_token")
+	}
+	if u.RefreshExpiresAt == nil || time.Now().After(*u.RefreshExpiresAt) {
+		return "", "", errors.New("refresh_token已过期，请重新登录")
+	}
+
+	accessToken, err = utils.GenerateAccessToken(u.ID, u.Username, u.Role)
+	if err != nil {
+		return "", "", errors.New("Token生成失败")
+	}
+
+	newRefreshToken, err = utils.GenerateRefreshToken()
+	if err != nil {
+		return "", "", errors.New("RefreshToken生成失败")
+	}
+
+	expiresAt := time.Now().Add(utils.RefreshTTL())
+	database.DB.Model(&u).Updates(map[string]interface{}{
+		"refresh_token":      newRefreshToken,
+		"refresh_expires_at": &expiresAt,
+	})
+
+	return accessToken, newRefreshToken, nil
+}
+
+// randomBcryptHash 随机密码的 bcrypt hash（自动注册用）
+func randomBcryptHash() string {
+	raw := fmt.Sprintf("%08d", rand.Intn(100000000))
+	hash, _ := bcrypt.GenerateFromPassword([]byte(raw), bcrypt.DefaultCost)
+	return string(hash)
 }

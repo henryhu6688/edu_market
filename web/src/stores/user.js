@@ -2,23 +2,35 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
-  const token = ref(localStorage.getItem('token') || '')
+  const accessToken = ref(localStorage.getItem('access_token') || '')
+  const refreshToken = ref(localStorage.getItem('refresh_token') || '')
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
 
-  const isLoggedIn = computed(() => !!token.value)
+  const isLoggedIn = computed(() => !!accessToken.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
-  function setAuth(newToken, newUser) {
-    token.value = newToken
+  function setAuth(access, refresh, newUser) {
+    accessToken.value = access
+    refreshToken.value = refresh
     user.value = newUser
-    localStorage.setItem('token', newToken)
+    localStorage.setItem('access_token', access)
+    localStorage.setItem('refresh_token', refresh)
     localStorage.setItem('user', JSON.stringify(newUser))
   }
 
+  function updateAccessToken(access, refresh) {
+    accessToken.value = access
+    refreshToken.value = refresh
+    localStorage.setItem('access_token', access)
+    if (refresh) localStorage.setItem('refresh_token', refresh)
+  }
+
   function logout() {
-    token.value = ''
+    accessToken.value = ''
+    refreshToken.value = ''
     user.value = null
-    localStorage.removeItem('token')
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
   }
 
@@ -27,5 +39,5 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('user', JSON.stringify(user.value))
   }
 
-  return { token, user, isLoggedIn, isAdmin, setAuth, logout, updateUser }
+  return { accessToken, refreshToken, user, isLoggedIn, isAdmin, setAuth, updateAccessToken, logout, updateUser }
 })

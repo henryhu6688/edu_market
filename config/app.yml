@@ -20,6 +20,8 @@ redis:
 jwt:
   secret: edu-market-secret-key-change-in-production
   expire_hours: 24
+  access_ttl_minutes: 30
+  refresh_ttl_hours: 24
 
 ai:
   provider: deepseek

@@ -62,7 +62,7 @@ func TestMain(m *testing.M) {
 		Redis: config.RedisConfig{
 			Addr: "127.0.0.1:6379", Password: "", DB: 2,
 		},
-		JWT: config.JWTConfig{Secret: "test-secret-key", ExpireHours: 24},
+		JWT: config.JWTConfig{Secret: "test-secret-key", AccessTTLMin: 30, RefreshTTLHours: 24},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
 	}
 

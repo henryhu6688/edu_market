@@ -30,11 +30,10 @@ func Setup() *gin.Engine {
 	api := r.Group("/api")
 	{
 		// 公开接口
+		api.GET("/captcha/image", authCtrl.GenerateCaptcha)
 		api.POST("/send-code", authCtrl.SendCode)
-		api.POST("/register", authCtrl.Register)
-		api.POST("/register/phone", authCtrl.PhoneRegister)
-		api.POST("/login", authCtrl.Login)
-		api.POST("/login/phone", authCtrl.PhoneLogin)
+		api.POST("/login", authCtrl.LoginByCode)
+		api.POST("/refresh", authCtrl.Refresh)
 		api.GET("/courses", courseCtrl.List)
 		api.GET("/courses/:id", courseCtrl.GetByID)
 		api.GET("/courses/:id/reviews", reviewCtrl.ListByCourse)

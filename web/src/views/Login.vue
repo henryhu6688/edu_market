@@ -1,97 +1,111 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <h2>登录</h2>
-      <!-- 切换 tab -->
-      <div class="tabs">
-        <button :class="{ active: mode === 'password' }" @click="mode = 'password'">密码登录</button>
-        <button :class="{ active: mode === 'phone' }" @click="mode = 'phone'">验证码登录</button>
-      </div>
+      <h2>登录 / 注册</h2>
+      <p class="subtitle">新用户自动注册，老用户直接登录</p>
 
-      <!-- 密码登录 -->
-      <form v-if="mode === 'password'" @submit.prevent="handleLogin">
-        <div class="form-group">
-          <label>用户名</label>
-          <input v-model="pwdForm.username" type="text" required placeholder="请输入用户名" />
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <input v-model="pwdForm.password" type="password" required placeholder="请输入密码" />
-        </div>
-        <p v-if="error" class="error">{{ error }}</p>
-        <button type="submit" :disabled="loading" class="btn-submit">
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-      </form>
-
-      <!-- 验证码登录 -->
-      <form v-else @submit.prevent="handlePhoneLogin">
+      <form @submit.prevent="handleLogin">
+        <!-- 手机号 -->
         <div class="form-group">
           <label>手机号</label>
-          <input v-model="phoneForm.phone" type="text" required maxlength="11" placeholder="请输入注册手机号" />
+          <input v-model="phone" type="text" required maxlength="11" placeholder="请输入11位手机号" />
         </div>
+
+        <!-- 验证码 -->
         <div class="form-group code-row">
           <label>验证码</label>
           <div class="code-input">
-            <input v-model="phoneForm.code" type="text" required maxlength="6" placeholder="6位验证码" />
-            <button type="button" class="btn-code" :disabled="codeCooldown > 0" @click="sendVerificationCode">
-              {{ codeCooldown > 0 ? codeCooldown + 's' : '发送验证码' }}
+            <input v-model="code" type="text" required maxlength="6" placeholder="6位验证码" />
+            <button type="button" class="btn-code" :disabled="codeCooldown > 0 || sending" @click="sendVerificationCode">
+              {{ codeCooldown > 0 ? codeCooldown + 's' : sending ? '发送中...' : '发送验证码' }}
             </button>
           </div>
         </div>
+
+        <!-- 图形验证码弹窗 -->
+        <div v-if="showCaptcha" class="captcha-overlay">
+          <div class="captcha-box">
+            <h4>请输入图形验证码</h4>
+            <img :src="captchaImage" alt="图形验证码" class="captcha-img" @click="loadCaptcha" />
+            <p class="captcha-hint">点击图片刷新</p>
+            <input v-model="captchaCode" type="text" maxlength="4" placeholder="4位验证码" class="captcha-input" @keyup.enter="confirmCaptcha" />
+            <div class="captcha-btns">
+              <button type="button" class="btn-cancel" @click="showCaptcha = false">取消</button>
+              <button type="button" class="btn-confirm" :disabled="!captchaCode" @click="confirmCaptcha">确认发送</button>
+            </div>
+          </div>
+        </div>
+
         <p v-if="error" class="error">{{ error }}</p>
         <button type="submit" :disabled="loading" class="btn-submit">
-          {{ loading ? '登录中...' : '登录' }}
+          {{ loading ? '登录中...' : '登录 / 注册' }}
         </button>
       </form>
-
-      <p class="switch">还没有账号？<router-link to="/register">立即注册</router-link></p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { login, loginByPhone, sendCode } from '@/api/auth'
+import { loginByCode, sendCode, getCaptcha } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
-const mode = ref('password')
+
+const phone = ref('')
+const code = ref('')
 const error = ref('')
 const loading = ref(false)
+const sending = ref(false)
 const codeCooldown = ref(0)
 
-const pwdForm = reactive({ username: '', password: '' })
-const phoneForm = reactive({ phone: '', code: '' })
+// 图形验证码
+const showCaptcha = ref(false)
+const captchaId = ref('')
+const captchaImage = ref('')
+const captchaCode = ref('')
+let pendingCaptchaResolve = null
 
-// 密码登录
-async function handleLogin() {
-  error.value = ''
-  loading.value = true
+// 加载图形验证码
+async function loadCaptcha() {
   try {
-    const res = await login(pwdForm)
-    if (res.code === 200) {
-      userStore.setAuth(res.data.token, res.data.user)
-      router.push('/')
-    }
+    const res = await getCaptcha()
+    captchaId.value = res.data.captcha_id
+    captchaImage.value = res.data.captcha_image
   } catch (e) {
-    error.value = e?.message || '登录失败，请检查用户名和密码'
-  } finally {
-    loading.value = false
+    error.value = '获取图形验证码失败'
+    showCaptcha.value = false
   }
 }
 
-// 发送验证码
-async function sendVerificationCode() {
+// 点击"发送验证码"
+function sendVerificationCode() {
   error.value = ''
-  if (!phoneForm.phone || phoneForm.phone.length !== 11) {
+  if (!phone.value || phone.value.length !== 11) {
     error.value = '请输入正确的11位手机号'
     return
   }
+
+  // 弹出图形验证码
+  captchaCode.value = ''
+  loadCaptcha()
+  showCaptcha.value = true
+}
+
+// 确认图形验证码 → 发短信
+async function confirmCaptcha() {
+  if (!captchaCode.value) return
+  showCaptcha.value = false
+  sending.value = true
   try {
-    await sendCode(phoneForm.phone)
+    await sendCode({
+      phone: phone.value,
+      captcha_id: captchaId.value,
+      captcha_code: captchaCode.value
+    })
+    // 倒计时
     codeCooldown.value = 60
     const timer = setInterval(() => {
       codeCooldown.value--
@@ -99,17 +113,27 @@ async function sendVerificationCode() {
     }, 1000)
   } catch (e) {
     error.value = e?.message || '发送失败'
+  } finally {
+    sending.value = false
   }
 }
 
-// 验证码登录
-async function handlePhoneLogin() {
+// 登录/注册
+async function handleLogin() {
   error.value = ''
+  if (!code.value) {
+    error.value = '请输入验证码'
+    return
+  }
   loading.value = true
   try {
-    const res = await loginByPhone(phoneForm)
+    const res = await loginByCode({ phone: phone.value, code: code.value })
     if (res.code === 200) {
-      userStore.setAuth(res.data.token, res.data.user)
+      userStore.setAuth(
+        res.data.access_token,
+        res.data.refresh_token,
+        res.data.user
+      )
       router.push('/')
     }
   } catch (e) {
@@ -125,14 +149,10 @@ async function handlePhoneLogin() {
 .auth-card {
   width: 420px; background: #fff; padding: 40px;
   border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  position: relative;
 }
-.auth-card h2 { margin: 0 0 20px; text-align: center; color: #1a1a2e; }
-
-.tabs { display: flex; gap: 0; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; }
-.tabs button {
-  flex: 1; padding: 10px; border: none; background: #f5f5f5; font-size: 14px; cursor: pointer; color: #666;
-}
-.tabs button.active { background: #4f46e5; color: #fff; }
+.auth-card h2 { margin: 0 0 8px; text-align: center; color: #1a1a2e; }
+.subtitle { text-align: center; color: #999; font-size: 13px; margin: 0 0 24px; }
 
 .form-group { margin-bottom: 18px; }
 .form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
@@ -157,6 +177,32 @@ async function handlePhoneLogin() {
 }
 .btn-submit:hover { background: #4338ca; }
 .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* 图形验证码弹窗 */
+.captcha-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.captcha-box {
+  background: #fff; padding: 30px; border-radius: 12px; width: 320px; text-align: center;
+}
+.captcha-box h4 { margin: 0 0 16px; color: #333; }
+.captcha-img { border: 1px solid #ddd; border-radius: 6px; cursor: pointer; max-width: 100%; height: auto; }
+.captcha-hint { font-size: 12px; color: #999; margin: 4px 0 16px; }
+.captcha-input {
+  width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 18px; text-align: center; letter-spacing: 8px; outline: none; box-sizing: border-box;
+}
+.captcha-input:focus { border-color: #4f46e5; }
+.captcha-btns { display: flex; gap: 10px; margin-top: 16px; }
+.btn-cancel {
+  flex: 1; padding: 10px; border: 1px solid #ddd; background: #fff; border-radius: 8px; cursor: pointer; color: #666;
+}
+.btn-confirm {
+  flex: 2; padding: 10px; border: none; background: #4f46e5; color: #fff; border-radius: 8px; cursor: pointer;
+}
+.btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .switch { text-align: center; margin-top: 18px; font-size: 14px; color: #888; }
 .switch a { color: #4f46e5; }
 </style>

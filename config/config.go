@@ -51,8 +51,10 @@ type RedisConfig struct {
 
 // JWTConfig JWT 配置
 type JWTConfig struct {
-	Secret      string `mapstructure:"secret"`
-	ExpireHours int    `mapstructure:"expire_hours"`
+	Secret          string `mapstructure:"secret"`
+	ExpireHours     int    `mapstructure:"expire_hours"`
+	AccessTTLMin    int    `mapstructure:"access_ttl_minutes"`
+	RefreshTTLHours int    `mapstructure:"refresh_ttl_hours"`
 }
 
 // AIConfig AI 配置

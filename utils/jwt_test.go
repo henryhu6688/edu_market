@@ -13,14 +13,14 @@ func setupJWTTest() {
 		config.App = &config.Config{}
 	}
 	config.App.JWT.Secret = "test-secret-key"
-	config.App.JWT.ExpireHours = 24
+	config.App.JWT.AccessTTLMin = 30
 }
 
-// TestGenerateToken 测试Token生成
-func TestGenerateToken(t *testing.T) {
+// TestGenerateAccessToken 测试Token生成
+func TestGenerateAccessToken(t *testing.T) {
 	setupJWTTest()
 
-	token, err := GenerateToken(1, "testuser", "student")
+	token, err := GenerateAccessToken(1, "testuser", "student")
 	if err != nil {
 		t.Fatalf("生成Token失败: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestGenerateToken(t *testing.T) {
 func TestParseToken(t *testing.T) {
 	setupJWTTest()
 
-	token, _ := GenerateToken(1, "testuser", "student")
+	token, _ := GenerateAccessToken(1, "testuser", "student")
 	claims, err := ParseToken(token)
 	if err != nil {
 		t.Fatalf("解析Token失败: %v", err)
@@ -74,7 +74,7 @@ func TestParseTokenEmpty(t *testing.T) {
 func TestTokenClaims(t *testing.T) {
 	setupJWTTest()
 
-	token, _ := GenerateToken(42, "admin_user", "admin")
+	token, _ := GenerateAccessToken(42, "admin_user", "admin")
 	claims, err := ParseToken(token)
 	if err != nil {
 		t.Fatalf("解析Token失败: %v", err)
@@ -88,8 +88,8 @@ func TestTokenClaims(t *testing.T) {
 	if claims.IssuedAt == nil {
 		t.Error("IssuedAt 不应为空")
 	}
-	// 验证过期时间约为24小时
-	expectedExpire := time.Now().Add(24 * time.Hour)
+	// 验证过期时间约为30分钟
+	expectedExpire := time.Now().Add(30 * time.Minute)
 	diff := claims.ExpiresAt.Time.Sub(expectedExpire)
 	if diff < -time.Minute || diff > time.Minute {
 		t.Errorf("过期时间偏差过大: %v", diff)
@@ -100,7 +100,7 @@ func TestTokenClaims(t *testing.T) {
 func TestDifferentSecrets(t *testing.T) {
 	// 用密钥A生成
 	setupJWTTest()
-	token, _ := GenerateToken(1, "user", "student")
+	token, _ := GenerateAccessToken(1, "user", "student")
 
 	// 换密钥B
 	config.App.JWT.Secret = "different-secret"

@@ -12,8 +12,7 @@
           <a href="#" @click.prevent="handleLogout">退出</a>
         </template>
         <template v-else>
-          <router-link to="/login">登录</router-link>
-          <router-link to="/register" class="btn-register">注册</router-link>
+          <router-link to="/login" class="btn-register">登录 / 注册</router-link>
         </template>
       </div>
     </div>
