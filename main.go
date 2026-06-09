@@ -15,6 +15,9 @@ func main() {
 	// 加载配置
 	config.Load()
 
+	// 初始化日志系统
+	utils.InitLogger()
+
 	// 初始化 Redis
 	if err := database.InitRedis(); err != nil {
 		log.Fatalf("Redis 连接失败: %v", err)

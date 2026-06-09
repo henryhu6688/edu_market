@@ -21,6 +21,17 @@ cd web && npm run dev
 
 后端默认监听 `:8080`，前端 Vite 开发服务器在 `:5173` 并自动代理 `/api` 和 `/uploads` 到后端。
 
+### 日志系统
+
+`utils/logger.go` 基于 `slog` + `lumberjack`，开发模式双写（控制台彩色 + `logs/app.log`），生产模式 JSON 格式只写文件，自动滚动（10MB 切分，保留 30 个，7 天过期，gzip 压缩）。
+
+```bash
+# 查看日志
+tail -f logs/app.log
+```
+
+`logs/` 目录已 gitignore。
+
 ```bash
 # 运行所有测试（需要 MySQL + Redis）
 go test ./...
@@ -54,7 +65,7 @@ go test ./utils/ -run TestGenerateCode -v
 | `dto/response/` | 统一响应 `{code, message, data}` + 分页 `PageData` |
 | `config/` | Viper 读取 `config/app.yml`，全局 `config.App` 可用 |
 | `database/` | GORM + MySQL 初始化(自动迁移) + Redis 客户端初始化 |
-| `utils/` | JWT 生成/解析 (HS256)、统一响应函数、验证码存储 `CodeStore` (Redis 版，支持限频/过期/一次性) |
+| `utils/` | JWT 生成/解析 (HS256)、统一响应函数、结构化日志(`slog`+`lumberjack`)、验证码存储 `CodeStore` (Redis 版，支持限频/过期/一次性) |
 
 ### 数据模型
 
@@ -69,11 +80,10 @@ go test ./utils/ -run TestGenerateCode -v
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| POST | `/api/send-code` | 无 | 发送手机验证码（Redis存储，5分钟有效，60s限频） |
-| POST | `/api/register` | 无 | 用户名+邮箱+密码注册 |
-| POST | `/api/register/phone` | 无 | 手机号+验证码注册（自动生成用户名和随机密码） |
-| POST | `/api/login` | 无 | 用户名+密码登录，返回 JWT |
-| POST | `/api/login/phone` | 无 | 手机号+验证码登录，返回 JWT |
+| GET | `/api/captcha/image` | 无 | 获取图形验证码（base64图片+`captcha_id`） |
+| POST | `/api/send-code` | 无 | 发送手机验证码（需传图形验证码 `captcha_id`+`captcha_code`） |
+| POST | `/api/login` | 无 | 手机号+短信验证码登录/注册（新用户自动注册） |
+| POST | `/api/refresh` | 无 | 刷新 Token（用 `refresh_token` 换新 `access_token`） |
 | GET | `/api/courses` | 无 | 课程列表 |
 | GET | `/api/courses/:id` | 无 | 课程详情 |
 | GET | `/api/courses/:id/reviews` | 无 | 课程评论 |
@@ -93,24 +103,48 @@ go test ./utils/ -run TestGenerateCode -v
 | PUT | `/api/admin/categories/:id` | Admin | 更新分类 |
 | DELETE | `/api/admin/categories/:id` | Admin | 删除分类 |
 
+### 认证流程
+
+```
+1. GET /api/captcha/image  →  获取图形验证码（base64图片 + captcha_id）
+2. POST /api/send-code     →  传 phone + captcha_id + captcha_code → Redis 存 6 位短信码
+3. POST /api/login          →  传 phone + 短信验证码
+   ├─ 新用户 → 自动注册（用户名 user_XXXX，随机密码）
+   └─ 老用户 → 直接登录
+   返回: { access_token, refresh_token, user }
+4. 后续请求 → Authorization: Bearer <access_token>
+5. access_token 过期 → POST /api/refresh { refresh_token } → 刷新 token
+```
+
+### 双 Token 机制
+
+| Token | 类型 | TTL | 用途 |
+|-------|------|-----|------|
+| `access_token` | JWT (HS256) | 30 分钟（`jwt.access_ttl_minutes`） | 接口认证 |
+| `refresh_token` | 随机 hex 字符串 | 24 小时（`jwt.refresh_ttl_hours`） | 静默刷新 access_token |
+
 ### 前端 (`web/`)
 
 - Vue3 + Vite + Pinia + Vue Router + Axios
-- `web/src/api/` 按模块封装 HTTP 调用（auth/course/order/ai/review/category）
-- Pinia store: `web/src/stores/user.js` 管理登录状态和 token
-- 路由守卫：`meta.auth` 要求登录，`meta.admin` 要求管理员角色，`meta.guest` 登录后自动跳首页
+- 登录/注册统一入口：手机号 + 验证码，新用户自动注册
+- 图形验证码弹窗：点"发送验证码"先弹出 4 位图形验证码，通过后才发短信
+- Pinia store: `accessToken` / `refreshToken` / `user`（路由守卫用 `userStore.accessToken` 判断登录态）
+- 路由守卫：`meta.auth` 要求登录（检查 `userStore.accessToken`），`meta.admin` 要求管理员角色
 - Vite 代理：`/api` → `localhost:8080`，`/uploads` → `localhost:8080`
 
 ## 关键约定
 
 - 新增功能按 **model → dto → service → controller → router** 这条流水线开发
 - 所有 HTTP 响应统一走 `utils/response.go` 的响应函数，不直接 `c.JSON`
-- JWT token 通过 `Authorization: Bearer <token>` 传递，24h 过期，HS256 签名
+- JWT access_token 通过 `Authorization: Bearer <token>` 传递，access 30min / refresh 24h
 - 验证码 6 位数字，Redis 存储自动过期，限频 60s（`utils/codeStore`），开发阶段控制台打印
-- 启动顺序：`config.Load` → `database.InitRedis` → `utils.InitCaptcha` → `database.Init`
+- 发送短信前需过图形验证码（`utils/captcha/image.go`，4位字母数字，存 Redis）
+- 启动顺序：`config.Load` → `utils.InitLogger` → `database.InitRedis` → `utils.InitCaptcha` → `database.Init`
 - 验证码校验后立即删除（一次性），同时释放同手机号限频 key 方便连续操作
 - 文件上传存在 `uploads/`（gitignore 了除 `.gitkeep` 外的所有文件）
 - 开发阶段启动时自动 `AutoMigrate`，生产注意关闭
+- 所有 Model 外键设置 `OnDelete:CASCADE`，删父记录自动删子记录
 - 测试文件与源码同目录放（`*_test.go`），`go test ./...` 一键运行
 - service 测试用独立数据库 `edu_market_test`（`TestMain` 自动创建），与开发库隔离，跑完自动清空
-- 开发阶段查验证码：`redis-cli GET captcha:code:<phone>`（Redis 存的是真实验证码值）
+- 开发阶段查验证码：`redis-cli GET captcha:sms:<phone>`（Redis 存的是真实验证码值）
+- 项目级 Rules 在 `.claude/rules/` 目录，子 Agent 受限时主会话直接遵循这些规则（当前后端 `deepseek-v4-pro` 不支持 spawn 子 Agent）

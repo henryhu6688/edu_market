@@ -18,6 +18,9 @@ npm-debug.log*
 *.swp
 *.swo
 
+# --- Logs ---
+logs/
+
 # --- Env / Secrets ---
 .env
 .env.local

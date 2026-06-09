@@ -73,13 +73,13 @@ router.beforeEach((to, from, next) => {
   document.title = to.meta.title || 'EduMarket'
   const userStore = useUserStore()
 
-  if (to.meta.auth && !userStore.token) {
+  if (to.meta.auth && !userStore.accessToken) {
     return next('/login')
   }
   if (to.meta.admin && userStore.user?.role !== 'admin') {
     return next('/')
   }
-  if (to.meta.guest && userStore.token) {
+  if (to.meta.guest && userStore.accessToken) {
     return next('/')
   }
   next()

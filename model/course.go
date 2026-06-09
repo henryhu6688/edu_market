@@ -19,8 +19,8 @@ type Course struct {
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// 关联
-	Category Category `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
-	User     User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Category Category `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"category,omitempty"`
+	User     User     `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
 }
 
 // TableName 指定表名

@@ -13,7 +13,7 @@ type Conversation struct {
 	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
 
 	// 关联
-	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
 }
 
 // TableName 指定表名

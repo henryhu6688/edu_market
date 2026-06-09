@@ -20,8 +20,8 @@ type Order struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// 关联
-	User   User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Course Course `gorm:"foreignKey:CourseID" json:"course,omitempty"`
+	User   User   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	Course Course `gorm:"foreignKey:CourseID;constraint:OnDelete:CASCADE" json:"course,omitempty"`
 }
 
 // TableName 指定表名
