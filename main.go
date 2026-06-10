@@ -7,6 +7,7 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/router"
+	"edu_market/service"
 	"edu_market/utils"
 )
 
@@ -25,6 +26,9 @@ func main() {
 
 	// 初始化验证码存储器
 	utils.InitCaptcha()
+
+	// 初始化 RAG 服务
+	service.InitRAG()
 
 	// 初始化数据库
 	database.Init()

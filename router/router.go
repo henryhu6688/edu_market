@@ -3,6 +3,7 @@ package router
 import (
 	"edu_market/controller"
 	"edu_market/middleware"
+	"edu_market/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,6 +28,11 @@ func Setup() *gin.Engine {
 	reviewCtrl := &controller.ReviewController{}
 	categoryCtrl := &controller.CategoryController{}
 
+	// Agent 系统初始化
+	agentEngine := service.NewAgentEngine()
+	agentSvc := service.NewAgentService(agentEngine)
+	agentCtrl := controller.NewAgentController(agentSvc)
+
 	api := r.Group("/api")
 	{
 		// 公开接口
@@ -50,9 +56,14 @@ func Setup() *gin.Engine {
 			auth.POST("/orders", orderCtrl.Create)
 			auth.GET("/orders", orderCtrl.List)
 			auth.POST("/orders/:order_no/pay", orderCtrl.Pay)
-			// AI
+			// AI（旧版，保持兼容）
 			auth.POST("/ai/chat", aiCtrl.Chat)
 			auth.GET("/ai/history", aiCtrl.History)
+			// Agent（新版）
+			auth.POST("/agent/chat", agentCtrl.Chat)
+			auth.GET("/agent/sessions", agentCtrl.GetSessions)
+			auth.DELETE("/agent/sessions/:id", agentCtrl.DeleteSession)
+			auth.GET("/agent/sessions/:id/messages", agentCtrl.GetMessages)
 			// 评论
 			auth.POST("/reviews", reviewCtrl.Create)
 		}
