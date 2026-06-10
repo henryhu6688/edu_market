@@ -17,6 +17,7 @@ const (
 
 // ToolCall JSON 结构（存 messages.tool_calls 字段）
 type ToolCall struct {
+	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 	Result    string `json:"result,omitempty"`

@@ -139,12 +139,23 @@ func (e *AgentEngine) Run(
 					result = tool.Execute(session.UserID, tc.Function.Arguments)
 				}
 
-				// 存 tool message（含结果）
+				// 存 assistant tool_calls 消息（DB 必须有，否则后续 loadContext 时报错）
+				assistantToolMsg := model.Message{
+					SessionID: session.ID,
+					Role:      model.RoleAssistant,
+					Content:   "", // tool_calls 消息不需要 content
+					ToolCalls: model.ToolCalls{{CallID: tc.ID, Name: toolName, Arguments: tc.Function.Arguments}},
+				}
+				if err := database.DB.Create(&assistantToolMsg).Error; err != nil {
+					return fmt.Errorf("保存 tool_calls 消息失败: %w", err)
+				}
+
+				// 存 tool result 消息（含结果和 call_id）
 				toolMsg := model.Message{
 					SessionID: session.ID,
 					Role:      model.RoleTool,
 					Content:   result.Content,
-					ToolCalls: model.ToolCalls{{Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}},
+					ToolCalls: model.ToolCalls{{CallID: tc.ID, Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}},
 				}
 				if err := database.DB.Create(&toolMsg).Error; err != nil {
 					return fmt.Errorf("保存工具消息失败: %w", err)
@@ -209,10 +220,22 @@ func (e *AgentEngine) loadContext(sessionID uint, systemPrompt string) []agentCh
 
 	for _, m := range dbMsgs {
 		msg := agentChatMsg{Role: m.Role, Content: m.Content}
-		if len(m.ToolCalls) > 0 {
+		if m.Role == model.RoleTool && len(m.ToolCalls) > 0 {
+			// tool 消息：设置 tool_call_id 关联到对应的 assistant tool_call
+			callID := m.ToolCalls[0].CallID
+			if callID == "" {
+				callID = fmt.Sprintf("call_legacy_%d", m.ID)
+			}
+			msg.ToolCallID = callID
+		} else if m.Role == model.RoleAssistant && len(m.ToolCalls) > 0 {
+			// assistant 消息：重建 tool_calls 数组
 			for _, tc := range m.ToolCalls {
+				callID := tc.CallID
+				if callID == "" {
+					callID = fmt.Sprintf("call_legacy_%d", m.ID)
+				}
 				msg.ToolCalls = append(msg.ToolCalls, toolCallItem{
-					ID:       fmt.Sprintf("call_%d", m.ID),
+					ID:       callID,
 					Type:     "function",
 					Function: toolCallFunc{Name: tc.Name, Arguments: tc.Arguments},
 				})
@@ -279,7 +302,7 @@ func (e *AgentEngine) streamAnswer(answer string, sseHandler SSEHandler) error {
 			return err
 		}
 		// 每个字之间延迟 30ms，创造打字机效果
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 	return nil
 }
