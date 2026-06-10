@@ -165,10 +165,24 @@ async function send() {
     let currentEvent = ''
     let currentAssistantIdx = -1
     let streamEnded = false
+    const streamStart = Date.now()
 
     while (!streamEnded) {
-      const { done, value } = await reader.read()
-      if (done) break
+      // 30 秒超时保护，防止流卡住
+      let readResult
+      try {
+        readResult = await Promise.race([
+          reader.read(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('STREAM_TIMEOUT')), 30000))
+        ])
+      } catch (raceErr) {
+        if (raceErr.message === 'STREAM_TIMEOUT') {
+          console.log('SSE stream timeout, forcing end')
+        }
+        break
+      }
+      const { done, value } = readResult
+      if (done) { console.log('SSE stream closed by server'); break }
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -204,6 +218,7 @@ async function send() {
               messages.value[currentAssistantIdx].content += d.content
             } catch {}
           } else if (currentEvent === 'done') {
+            console.log('SSE received done:', payload)
             streamEnded = true
             try {
               const d = JSON.parse(payload)
