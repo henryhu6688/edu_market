@@ -4,7 +4,7 @@
       <router-link to="/" class="logo">🎓 EduMarket</router-link>
       <div class="nav-links">
         <router-link to="/">首页</router-link>
-        <router-link v-if="userStore.isLoggedIn" to="/ai-chat">🤖 AI 答疑</router-link>
+        <router-link v-if="userStore.isLoggedIn" to="/agent">🤖 AI 助手</router-link>
         <template v-if="userStore.isLoggedIn">
           <router-link to="/orders">我的订单</router-link>
           <router-link to="/profile">个人中心</router-link>
