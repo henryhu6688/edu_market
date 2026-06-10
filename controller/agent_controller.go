@@ -34,7 +34,6 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 	// 设置 SSE 响应头
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
 	// 创建 SSE 回调（写入 gin.Context 的 ResponseWriter）
