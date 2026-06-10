@@ -43,6 +43,9 @@ func cleanAllTestData() {
 	database.DB.Exec("SET FOREIGN_KEY_CHECKS = 0")
 	database.DB.Where("1=1").Delete(&model.Review{})
 	database.DB.Where("1=1").Delete(&model.Order{})
+	database.DB.Where("1=1").Delete(&model.Message{})
+	database.DB.Where("1=1").Delete(&model.Session{})
+	database.DB.Where("1=1").Delete(&model.DocumentChunk{})
 	database.DB.Where("1=1").Delete(&model.Conversation{})
 	database.DB.Where("1=1").Delete(&model.Course{})
 	database.DB.Where("1=1").Delete(&model.Category{})
@@ -64,6 +67,7 @@ func TestMain(m *testing.M) {
 		},
 		JWT: config.JWTConfig{Secret: "test-secret-key", AccessTTLMin: 30, RefreshTTLHours: 24},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
+		Agent:   config.AgentConfig{MaxToolRounds: 7, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50},
 	}
 
 	// 初始化 Redis（测试环境不可用时继续运行，captcha 相关测试会处理）

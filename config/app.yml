@@ -34,6 +34,14 @@ captcha:
   expire_seconds: 300
   resend_seconds: 60
 
+agent:
+  max_tool_rounds: 7
+  context_max_messages: 20
+  embedding_model: ""
+  embedding_api_url: ""
+  chunk_size: 500
+  chunk_overlap: 50
+
 upload:
   max_size: 10485760  # 10MB
   allowed_exts: [".jpg", ".jpeg", ".png", ".pdf", ".docx", ".pptx", ".zip"]

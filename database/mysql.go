@@ -54,5 +54,8 @@ func autoMigrate() error {
 		&model.Order{},
 		&model.Review{},
 		&model.Conversation{},
+		&model.Session{},
+		&model.Message{},
+		&model.DocumentChunk{},
 	)
 }

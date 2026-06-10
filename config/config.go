@@ -16,6 +16,7 @@ type Config struct {
 	AI       AIConfig       `mapstructure:"ai"`
 	Upload   UploadConfig   `mapstructure:"upload"`
 	Captcha  CaptchaConfig  `mapstructure:"captcha"`
+	Agent    AgentConfig    `mapstructure:"agent"`
 }
 
 // ServerConfig 服务配置
@@ -63,6 +64,16 @@ type AIConfig struct {
 	APIKey   string `mapstructure:"api_key"`
 	APIURL   string `mapstructure:"api_url"`
 	Model    string `mapstructure:"model"`
+}
+
+// AgentConfig Agent 配置
+type AgentConfig struct {
+	MaxToolRounds  int    `mapstructure:"max_tool_rounds"`
+	ContextMaxMsg  int    `mapstructure:"context_max_messages"`
+	EmbeddingModel string `mapstructure:"embedding_model"`
+	EmbeddingAPIURL string `mapstructure:"embedding_api_url"`
+	ChunkSize      int    `mapstructure:"chunk_size"`
+	ChunkOverlap   int    `mapstructure:"chunk_overlap"`
 }
 
 // CaptchaConfig 验证码配置
