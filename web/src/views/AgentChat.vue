@@ -164,8 +164,9 @@ async function send() {
     let buffer = ''
     let currentEvent = ''
     let currentAssistantIdx = -1
+    let streamEnded = false
 
-    while (true) {
+    while (!streamEnded) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -187,7 +188,6 @@ async function send() {
               const d = JSON.parse(payload)
               const thinkIdx = messages.value.length
               messages.value.push({ role: 'thinking', content: `正在查询: ${d.tool || ''}` })
-              // thinking 消息在 2 秒后自动消失
               setTimeout(() => {
                 if (messages.value[thinkIdx]?.role === 'thinking') {
                   messages.value.splice(thinkIdx, 1)
@@ -204,6 +204,7 @@ async function send() {
               messages.value[currentAssistantIdx].content += d.content
             } catch {}
           } else if (currentEvent === 'done') {
+            streamEnded = true
             try {
               const d = JSON.parse(payload)
               if (d.session_id && !currentSessionId.value) {
@@ -213,6 +214,7 @@ async function send() {
               }
             } catch {}
           } else if (currentEvent === 'error') {
+            streamEnded = true
             try {
               const d = JSON.parse(payload)
               messages.value.push({ role: 'assistant', content: d.message || '发生错误，请重试' })
@@ -222,6 +224,11 @@ async function send() {
           }
           scrollToBottom()
         }
+      }
+
+      // 收到 done/error 后主动取消 stream，释放连接
+      if (streamEnded) {
+        reader.cancel()
       }
     }
   } catch (e) {
