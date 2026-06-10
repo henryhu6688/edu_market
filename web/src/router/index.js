@@ -39,6 +39,12 @@ const routes = [
     meta: { title: 'AI 答疑 - EduMarket', auth: true }
   },
   {
+    path: '/agent',
+    name: 'AgentChat',
+    component: () => import('@/views/AgentChat.vue'),
+    meta: { title: 'AI 助手 - EduMarket', auth: true }
+  },
+  {
     path: '/admin',
     redirect: '/admin/dashboard',
     meta: { auth: true, admin: true }
