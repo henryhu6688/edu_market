@@ -270,7 +270,7 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 	return &result, nil
 }
 
-// streamAnswer 将完整回答按字符逐个输出（模拟流式效果）
+// streamAnswer 将完整回答按字符逐个输出，模拟打字机效果
 func (e *AgentEngine) streamAnswer(answer string, sseHandler SSEHandler) error {
 	runes := []rune(answer)
 	for i := 0; i < len(runes); i++ {
@@ -278,6 +278,8 @@ func (e *AgentEngine) streamAnswer(answer string, sseHandler SSEHandler) error {
 		if err := sseHandler("delta", string(data)); err != nil {
 			return err
 		}
+		// 每个字之间延迟 30ms，创造打字机效果
+		time.Sleep(30 * time.Millisecond)
 	}
 	return nil
 }

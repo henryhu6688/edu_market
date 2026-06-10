@@ -59,7 +59,7 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 	}
 
 	// 4. 更新 title（首次对话后，从最后一条 assistant 消息生成）
-	s.updateTitle(session)
+	// 标题已在创建时用提问设置，不再覆盖
 
 	// 5. 检测 Agent 切换标记
 	s.checkTransfer(session)
