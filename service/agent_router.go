@@ -86,6 +86,8 @@ func CleanTransferMarkers(answer string) string {
 	answer = strings.ReplaceAll(answer, "[TRANSFER:qa]", "")
 	answer = strings.ReplaceAll(answer, "[TRANSFER:course_recommend]", "")
 	answer = strings.ReplaceAll(answer, "[TRANSFER:customer_service]", "")
+	// 清理多余空格
+	answer = strings.Join(strings.Fields(answer), " ")
 	return strings.TrimSpace(answer)
 }
 
