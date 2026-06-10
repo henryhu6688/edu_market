@@ -58,10 +58,7 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 		return session, err
 	}
 
-	// 4. 更新 title（首次对话后，从最后一条 assistant 消息生成）
-	// 标题已在创建时用提问设置，不再覆盖
-
-	// 5. 检测 Agent 切换标记
+	// 4. 检测 Agent 切换标记
 	s.checkTransfer(session)
 
 	return session, nil
@@ -113,17 +110,6 @@ func (s *AgentService) GetMessages(sessionID, userID uint, page, pageSize int) (
 		return nil, 0, err
 	}
 	return messages, total, nil
-}
-
-// updateTitle 用首条 assistant 回答截取前 15 字更新 session 标题
-func (s *AgentService) updateTitle(session *model.Session) {
-	var msg model.Message
-	if err := database.DB.Where("session_id = ? AND role = ?", session.ID, model.RoleAssistant).
-		Order("id ASC").First(&msg).Error; err != nil {
-		return
-	}
-	title := truncateRunes(msg.Content, 15)
-	database.DB.Model(session).Update("title", title)
 }
 
 // checkTransfer 检测最后一条 assistant 回答是否有切换标记
