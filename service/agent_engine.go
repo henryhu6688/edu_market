@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"edu_market/config"
 	"edu_market/database"
@@ -120,40 +121,43 @@ func (e *AgentEngine) Run(
 
 		// LLM 返回了 Tool Calls → 执行工具
 		if len(choice.Message.ToolCalls) > 0 {
-			tc := choice.Message.ToolCalls[0]
-			toolName := tc.Function.Name
+			// 收集本轮所有 tool call 的上下文消息
+			var roundMsgs []agentChatMsg
+			for _, tc := range choice.Message.ToolCalls {
+				toolName := tc.Function.Name
 
-			// 通知前端
-			sseHandler("thinking", fmt.Sprintf(`{"tool":"%s","status":"executing"}`, toolName))
+				// 通知前端
+				sseHandler("thinking", fmt.Sprintf(`{"tool":"%s","status":"executing"}`, toolName))
 
-			// 查找并执行工具
-			tool, ok := tools[toolName]
-			var result ToolResult
-			if !ok {
-				result = ToolResult{Success: false, Content: fmt.Sprintf("未知工具: %s", toolName)}
-			} else {
-				result = tool.Execute(session.UserID, tc.Function.Arguments)
+				// 查找并执行工具
+				tool, ok := tools[toolName]
+				var result ToolResult
+				if !ok {
+					result = ToolResult{Success: false, Content: fmt.Sprintf("未知工具: %s", toolName)}
+				} else {
+					result = tool.Execute(session.UserID, tc.Function.Arguments)
+				}
+
+				// 存 tool message（含结果）
+				toolMsg := model.Message{
+					SessionID: session.ID,
+					Role:      model.RoleTool,
+					Content:   result.Content,
+					ToolCalls: model.ToolCalls{{Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}},
+				}
+				if err := database.DB.Create(&toolMsg).Error; err != nil {
+					return fmt.Errorf("保存工具消息失败: %w", err)
+				}
+
+				roundMsgs = append(roundMsgs,
+					agentChatMsg{Role: "assistant", ToolCalls: []toolCallItem{{
+						ID: tc.ID, Type: "function",
+						Function: toolCallFunc{Name: toolName, Arguments: tc.Function.Arguments},
+					}}},
+					agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID},
+				)
 			}
-
-			// 存 tool message（含结果）
-			toolMsg := model.Message{
-				SessionID: session.ID,
-				Role:      model.RoleTool,
-				Content:   result.Content,
-				ToolCalls: model.ToolCalls{{Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}},
-			}
-			if err := database.DB.Create(&toolMsg).Error; err != nil {
-				return fmt.Errorf("保存工具消息失败: %w", err)
-			}
-
-			// 工具结果加入上下文
-			history = append(history,
-				agentChatMsg{Role: "assistant", ToolCalls: []toolCallItem{{
-					ID: tc.ID, Type: "function",
-					Function: toolCallFunc{Name: toolName, Arguments: tc.Function.Arguments},
-				}}},
-				agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID},
-			)
+			history = append(history, roundMsgs...)
 			continue
 		}
 
@@ -238,7 +242,7 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+config.App.AI.APIKey)
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("AI服务请求失败: %w", err)
@@ -294,7 +298,7 @@ func (e *AgentEngine) callLLMStream(history []agentChatMsg, tools []map[string]i
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+config.App.AI.APIKey)
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", 0, err

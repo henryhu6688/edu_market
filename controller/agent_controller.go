@@ -71,6 +71,9 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 
 	session, err := ctr.svc.Chat(userID, req.SessionID, req.Question, searchFunc, sseHandler)
 	if err != nil {
+		// 引擎内部已尝试发 error 事件，这里补一个兜底
+		fmt.Fprintf(c.Writer, "event: error\ndata: {\"message\":\"%s\"}\n\n", err.Error())
+		c.Writer.Flush()
 		return
 	}
 

@@ -122,15 +122,22 @@ func NewSimpleSearchVectorStore() *SimpleSearchVectorStore {
 func (vs *SimpleSearchVectorStore) Search(courseID uint, query string, topK int) ([]SearchResult, error) {
 	var chunks []model.DocumentChunk
 	keywords := strings.Fields(query)
-	db := database.DB.Where("course_id = ?", courseID)
-	for i, kw := range keywords {
-		if i == 0 {
-			db = db.Where("content LIKE ?", "%"+kw+"%")
-		} else {
-			db = db.Or("content LIKE ?", "%"+kw+"%")
-		}
+	if len(keywords) == 0 {
+		return nil, nil
 	}
-	if err := db.Order("chunk_index ASC").Limit(topK).Find(&chunks).Error; err != nil {
+
+	// 构建 OR 条件（用括号包裹，避免影响外层 course_id 约束）
+	likeClauses := make([]string, 0, len(keywords))
+	likeArgs := make([]interface{}, 0, len(keywords))
+	for _, kw := range keywords {
+		likeClauses = append(likeClauses, "content LIKE ?")
+		likeArgs = append(likeArgs, "%"+kw+"%")
+	}
+	orCondition := "(" + strings.Join(likeClauses, " OR ") + ")"
+
+	queryArgs := append([]interface{}{courseID}, likeArgs...)
+	if err := database.DB.Where("course_id = ? AND "+orCondition, queryArgs...).
+		Order("chunk_index ASC").Limit(topK).Find(&chunks).Error; err != nil {
 		return nil, err
 	}
 
