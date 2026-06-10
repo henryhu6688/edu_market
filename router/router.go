@@ -24,7 +24,6 @@ func Setup() *gin.Engine {
 	userCtrl := &controller.UserController{}
 	courseCtrl := &controller.CourseController{}
 	orderCtrl := &controller.OrderController{}
-	aiCtrl := &controller.AIController{}
 	reviewCtrl := &controller.ReviewController{}
 	categoryCtrl := &controller.CategoryController{}
 
@@ -56,10 +55,7 @@ func Setup() *gin.Engine {
 			auth.POST("/orders", orderCtrl.Create)
 			auth.GET("/orders", orderCtrl.List)
 			auth.POST("/orders/:order_no/pay", orderCtrl.Pay)
-			// AI（旧版，保持兼容）
-			auth.POST("/ai/chat", aiCtrl.Chat)
-			auth.GET("/ai/history", aiCtrl.History)
-			// Agent（新版）
+			// Agent
 			auth.POST("/agent/chat", agentCtrl.Chat)
 			auth.GET("/agent/sessions", agentCtrl.GetSessions)
 			auth.DELETE("/agent/sessions/:id", agentCtrl.DeleteSession)

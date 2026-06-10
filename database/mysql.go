@@ -53,7 +53,6 @@ func autoMigrate() error {
 		&model.Course{},
 		&model.Order{},
 		&model.Review{},
-		&model.Conversation{},
 		&model.Session{},
 		&model.Message{},
 		&model.DocumentChunk{},

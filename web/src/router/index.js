@@ -33,12 +33,6 @@ const routes = [
     meta: { title: '我的订单 - EduMarket', auth: true }
   },
   {
-    path: '/ai-chat',
-    name: 'AIChat',
-    component: () => import('@/views/AIChat.vue'),
-    meta: { title: 'AI 答疑 - EduMarket', auth: true }
-  },
-  {
     path: '/agent',
     name: 'AgentChat',
     component: () => import('@/views/AgentChat.vue'),

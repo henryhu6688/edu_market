@@ -97,12 +97,20 @@
       "Bash(echo \"build exit: $?\")",
       "Bash(taskkill //F //PID 25036)",
       "Bash(gh auth *)",
-      "Bash(git remote *)",
-      "Bash(git push *)",
       "Bash(grep -r \"OptionShow\" /c/Users/lenovo/go/pkg/mod/github.com/mojocn/base64Captcha*/ 2>/dev/null | head -10)",
       "Read(//c/Users/lenovo/go/pkg/mod/github.com/mojocn/**)",
       "Bash(find /c/Users/lenovo/go/pkg/mod -path \"*base64Captcha*\" -name \"*.go\" 2>/dev/null | head -10)",
-      "Read(//c/Users/lenovo/go/pkg/mod/**)"
+      "Read(//c/Users/lenovo/go/pkg/mod/**)",
+      "Bash(\"/c/Program Files/Redis/redis-cli.exe\" GET \"captcha:sms:13620996835\")",
+      "Bash(\"/c/Program Files/Redis/redis-cli.exe\" -h 127.0.0.1 -p 6379 GET \"captcha:code:13620996836\")",
+      "Bash(curl -s http://localhost:8080/api/send-code -X POST -H \"Content-Type: application/json\" -d '{\"phone\":\"13620996836\"}')",
+      "Bash(taskkill //F //IM edu_market.exe)",
+      "Bash(mysql -u root -p123456 -e ' *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Read(//c/Users/lenovo/.claude/**)",
+      "Bash(mkdir -p /c/Users/lenovo/.claude/skills)",
+      "Bash(git clone *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\lenovo\\.claude\\projects\\d--Vscoding-edu_market\\memory",
