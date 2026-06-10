@@ -147,6 +147,8 @@ async function send() {
   messages.value.push({ role: 'user', content: question })
   scrollToBottom()
 
+  let currentAssistantIdx = -1
+
   try {
     const resp = await agentChat({
       session_id: currentSessionId.value || undefined,
@@ -163,7 +165,6 @@ async function send() {
     const decoder = new TextDecoder()
     let buffer = ''
     let currentEvent = ''
-    let currentAssistantIdx = -1
     let streamEnded = false
     const streamStart = Date.now()
 
