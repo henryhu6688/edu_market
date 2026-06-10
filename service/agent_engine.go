@@ -13,6 +13,7 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/model"
+	"log"
 )
 
 // SSEHandler SSE 事件回调接口（由控制器实现）
@@ -164,20 +165,22 @@ func (e *AgentEngine) Run(
 		// 没有 Tool Call → 流式输出最终回答
 		answer := choice.Message.Content
 		if answer == "" {
-			// 如果有 content 为空但有 finish_reason，说明模型可能想直接结束
 			answer = "抱歉，我暂时无法处理这个问题。"
 		}
 
+		// 先清理切换标记再输出给前端（避免用户看到 [TRANSFER:xxx]）
+		displayAnswer := CleanTransferMarkers(answer)
+
 		// 流式输出
-		if err := e.streamAnswer(answer, sseHandler); err != nil {
+		if err := e.streamAnswer(displayAnswer, sseHandler); err != nil {
 			return err
 		}
 
-		// 存 assistant message
+		// 存 assistant message（存清理后的版本）
 		assistantMsg := &model.Message{
 			SessionID:  session.ID,
 			Role:       model.RoleAssistant,
-			Content:    answer,
+			Content:    displayAnswer,
 			TokensUsed: resp.Usage.TotalTokens,
 		}
 		if err := database.DB.Create(assistantMsg).Error; err != nil {
@@ -255,11 +258,13 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("Agent LLM API 错误: status=%d body=%s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("AI API 返回状态 %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result llmResponse
 	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Agent LLM 解析失败: body=%s err=%v", string(body), err)
 		return nil, fmt.Errorf("解析AI响应失败: %w", err)
 	}
 	return &result, nil
