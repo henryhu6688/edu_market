@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"edu_market/config"
@@ -116,14 +117,37 @@ func parsePDF(reader io.Reader) (string, error) {
 	}
 	tmp.Close()
 
-	// 先尝试 rsc.io/pdf（对 CJK 支持更好）
-	text, err := parsePDFRsc(tmp.Name())
+	// 首选 pdftotext（对 CJK 编码支持最好）
+	text, err := parsePDFWithPdfToText(tmp.Name())
 	if err == nil && text != "" {
 		return text, nil
 	}
 
-	// fallback: ledongthuc/pdf
+	// fallback: rsc.io/pdf
+	text, err = parsePDFRsc(tmp.Name())
+	if err == nil && text != "" {
+		return text, nil
+	}
+
+	// 最后 fallback: ledongthuc/pdf
 	return parsePDFLedongthuc(tmp.Name())
+}
+
+// parsePDFWithPdfToText 调用系统 pdftotext 命令提取文本
+func parsePDFWithPdfToText(path string) (string, error) {
+	outFile := path + ".txt"
+	defer os.Remove(outFile)
+
+	cmd := exec.Command("pdftotext", "-layout", "-enc", "UTF-8", path, outFile)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("pdftotext 执行失败: %w", err)
+	}
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // parsePDFRsc 用 rsc.io/pdf 解析
