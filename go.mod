@@ -63,4 +63,5 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	rsc.io/pdf v0.1.1 // indirect
 )

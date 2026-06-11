@@ -12,6 +12,7 @@ import (
 
 	"github.com/ledongthuc/pdf"
 	"github.com/nguyenthenguyen/docx"
+	rscpdf "rsc.io/pdf"
 )
 
 // DocumentParser 文件解析器
@@ -115,9 +116,44 @@ func parsePDF(reader io.Reader) (string, error) {
 	}
 	tmp.Close()
 
-	f, r, err := pdf.Open(tmp.Name())
+	// 先尝试 rsc.io/pdf（对 CJK 支持更好）
+	text, err := parsePDFRsc(tmp.Name())
+	if err == nil && text != "" {
+		return text, nil
+	}
+
+	// fallback: ledongthuc/pdf
+	return parsePDFLedongthuc(tmp.Name())
+}
+
+// parsePDFRsc 用 rsc.io/pdf 解析
+func parsePDFRsc(filename string) (string, error) {
+	f, err := rscpdf.Open(filename)
 	if err != nil {
-		return "", fmt.Errorf("解析 PDF 失败: %w", err)
+		return "", err
+	}
+
+	var result strings.Builder
+	for i := 1; i <= f.NumPage(); i++ {
+		page := f.Page(i)
+		if page.V.IsNull() {
+			continue
+		}
+		content := page.Content()
+		for _, t := range content.Text {
+			result.WriteString(t.S)
+			result.WriteString(" ")
+		}
+		result.WriteString("\n")
+	}
+	return strings.TrimSpace(result.String()), nil
+}
+
+// parsePDFLedongthuc 用 ledongthuc/pdf 解析（fallback）
+func parsePDFLedongthuc(filename string) (string, error) {
+	f, r, err := pdf.Open(filename)
+	if err != nil {
+		return "", err
 	}
 	defer f.Close()
 
@@ -128,12 +164,23 @@ func parsePDF(reader io.Reader) (string, error) {
 		if page.V.IsNull() {
 			continue
 		}
+		rows, err := page.GetTextByRow()
+		if err == nil && len(rows) > 0 {
+			for _, row := range rows {
+				var rowText strings.Builder
+				for _, word := range row.Content {
+					rowText.WriteString(word.S)
+				}
+				buf.WriteString(strings.TrimSpace(rowText.String()))
+				buf.WriteString("\n")
+			}
+			continue
+		}
 		text, err := page.GetPlainText(nil)
 		if err != nil {
 			continue
 		}
 		buf.WriteString(text)
-		buf.WriteString("\n")
 	}
 	return strings.TrimSpace(buf.String()), nil
 }
