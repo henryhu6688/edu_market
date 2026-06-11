@@ -115,7 +115,46 @@ func parseDocx(reader io.Reader) (string, error) {
 	}
 	defer doc.Close()
 
-	return strings.TrimSpace(doc.Editable().GetContent()), nil
+	xmlContent := doc.Editable().GetContent()
+	return extractTextFromDocxXML(xmlContent), nil
+}
+
+// extractTextFromDocxXML 从 DOCX 的 document.xml 中提取纯文本
+func extractTextFromDocxXML(xml string) string {
+	var result strings.Builder
+	var current strings.Builder
+	inTag := false
+	inWT := false // 是否在 <w:t>...</w:t> 内
+
+	for i := 0; i < len(xml); i++ {
+		ch := xml[i]
+		if ch == '<' {
+			inTag = true
+			current.Reset()
+			continue
+		}
+		if ch == '>' {
+			inTag = false
+			tag := current.String()
+			// 检查标签名
+			if len(tag) >= 4 && tag[:4] == "w:t " || tag == "w:t" || (len(tag) > 4 && tag[:5] == "w:t ") {
+				inWT = true
+			} else if tag == "/w:t" {
+				inWT = false
+				result.WriteString(" ")
+			} else if strings.HasPrefix(tag, "/w:p") || tag == "/w:p" {
+				result.WriteString("\n")
+			}
+			current.Reset()
+			continue
+		}
+		if !inTag && inWT {
+			result.WriteByte(ch)
+		} else if inTag {
+			current.WriteByte(ch)
+		}
+	}
+	return strings.TrimSpace(result.String())
 }
 
 // extractTextFromTiptapJSON 从 Tiptap JSON 提取纯文本（用于 RAG）
