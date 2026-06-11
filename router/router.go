@@ -31,6 +31,8 @@ func Setup() *gin.Engine {
 	agentEngine := service.NewAgentEngine()
 	agentSvc := service.NewAgentService(agentEngine)
 	agentCtrl := controller.NewAgentController(agentSvc)
+	materialCtrl := controller.NewMaterialController()
+	documentCtrl := controller.NewDocumentController()
 
 	api := r.Group("/api")
 	{
@@ -43,6 +45,9 @@ func Setup() *gin.Engine {
 		api.GET("/courses/:id", courseCtrl.GetByID)
 		api.GET("/courses/:id/reviews", reviewCtrl.ListByCourse)
 		api.GET("/categories", categoryCtrl.List)
+			api.GET("/materials", materialCtrl.List)
+			api.GET("/materials/:id", materialCtrl.GetByID)
+			api.GET("/materials/:mid/documents", documentCtrl.GetTree)
 
 		// 需认证
 		auth := api.Group("")
@@ -62,6 +67,17 @@ func Setup() *gin.Engine {
 			auth.GET("/agent/sessions/:id/messages", agentCtrl.GetMessages)
 			// 评论
 			auth.POST("/reviews", reviewCtrl.Create)
+			// 资料
+			auth.POST("/materials", materialCtrl.Create)
+			auth.PUT("/materials/:id", materialCtrl.Update)
+			auth.DELETE("/materials/:id", materialCtrl.Delete)
+			auth.GET("/user/materials", materialCtrl.MyMaterials)
+			// 文档
+			auth.GET("/documents/:id", documentCtrl.GetByID)
+			auth.POST("/materials/:mid/documents", documentCtrl.Create)
+			auth.POST("/materials/:mid/documents/upload", documentCtrl.Upload)
+			auth.PUT("/documents/:id", documentCtrl.Update)
+			auth.DELETE("/documents/:id", documentCtrl.Delete)
 		}
 
 		// 管理员

@@ -39,7 +39,7 @@ func (t ToolDef) ToOpenAITool() map[string]interface{} {
 }
 
 // SearchFunc RAG 检索函数类型（由 RAGService 注入，避免循环依赖）
-type SearchFunc func(courseID uint, query string, topK int) (string, error)
+type SearchFunc func(materialID uint, query string, topK int) (string, error)
 
 // ============ 工具常量 ============
 
@@ -145,22 +145,22 @@ func newSearchMaterialsTool(fn SearchFunc) searchMaterialsTool {
 func (t searchMaterialsTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        ToolSearchMaterials,
-		Description: "搜索某门课程的学习资料内容，返回相关的文本片段。用于回答关于课程内容的具体问题。",
+		Description: "搜索某份学习资料的文档内容，返回相关的文本片段。用于回答关于资料内容的具体问题。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"course_id": map[string]interface{}{"type": "number", "description": "课程ID"},
-				"query":     map[string]interface{}{"type": "string", "description": "要搜索的问题或关键词"},
+				"material_id": map[string]interface{}{"type": "number", "description": "资料ID"},
+				"query":       map[string]interface{}{"type": "string", "description": "要搜索的问题或关键词"},
 			},
-			"required": []string{"course_id", "query"},
+			"required": []string{"material_id", "query"},
 		},
 	}
 }
 
 func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 	var args struct {
-		CourseID uint   `json:"course_id"`
-		Query    string `json:"query"`
+		MaterialID uint   `json:"material_id"`
+		Query      string `json:"query"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return ToolResult{Success: false, Content: "参数解析失败"}
@@ -168,7 +168,7 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 	if t.searchFunc == nil {
 		return ToolResult{Success: false, Content: "资料检索服务暂不可用"}
 	}
-	content, err := t.searchFunc(args.CourseID, args.Query, 5)
+	content, err := t.searchFunc(args.MaterialID, args.Query, 5)
 	if err != nil {
 		return ToolResult{Success: false, Content: "检索失败: " + err.Error()}
 	}
