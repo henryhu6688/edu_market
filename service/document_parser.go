@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"edu_market/config"
+
+	"github.com/nguyenthenguyen/docx"
 )
 
 // DocumentParser 文件解析器
@@ -36,8 +39,10 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 		bytes, e := io.ReadAll(reader)
 		err = e
 		text = string(bytes)
+	case ".docx":
+		text, err = parseDocx(reader)
 	default:
-		return "", fmt.Errorf("格式 %s 的解析待实现（需引入第三方库）", ext)
+		return "", fmt.Errorf("格式 %s 暂不支持（支持: .txt .md .docx）", ext)
 	}
 	if err != nil {
 		return "", err
@@ -89,6 +94,28 @@ func textToTiptapJSON(text string) string {
 	doc := map[string]interface{}{"type": "doc", "content": content}
 	b, _ := json.Marshal(doc)
 	return string(b)
+}
+
+// parseDocx 解析 DOCX 文件
+func parseDocx(reader io.Reader) (string, error) {
+	tmp, err := os.CreateTemp("", "upload-*.docx")
+	if err != nil {
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := io.Copy(tmp, reader); err != nil {
+		return "", fmt.Errorf("写入临时文件失败: %w", err)
+	}
+	tmp.Close()
+
+	doc, err := docx.ReadDocxFile(tmp.Name())
+	if err != nil {
+		return "", fmt.Errorf("解析 DOCX 失败: %w", err)
+	}
+	defer doc.Close()
+
+	return strings.TrimSpace(doc.Editable().GetContent()), nil
 }
 
 // extractTextFromTiptapJSON 从 Tiptap JSON 提取纯文本（用于 RAG）
