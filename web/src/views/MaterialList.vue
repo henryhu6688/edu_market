@@ -1,6 +1,9 @@
 <template>
   <div class="material-list">
-    <h2>学习资料</h2>
+    <div class="header-row">
+      <h2>学习资料</h2>
+      <router-link v-if="userStore.isLoggedIn" to="/materials/new" class="btn-publish">+ 发布资料</router-link>
+    </div>
     <div class="filters">
       <input v-model="keyword" placeholder="搜索资料..." @keyup.enter="search" />
       <button @click="search">搜索</button>
@@ -24,8 +27,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useUserStore } from '@/stores/user'
 import { getMaterials } from '@/api/material'
 import Pagination from '@/components/Pagination.vue'
+
+const userStore = useUserStore()
 
 const materials = ref([])
 const keyword = ref('')
@@ -45,7 +51,10 @@ onMounted(load)
 
 <style scoped>
 .material-list { max-width: 1200px; margin: 0 auto; padding: 20px; }
-h2 { margin-bottom: 20px; }
+.header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.header-row h2 { margin: 0; }
+.btn-publish { padding: 8px 20px; background: #3b82f6; color: #fff; border-radius: 6px; text-decoration: none; font-size: 14px; }
+.btn-publish:hover { background: #2563eb; }
 .filters { display: flex; gap: 10px; margin-bottom: 20px; }
 .filters input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
 .filters button { padding: 8px 20px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; }

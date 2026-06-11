@@ -33,6 +33,12 @@ const routes = [
     meta: { title: '我的订单 - EduMarket', auth: true }
   },
   {
+    path: '/materials/new',
+    name: 'PublishMaterial',
+    component: () => import('@/views/MaterialEditor.vue'),
+    meta: { title: '发布资料 - EduMarket', auth: true }
+  },
+  {
     path: '/materials',
     name: 'Materials',
     component: () => import('@/views/MaterialList.vue'),
