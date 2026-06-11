@@ -1,7 +1,11 @@
 package controller
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"edu_market/dto/request"
 	"edu_market/model"
@@ -52,18 +56,36 @@ func (ctr *MaterialController) GetByID(c *gin.Context) {
 	utils.Success(c, m)
 }
 
-// Create 发布资料（需登录）
+// Create 发布资料（需登录，支持 multipart 上传封面图）
 func (ctr *MaterialController) Create(c *gin.Context) {
-	var req request.CreateMaterialReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.BadRequest(c, err.Error())
+	title := c.PostForm("title")
+	desc := c.PostForm("description")
+	catID, _ := strconv.ParseUint(c.PostForm("category_id"), 10, 64)
+	price, _ := strconv.ParseFloat(c.PostForm("price"), 64)
+	userID := c.GetUint("user_id")
+
+	if title == "" {
+		utils.BadRequest(c, "资料名称不能为空")
 		return
 	}
-	userID := c.GetUint("user_id")
+
+	coverImage := ""
+	file, err := c.FormFile("cover_image")
+	if err == nil {
+		// 保存到 uploads/
+		filename := fmt.Sprintf("covers/%d_%s", time.Now().UnixNano(), file.Filename)
+		dst := filepath.Join("uploads", filename)
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err == nil {
+			if err := c.SaveUploadedFile(file, dst); err == nil {
+				coverImage = "/uploads/" + filename
+			}
+		}
+	}
+
 	m := &model.Material{
-		Title: req.Title, Description: req.Description,
-		Price: req.Price, CoverImage: req.CoverImage,
-		CategoryID: req.CategoryID, UserID: userID, Status: model.MaterialDraft,
+		Title: title, Description: desc, Price: price,
+		CoverImage: coverImage, CategoryID: uint(catID),
+		UserID: userID, Status: model.MaterialDraft,
 	}
 	if err := ctr.svc.Create(m); err != nil {
 		utils.InternalError(c, err.Error())

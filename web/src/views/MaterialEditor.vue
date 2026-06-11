@@ -17,8 +17,8 @@
       <label>价格（元）</label>
       <input v-model.number="form.price" type="number" min="0" step="0.01" placeholder="0 表示免费" />
 
-      <label>封面图 URL</label>
-      <input v-model="form.cover_image" placeholder="图片链接（可选）" />
+      <label>封面图（可选）</label>
+      <input type="file" @change="onFileChange" accept="image/*" />
 
       <div class="actions">
         <button type="submit" :disabled="saving">{{ saving ? '发布中...' : '发布' }}</button>
@@ -41,8 +41,9 @@ const saving = ref(false)
 const categories = ref([])
 
 const form = ref({
-  title: '', category_id: '', description: '', price: 0, cover_image: ''
+  title: '', category_id: '', description: '', price: 0
 })
+const coverFile = ref(null)
 
 onMounted(async () => {
   const res = await getCategories()
@@ -52,20 +53,28 @@ onMounted(async () => {
     const m = await getMaterial(route.params.id)
     Object.assign(form.value, {
       title: m.data.title, category_id: m.data.category_id,
-      description: m.data.description || '', price: m.data.price,
-      cover_image: m.data.cover_image || ''
+      description: m.data.description || '', price: m.data.price
     })
   }
 })
 
+function onFileChange(e) { coverFile.value = e.target.files[0] }
+
 async function save() {
   saving.value = true
   try {
+    const fd = new FormData()
+    fd.append('title', form.value.title)
+    fd.append('category_id', form.value.category_id)
+    fd.append('description', form.value.description)
+    fd.append('price', form.value.price)
+    if (coverFile.value) fd.append('cover_image', coverFile.value)
+
     let res
     if (isEdit.value) {
       res = await updateMaterial(route.params.id, form.value)
     } else {
-      res = await createMaterial(form.value)
+      res = await createMaterial(fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     }
     router.push(`/materials/${res.data.id}`)
   } catch (e) {
