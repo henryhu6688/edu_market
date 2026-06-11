@@ -33,6 +33,30 @@ const routes = [
     meta: { title: '我的订单 - EduMarket', auth: true }
   },
   {
+    path: '/materials',
+    name: 'Materials',
+    component: () => import('@/views/MaterialList.vue'),
+    meta: { title: '学习资料 - EduMarket' }
+  },
+  {
+    path: '/materials/:id',
+    name: 'MaterialDetail',
+    component: () => import('@/views/MaterialDetail.vue'),
+    meta: { title: '资料详情 - EduMarket' }
+  },
+  {
+    path: '/materials/:mid/docs',
+    name: 'DocEditor',
+    component: () => import('@/views/DocumentEditor.vue'),
+    meta: { title: '文档编辑器 - EduMarket', auth: true }
+  },
+  {
+    path: '/materials/:mid/docs/:did',
+    name: 'DocView',
+    component: () => import('@/views/DocumentView.vue'),
+    meta: { title: '文档阅读 - EduMarket', auth: true }
+  },
+  {
     path: '/agent',
     name: 'AgentChat',
     component: () => import('@/views/AgentChat.vue'),
