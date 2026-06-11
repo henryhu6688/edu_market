@@ -1,6 +1,7 @@
 package service
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 
 	"edu_market/config"
 
+	"github.com/ledongthuc/pdf"
 	"github.com/nguyenthenguyen/docx"
 )
 
@@ -41,8 +43,12 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 		text = string(bytes)
 	case ".docx":
 		text, err = parseDocx(reader)
+	case ".pdf":
+		text, err = parsePDF(reader)
+	case ".pptx":
+		text, err = parsePPTX(reader)
 	default:
-		return "", fmt.Errorf("格式 %s 暂不支持（支持: .txt .md .docx）", ext)
+		return "", fmt.Errorf("格式 %s 暂不支持（支持: .txt .md .docx .pdf .pptx）", ext)
 	}
 	if err != nil {
 		return "", err
@@ -94,6 +100,122 @@ func textToTiptapJSON(text string) string {
 	doc := map[string]interface{}{"type": "doc", "content": content}
 	b, _ := json.Marshal(doc)
 	return string(b)
+}
+
+// parsePDF 解析 PDF 文件
+func parsePDF(reader io.Reader) (string, error) {
+	tmp, err := os.CreateTemp("", "upload-*.pdf")
+	if err != nil {
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := io.Copy(tmp, reader); err != nil {
+		return "", fmt.Errorf("写入临时文件失败: %w", err)
+	}
+	tmp.Close()
+
+	f, r, err := pdf.Open(tmp.Name())
+	if err != nil {
+		return "", fmt.Errorf("解析 PDF 失败: %w", err)
+	}
+	defer f.Close()
+
+	var buf strings.Builder
+	totalPage := r.NumPage()
+	for pageNum := 1; pageNum <= totalPage; pageNum++ {
+		page := r.Page(pageNum)
+		if page.V.IsNull() {
+			continue
+		}
+		text, err := page.GetPlainText(nil)
+		if err != nil {
+			continue
+		}
+		buf.WriteString(text)
+		buf.WriteString("\n")
+	}
+	return strings.TrimSpace(buf.String()), nil
+}
+
+// parsePPTX 解析 PPTX 文件（ZIP 内 slide XML 提取文本）
+func parsePPTX(reader io.Reader) (string, error) {
+	tmp, err := os.CreateTemp("", "upload-*.pptx")
+	if err != nil {
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := io.Copy(tmp, reader); err != nil {
+		return "", fmt.Errorf("写入临时文件失败: %w", err)
+	}
+	tmp.Close()
+
+	z, err := zip.OpenReader(tmp.Name())
+	if err != nil {
+		return "", fmt.Errorf("解析 PPTX 失败: %w", err)
+	}
+	defer z.Close()
+
+	var slides []string
+	for _, f := range z.File {
+		// 只处理 ppt/slides/slide*.xml
+		if !strings.HasPrefix(f.Name, "ppt/slides/slide") || !strings.HasSuffix(f.Name, ".xml") {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		data, _ := io.ReadAll(rc)
+		rc.Close()
+		slides = append(slides, string(data))
+	}
+
+	var result strings.Builder
+	for i, slideXML := range slides {
+		result.WriteString(extractTextFromPPTXXML(slideXML))
+		if i < len(slides)-1 {
+			result.WriteString("\n\n---\n\n") // 幻灯片分隔
+		}
+	}
+	return strings.TrimSpace(result.String()), nil
+}
+
+// extractTextFromPPTXXML 从 PPTX slide XML 中提取 <a:t> 标签内的文字
+func extractTextFromPPTXXML(xml string) string {
+	var result strings.Builder
+	var current strings.Builder
+	inTag := false
+	inAT := false
+
+	for i := 0; i < len(xml); i++ {
+		ch := xml[i]
+		if ch == '<' {
+			inTag = true
+			current.Reset()
+			continue
+		}
+		if ch == '>' {
+			inTag = false
+			tag := current.String()
+			if strings.HasPrefix(tag, "a:t ") || tag == "a:t" {
+				inAT = true
+			} else if tag == "/a:t" {
+				inAT = false
+			} else if tag == "/a:p" {
+				result.WriteString("\n")
+			}
+			current.Reset()
+			continue
+		}
+		if !inTag && inAT {
+			result.WriteByte(ch)
+		} else if inTag {
+			current.WriteByte(ch)
+		}
+	}
+	return strings.TrimSpace(result.String())
 }
 
 // parseDocx 解析 DOCX 文件
