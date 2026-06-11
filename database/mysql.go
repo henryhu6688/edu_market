@@ -56,5 +56,7 @@ func autoMigrate() error {
 		&model.Session{},
 		&model.Message{},
 		&model.DocumentChunk{},
+		&model.Material{},
+		&model.Document{},
 	)
 }

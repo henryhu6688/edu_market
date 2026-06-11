@@ -17,6 +17,15 @@ type Config struct {
 	Upload   UploadConfig   `mapstructure:"upload"`
 	Captcha  CaptchaConfig  `mapstructure:"captcha"`
 	Agent    AgentConfig    `mapstructure:"agent"`
+	Document DocumentConfig `mapstructure:"document"`
+}
+
+// DocumentConfig 文档配置
+type DocumentConfig struct {
+	AutoSaveDelay  int      `mapstructure:"auto_save_delay"`
+	RagSync        bool     `mapstructure:"rag_sync"`
+	MaxUploadSize  int64    `mapstructure:"max_upload_size"`
+	AllowedFormats []string `mapstructure:"allowed_formats"`
 }
 
 // ServerConfig 服务配置

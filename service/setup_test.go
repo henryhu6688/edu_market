@@ -46,6 +46,8 @@ func cleanAllTestData() {
 	database.DB.Where("1=1").Delete(&model.Message{})
 	database.DB.Where("1=1").Delete(&model.Session{})
 	database.DB.Where("1=1").Delete(&model.DocumentChunk{})
+	database.DB.Where("1=1").Delete(&model.Document{})
+	database.DB.Where("1=1").Delete(&model.Material{})
 	database.DB.Where("1=1").Delete(&model.Course{})
 	database.DB.Where("1=1").Delete(&model.Category{})
 	database.DB.Where("1=1").Delete(&model.User{})

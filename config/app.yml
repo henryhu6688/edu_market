@@ -42,6 +42,12 @@ agent:
   chunk_size: 500
   chunk_overlap: 50
 
+document:
+  auto_save_delay: 2
+  rag_sync: true
+  max_upload_size: 20971520
+  allowed_formats: [".pdf", ".pptx", ".docx", ".md", ".txt"]
+
 upload:
   max_size: 10485760  # 10MB
   allowed_exts: [".jpg", ".jpeg", ".png", ".pdf", ".docx", ".pptx", ".zip"]

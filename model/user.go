@@ -9,7 +9,7 @@ type User struct {
 	Email        string    `gorm:"type:varchar(100);uniqueIndex;default:null" json:"email"`
 	Phone           string     `gorm:"type:varchar(20);uniqueIndex;default:null" json:"phone"`
 	PasswordHash    string     `gorm:"type:varchar(255);not null" json:"-"`
-	Role            string     `gorm:"type:varchar(20);default:student;not null" json:"role"`
+	Role            string     `gorm:"type:varchar(20);default:user;not null" json:"role"`
 	Avatar          string     `gorm:"type:varchar(255)" json:"avatar"`
 	RefreshToken    string     `gorm:"type:varchar(255)" json:"-"`
 	RefreshExpiresAt *time.Time `gorm:"default:null" json:"-"`
