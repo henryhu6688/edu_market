@@ -119,18 +119,47 @@ func parsePDF(reader io.Reader) (string, error) {
 
 	// 首选 pdftotext（对 CJK 编码支持最好）
 	text, err := parsePDFWithPdfToText(tmp.Name())
-	if err == nil && text != "" {
+	if isTextValid(text) {
 		return text, nil
 	}
 
 	// fallback: rsc.io/pdf
 	text, err = parsePDFRsc(tmp.Name())
-	if err == nil && text != "" {
+	if isTextValid(text) {
 		return text, nil
 	}
 
 	// 最后 fallback: ledongthuc/pdf
-	return parsePDFLedongthuc(tmp.Name())
+	text, err = parsePDFLedongthuc(tmp.Name())
+	_ = err
+	if text == "" {
+		return "", fmt.Errorf("PDF 文字提取失败，请确认文件是文字版 PDF（非扫描图片）")
+	}
+	return text, nil
+}
+
+// isTextValid 判断文字内容是否有效（非乱码）
+// 连续可读字符占比 > 50% 视为有效
+func isTextValid(text string) bool {
+	if len(text) < 10 {
+		return false
+	}
+	// 统计可读字符：中文、英文、数字、常见标点、空白
+	readable := 0
+	for _, r := range text {
+		if r >= 0x4e00 && r <= 0x9fff || // 中文字符
+			r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == ' ' || r == '\n' || r == '\t' ||
+			r == '.' || r == ',' || r == '，' || r == '。' ||
+			r == '：' || r == '；' || r == '（' || r == '）' ||
+			r == '(' || r == ')' {
+			readable++
+		}
+	}
+	ratio := float64(readable) / float64(len([]rune(text)))
+	return ratio > 0.5
 }
 
 // parsePDFWithPdfToText 调用系统 pdftotext 命令提取文本
