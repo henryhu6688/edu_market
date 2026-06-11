@@ -27,7 +27,7 @@ func NewDocumentController() *DocumentController {
 
 // GetTree 文档目录树（公开）
 func (ctr *DocumentController) GetTree(c *gin.Context) {
-	mid, err := strconv.ParseUint(c.Param("mid"), 10, 64)
+	mid, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		utils.BadRequest(c, "参数错误")
 		return
@@ -58,7 +58,7 @@ func (ctr *DocumentController) GetByID(c *gin.Context) {
 
 // Create 新建文档（仅发布者）
 func (ctr *DocumentController) Create(c *gin.Context) {
-	mid, err := strconv.ParseUint(c.Param("mid"), 10, 64)
+	mid, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		utils.BadRequest(c, "参数错误")
 		return
@@ -137,7 +137,7 @@ func (ctr *DocumentController) Delete(c *gin.Context) {
 
 // Upload 上传文件转文档
 func (ctr *DocumentController) Upload(c *gin.Context) {
-	mid, err := strconv.ParseUint(c.Param("mid"), 10, 64)
+	mid, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		utils.BadRequest(c, "参数错误")
 		return

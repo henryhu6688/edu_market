@@ -47,7 +47,7 @@ func Setup() *gin.Engine {
 		api.GET("/categories", categoryCtrl.List)
 			api.GET("/materials", materialCtrl.List)
 			api.GET("/materials/:id", materialCtrl.GetByID)
-			api.GET("/materials/:mid/documents", documentCtrl.GetTree)
+			api.GET("/materials/:id/documents", documentCtrl.GetTree)
 
 		// 需认证
 		auth := api.Group("")
@@ -74,8 +74,8 @@ func Setup() *gin.Engine {
 			auth.GET("/user/materials", materialCtrl.MyMaterials)
 			// 文档
 			auth.GET("/documents/:id", documentCtrl.GetByID)
-			auth.POST("/materials/:mid/documents", documentCtrl.Create)
-			auth.POST("/materials/:mid/documents/upload", documentCtrl.Upload)
+			auth.POST("/materials/:id/documents", documentCtrl.Create)
+			auth.POST("/materials/:id/documents/upload", documentCtrl.Upload)
 			auth.PUT("/documents/:id", documentCtrl.Update)
 			auth.DELETE("/documents/:id", documentCtrl.Delete)
 		}
