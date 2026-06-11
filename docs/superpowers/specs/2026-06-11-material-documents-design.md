@@ -223,6 +223,70 @@ document:
 - `Conversation` 模型已删除，旧 AI 功能不可用（v2 Agent 替代）
 - `DocumentChunk` 表不变，RAG 继续工作
 
+## 文件上传转在线文档
+
+### 流程
+
+```
+用户上传 PDF/PPTX/DOCX/MD/TXT
+  → 后端提取纯文本
+  → 文本按段落转为 Tiptap JSON
+  → 自动创建一篇 Document
+  → 跳转到编辑器，用户可继续修改
+```
+
+### 支持的格式与 Go 库
+
+| 格式 | 库 | 说明 |
+|------|-----|------|
+| `.txt` `.md` | 标准库 | 直接读取 |
+| `.pdf` | `ledongthuc/pdf` | 提取文本内容 |
+| `.pptx` | `baliance/gooxml` | 提取幻灯片文本 |
+| `.docx` | `baliance/gooxml` | 提取段落文本 |
+
+### 文本 → Tiptap JSON 转换
+
+按双换行拆段，每段一个 paragraph：
+
+```
+输入文本:
+"第一章\n\n这是内容。"
+
+输出 Tiptap JSON:
+{
+  "type": "doc",
+  "content": [
+    { "type": "paragraph", "content": [{ "type": "text", "text": "第一章" }] },
+    { "type": "paragraph", "content": [{ "type": "text", "text": "这是内容。" }] }
+  ]
+}
+```
+
+单换行在同一 paragraph 内用 `hardBreak` 处理。
+
+### 上传入口
+
+文档编辑器页面左侧文档树顶部加"📎 导入文件"按钮。
+
+### API
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| POST | `/api/materials/:mid/documents/upload` | JWT | 上传文件转文档（仅发布者） |
+
+请求：`multipart/form-data`，字段 `file`。
+响应：创建的 Document 对象（含 ID），前端拿到 ID 跳转编辑器。
+
+### 配置
+
+```yaml
+document:
+  max_upload_size: 20971520  # 20MB
+  allowed_formats: [".pdf", ".pptx", ".docx", ".md", ".txt"]
+```
+
+---
+
 ## 已知限制
 
 | 限制 | 后续方向 |
