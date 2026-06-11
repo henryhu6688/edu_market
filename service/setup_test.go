@@ -69,6 +69,7 @@ func TestMain(m *testing.M) {
 		JWT: config.JWTConfig{Secret: "test-secret-key", AccessTTLMin: 30, RefreshTTLHours: 24},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
 		Agent:   config.AgentConfig{MaxToolRounds: 7, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50},
+		Document: config.DocumentConfig{AutoSaveDelay: 2, RagSync: true, MaxUploadSize: 20 << 20, AllowedFormats: []string{".pdf", ".pptx", ".docx", ".md", ".txt"}},
 	}
 
 	// 初始化 Redis（测试环境不可用时继续运行，captcha 相关测试会处理）
