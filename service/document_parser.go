@@ -11,9 +11,7 @@ import (
 
 	"edu_market/config"
 
-	"github.com/ledongthuc/pdf"
 	"github.com/nguyenthenguyen/docx"
-	rscpdf "rsc.io/pdf"
 )
 
 // DocumentParser 文件解析器
@@ -104,7 +102,7 @@ func textToTiptapJSON(text string) string {
 	return string(b)
 }
 
-// parsePDF 解析 PDF 文件
+// parsePDF 解析 PDF 文件（通过系统 pdftotext 工具提取文字）
 func parsePDF(reader io.Reader) (string, error) {
 	tmp, err := os.CreateTemp("", "upload-*.pdf")
 	if err != nil {
@@ -117,49 +115,14 @@ func parsePDF(reader io.Reader) (string, error) {
 	}
 	tmp.Close()
 
-	// 首选 pdftotext（对 CJK 编码支持最好）
 	text, err := parsePDFWithPdfToText(tmp.Name())
-	if isTextValid(text) {
-		return text, nil
+	if err != nil {
+		return "", fmt.Errorf("PDF 文字提取失败: %w", err)
 	}
-
-	// fallback: rsc.io/pdf
-	text, err = parsePDFRsc(tmp.Name())
-	if isTextValid(text) {
-		return text, nil
-	}
-
-	// 最后 fallback: ledongthuc/pdf
-	text, err = parsePDFLedongthuc(tmp.Name())
-	_ = err
 	if text == "" {
-		return "", fmt.Errorf("PDF 文字提取失败，请确认文件是文字版 PDF（非扫描图片）")
+		return "", fmt.Errorf("PDF 文字提取为空，请确认文件是文字版 PDF（非扫描图片）")
 	}
 	return text, nil
-}
-
-// isTextValid 判断文字内容是否有效（非乱码）
-// 连续可读字符占比 > 50% 视为有效
-func isTextValid(text string) bool {
-	if len(text) < 10 {
-		return false
-	}
-	// 统计可读字符：中文、英文、数字、常见标点、空白
-	readable := 0
-	for _, r := range text {
-		if r >= 0x4e00 && r <= 0x9fff || // 中文字符
-			r >= 'a' && r <= 'z' ||
-			r >= 'A' && r <= 'Z' ||
-			r >= '0' && r <= '9' ||
-			r == ' ' || r == '\n' || r == '\t' ||
-			r == '.' || r == ',' || r == '，' || r == '。' ||
-			r == '：' || r == '；' || r == '（' || r == '）' ||
-			r == '(' || r == ')' {
-			readable++
-		}
-	}
-	ratio := float64(readable) / float64(len([]rune(text)))
-	return ratio > 0.5
 }
 
 // parsePDFWithPdfToText 调用系统 pdftotext 命令提取文本
@@ -177,65 +140,6 @@ func parsePDFWithPdfToText(path string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
-}
-
-// parsePDFRsc 用 rsc.io/pdf 解析
-func parsePDFRsc(filename string) (string, error) {
-	f, err := rscpdf.Open(filename)
-	if err != nil {
-		return "", err
-	}
-
-	var result strings.Builder
-	for i := 1; i <= f.NumPage(); i++ {
-		page := f.Page(i)
-		if page.V.IsNull() {
-			continue
-		}
-		content := page.Content()
-		for _, t := range content.Text {
-			result.WriteString(t.S)
-			result.WriteString(" ")
-		}
-		result.WriteString("\n")
-	}
-	return strings.TrimSpace(result.String()), nil
-}
-
-// parsePDFLedongthuc 用 ledongthuc/pdf 解析（fallback）
-func parsePDFLedongthuc(filename string) (string, error) {
-	f, r, err := pdf.Open(filename)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	var buf strings.Builder
-	totalPage := r.NumPage()
-	for pageNum := 1; pageNum <= totalPage; pageNum++ {
-		page := r.Page(pageNum)
-		if page.V.IsNull() {
-			continue
-		}
-		rows, err := page.GetTextByRow()
-		if err == nil && len(rows) > 0 {
-			for _, row := range rows {
-				var rowText strings.Builder
-				for _, word := range row.Content {
-					rowText.WriteString(word.S)
-				}
-				buf.WriteString(strings.TrimSpace(rowText.String()))
-				buf.WriteString("\n")
-			}
-			continue
-		}
-		text, err := page.GetPlainText(nil)
-		if err != nil {
-			continue
-		}
-		buf.WriteString(text)
-	}
-	return strings.TrimSpace(buf.String()), nil
 }
 
 // parsePPTX 解析 PPTX 文件（ZIP 内 slide XML 提取文本）
