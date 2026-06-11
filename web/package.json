@@ -9,10 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tiptap/extension-placeholder": "^3.26.0",
-    "@tiptap/starter-kit": "^3.26.0",
-    "@tiptap/vue-3": "^3.26.0",
+    "@bytemd/plugin-gfm": "^1.22.0",
+    "@bytemd/vue-next": "^1.22.0",
     "axios": "^1.7.0",
+    "bytemd": "^1.22.0",
     "pinia": "^2.1.0",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"

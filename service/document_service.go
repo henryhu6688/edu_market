@@ -101,9 +101,9 @@ func (s *DocumentService) Delete(docID, userID uint) error {
 	return database.DB.Delete(&doc).Error
 }
 
-// reindexDocument 从 Tiptap JSON 提取纯文本 → 切片 → 向量入库
+// reindexDocument 从 Markdown 提取纯文本 → 切片 → 向量入库
 func reindexDocument(doc *model.Document) {
-	text := extractTextFromTiptapJSON(doc.Content)
+	text := extractTextFromMarkdown(doc.Content)
 	database.DB.Where("course_id = ?", doc.MaterialID).Delete(&model.DocumentChunk{})
 	if rag := GetRAG(); rag != nil {
 		rag.IndexCourse(doc.MaterialID, text)

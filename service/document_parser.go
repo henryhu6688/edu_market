@@ -2,7 +2,6 @@ package service
 
 import (
 	"archive/zip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -24,14 +23,14 @@ func NewDocumentParser() *DocumentParser {
 	return &DocumentParser{formats: config.App.Document.AllowedFormats}
 }
 
-// Parse 解析上传文件，返回 Tiptap JSON
+// Parse 解析上传文件，返回 Markdown 格式内容
 func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error) {
 	ext := strings.ToLower(filename)
 	if dot := strings.LastIndex(ext, "."); dot >= 0 {
 		ext = ext[dot:]
 	}
 	if !p.isAllowed(ext) {
-		return "", fmt.Errorf("不支持的文件格式: %s", ext)
+		return "", fmt.Errorf("不支持: %s（支持 .txt .md .docx .pdf .pptx）", ext)
 	}
 
 	var text string
@@ -48,7 +47,7 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 	case ".pptx":
 		text, err = parsePPTX(reader)
 	default:
-		return "", fmt.Errorf("格式 %s 暂不支持（支持: .txt .md .docx .pdf .pptx）", ext)
+		return "", fmt.Errorf("暂不支持: %s", ext)
 	}
 	if err != nil {
 		return "", err
@@ -56,7 +55,7 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 	if text == "" {
 		return "", fmt.Errorf("文件内容为空")
 	}
-	return textToTiptapJSON(text), nil
+	return textToMarkdown(text), nil
 }
 
 func (p *DocumentParser) isAllowed(ext string) bool {
@@ -68,41 +67,50 @@ func (p *DocumentParser) isAllowed(ext string) bool {
 	return false
 }
 
-// textToTiptapJSON 纯文本转 Tiptap JSON（段落 = 双换行分隔）
-func textToTiptapJSON(text string) string {
+// textToMarkdown 纯文本转 Markdown
+func textToMarkdown(text string) string {
 	paragraphs := strings.Split(strings.TrimSpace(text), "\n\n")
-	var content []map[string]interface{}
+	var result strings.Builder
 	for _, para := range paragraphs {
 		para = strings.TrimSpace(para)
 		if para == "" {
 			continue
 		}
 		lines := strings.Split(para, "\n")
-		var textNodes []map[string]interface{}
 		for i, line := range lines {
-			if line == "" {
-				continue
-			}
-			textNodes = append(textNodes, map[string]interface{}{
-				"type": "text", "text": line,
-			})
+			result.WriteString(line)
 			if i < len(lines)-1 {
-				textNodes = append(textNodes, map[string]interface{}{
-					"type": "hardBreak",
-				})
+				result.WriteString("  \n")
 			}
 		}
-		content = append(content, map[string]interface{}{
-			"type":    "paragraph",
-			"content": textNodes,
-		})
+		result.WriteString("\n\n")
 	}
-	doc := map[string]interface{}{"type": "doc", "content": content}
-	b, _ := json.Marshal(doc)
-	return string(b)
+	return strings.TrimSpace(result.String())
 }
 
-// parsePDF 解析 PDF 文件（通过系统 pdftotext 工具提取文字）
+// parseDOCX 解析 DOCX 文件
+func parseDocx(reader io.Reader) (string, error) {
+	tmp, err := os.CreateTemp("", "upload-*.docx")
+	if err != nil {
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := io.Copy(tmp, reader); err != nil {
+		return "", fmt.Errorf("写入临时文件失败: %w", err)
+	}
+	tmp.Close()
+
+	doc, err := docx.ReadDocxFile(tmp.Name())
+	if err != nil {
+		return "", fmt.Errorf("解析 DOCX 失败: %w", err)
+	}
+	defer doc.Close()
+
+	return strings.TrimSpace(doc.Editable().GetContent()), nil
+}
+
+// parsePDF 解析 PDF 文件
 func parsePDF(reader io.Reader) (string, error) {
 	tmp, err := os.CreateTemp("", "upload-*.pdf")
 	if err != nil {
@@ -117,15 +125,14 @@ func parsePDF(reader io.Reader) (string, error) {
 
 	text, err := parsePDFWithPdfToText(tmp.Name())
 	if err != nil {
-		return "", fmt.Errorf("PDF 文字提取失败: %w", err)
+		return "", fmt.Errorf("PDF 提取失败: %w", err)
 	}
 	if text == "" {
-		return "", fmt.Errorf("PDF 文字提取为空，请确认文件是文字版 PDF（非扫描图片）")
+		return "", fmt.Errorf("PDF 无文字（可能是扫描图片）")
 	}
 	return text, nil
 }
 
-// parsePDFWithPdfToText 调用系统 pdftotext 命令提取文本
 func parsePDFWithPdfToText(path string) (string, error) {
 	outFile := path + ".txt"
 	defer os.Remove(outFile)
@@ -142,7 +149,7 @@ func parsePDFWithPdfToText(path string) (string, error) {
 	return string(data), nil
 }
 
-// parsePPTX 解析 PPTX 文件（ZIP 内 slide XML 提取文本）
+// parsePPTX 解析 PPTX 文件
 func parsePPTX(reader io.Reader) (string, error) {
 	tmp, err := os.CreateTemp("", "upload-*.pptx")
 	if err != nil {
@@ -163,7 +170,6 @@ func parsePPTX(reader io.Reader) (string, error) {
 
 	var slides []string
 	for _, f := range z.File {
-		// 只处理 ppt/slides/slide*.xml
 		if !strings.HasPrefix(f.Name, "ppt/slides/slide") || !strings.HasSuffix(f.Name, ".xml") {
 			continue
 		}
@@ -180,13 +186,50 @@ func parsePPTX(reader io.Reader) (string, error) {
 	for i, slideXML := range slides {
 		result.WriteString(extractTextFromPPTXXML(slideXML))
 		if i < len(slides)-1 {
-			result.WriteString("\n\n---\n\n") // 幻灯片分隔
+			result.WriteString("\n\n---\n\n")
 		}
 	}
 	return strings.TrimSpace(result.String()), nil
 }
 
-// extractTextFromPPTXXML 从 PPTX slide XML 中提取 <a:t> 标签内的文字
+// extractTextFromDocxXML 从 DOCX XML 提取 <w:t> 标签文字
+func extractTextFromDocxXML(xml string) string {
+	var result strings.Builder
+	var current strings.Builder
+	inTag := false
+	inWT := false
+
+	for i := 0; i < len(xml); i++ {
+		ch := xml[i]
+		if ch == '<' {
+			inTag = true
+			current.Reset()
+			continue
+		}
+		if ch == '>' {
+			inTag = false
+			tag := current.String()
+			if strings.HasPrefix(tag, "w:t ") || tag == "w:t" {
+				inWT = true
+			} else if tag == "/w:t" {
+				inWT = false
+				result.WriteString(" ")
+			} else if strings.HasPrefix(tag, "/w:p") || tag == "/w:p" {
+				result.WriteString("\n")
+			}
+			current.Reset()
+			continue
+		}
+		if !inTag && inWT {
+			result.WriteByte(ch)
+		} else if inTag {
+			current.WriteByte(ch)
+		}
+	}
+	return strings.TrimSpace(result.String())
+}
+
+// extractTextFromPPTXXML 从 PPTX slide XML 提取 <a:t> 标签文字
 func extractTextFromPPTXXML(xml string) string {
 	var result strings.Builder
 	var current strings.Builder
@@ -222,88 +265,45 @@ func extractTextFromPPTXXML(xml string) string {
 	return strings.TrimSpace(result.String())
 }
 
-// parseDocx 解析 DOCX 文件
-func parseDocx(reader io.Reader) (string, error) {
-	tmp, err := os.CreateTemp("", "upload-*.docx")
-	if err != nil {
-		return "", fmt.Errorf("创建临时文件失败: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-
-	if _, err := io.Copy(tmp, reader); err != nil {
-		return "", fmt.Errorf("写入临时文件失败: %w", err)
-	}
-	tmp.Close()
-
-	doc, err := docx.ReadDocxFile(tmp.Name())
-	if err != nil {
-		return "", fmt.Errorf("解析 DOCX 失败: %w", err)
-	}
-	defer doc.Close()
-
-	xmlContent := doc.Editable().GetContent()
-	return extractTextFromDocxXML(xmlContent), nil
-}
-
-// extractTextFromDocxXML 从 DOCX 的 document.xml 中提取纯文本
-func extractTextFromDocxXML(xml string) string {
-	var result strings.Builder
-	var current strings.Builder
-	inTag := false
-	inWT := false // 是否在 <w:t>...</w:t> 内
-
-	for i := 0; i < len(xml); i++ {
-		ch := xml[i]
-		if ch == '<' {
-			inTag = true
-			current.Reset()
-			continue
+// extractTextFromMarkdown 从 Markdown 提取纯文本（用于 RAG）
+func extractTextFromMarkdown(md string) string {
+	text := md
+	// 去图片 ![alt](url)
+	for {
+		start := strings.Index(text, "![")
+		if start < 0 {
+			break
 		}
-		if ch == '>' {
-			inTag = false
-			tag := current.String()
-			// 检查标签名
-			if len(tag) >= 4 && tag[:4] == "w:t " || tag == "w:t" || (len(tag) > 4 && tag[:5] == "w:t ") {
-				inWT = true
-			} else if tag == "/w:t" {
-				inWT = false
-				result.WriteString(" ")
-			} else if strings.HasPrefix(tag, "/w:p") || tag == "/w:p" {
-				result.WriteString("\n")
-			}
-			current.Reset()
-			continue
+		end := strings.Index(text[start:], "](")
+		if end < 0 {
+			break
 		}
-		if !inTag && inWT {
-			result.WriteByte(ch)
-		} else if inTag {
-			current.WriteByte(ch)
+		close := strings.Index(text[start+end+2:], ")")
+		if close < 0 {
+			break
 		}
+		text = text[:start] + text[start+end+2+close+1:]
 	}
-	return strings.TrimSpace(result.String())
-}
-
-// extractTextFromTiptapJSON 从 Tiptap JSON 提取纯文本（用于 RAG）
-func extractTextFromTiptapJSON(jsonStr string) string {
-	var doc struct {
-		Content []struct {
-			Type    string `json:"type"`
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"content"`
-	}
-	if err := json.Unmarshal([]byte(jsonStr), &doc); err != nil {
-		return jsonStr // fallback: 原样返回
-	}
-	var parts []string
-	for _, node := range doc.Content {
-		for _, child := range node.Content {
-			if child.Text != "" {
-				parts = append(parts, child.Text)
-			}
+	// 去链接 [text](url) 保留 text
+	for {
+		start := strings.Index(text, "[")
+		if start < 0 {
+			break
 		}
+		end := strings.Index(text[start:], "](")
+		if end < 0 {
+			break
+		}
+		close := strings.Index(text[start+end+2:], ")")
+		if close < 0 {
+			break
+		}
+		linkText := text[start+1 : start+end]
+		text = text[:start] + linkText + text[start+end+2+close+1:]
 	}
-	return strings.Join(parts, "\n")
+	// 去格式标记
+	for _, ch := range []string{"**", "__", "~~", "`", "#", "*", ">"} {
+		text = strings.ReplaceAll(text, ch, "")
+	}
+	return strings.TrimSpace(text)
 }
