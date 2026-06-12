@@ -1,0 +1,12 @@
+#!/bin/bash
+# 禁止直接在 master 提交（merge 除外）
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" = "master" ]; then
+  # 检查是否是 merge commit（merge 允许）
+  if [ -f ".git/MERGE_HEAD" ]; then
+    exit 0
+  fi
+  echo "❌ 禁止在 master 直接提交！请先创建分支："
+  echo "   git checkout -b vX_feature_name"
+  exit 1
+fi
