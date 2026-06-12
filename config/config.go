@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -117,6 +118,20 @@ func Load() {
 	App = &Config{}
 	if err := viper.Unmarshal(App); err != nil {
 		log.Fatalf("解析配置文件失败: %v", err)
+	}
+
+	// 环境变量覆盖敏感配置（不存 git）
+	if v := os.Getenv("AI_API_KEY"); v != "" {
+		App.AI.APIKey = v
+	}
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		App.JWT.Secret = v
+	}
+	if v := os.Getenv("DB_PASSWORD"); v != "" {
+		App.Database.Password = v
+	}
+	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
+		App.Redis.Password = v
 	}
 
 	log.Printf("配置加载成功，运行模式: %s, 端口: %d", App.Server.Mode, App.Server.Port)

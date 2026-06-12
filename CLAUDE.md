@@ -4,6 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 启动与运行
 
+**首次运行前**：复制 `config/app.example.yml` 为 `config/app.yml`，填入真实配置。敏感字段可用环境变量覆盖：
+
+| 环境变量 | 覆盖字段 |
+|----------|---------|
+| `AI_API_KEY` | `ai.api_key` |
+| `JWT_SECRET` | `jwt.secret` |
+| `DB_PASSWORD` | `database.password` |
+| `REDIS_PASSWORD` | `redis.password` |
+
+`config/app.yml` 已加入 `.gitignore`，**不会提交到 git**。
+
 ```bash
 # 后端 — 先杀旧进程（避免旧版占端口），确保 MySQL + Redis 运行
 taskkill //F //IM edu_market.exe 2>/dev/null; taskkill //F //IM main.exe 2>/dev/null

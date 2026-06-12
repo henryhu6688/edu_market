@@ -24,6 +24,7 @@ logs/
 # --- Env / Secrets ---
 .env
 .env.local
+config/app.yml
 
 # --- Uploads ---
 uploads/*
