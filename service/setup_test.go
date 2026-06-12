@@ -46,6 +46,7 @@ func cleanAllTestData() {
 	database.DB.Where("1=1").Delete(&model.Message{})
 	database.DB.Where("1=1").Delete(&model.Session{})
 	database.DB.Where("1=1").Delete(&model.DocumentChunk{})
+	database.DB.Where("1=1").Delete(&model.FAQ{})
 	database.DB.Where("1=1").Delete(&model.Document{})
 	database.DB.Where("1=1").Delete(&model.Material{})
 	database.DB.Where("1=1").Delete(&model.Course{})
@@ -68,7 +69,7 @@ func TestMain(m *testing.M) {
 		},
 		JWT: config.JWTConfig{Secret: "test-secret-key", AccessTTLMin: 30, RefreshTTLHours: 24},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
-		Agent:   config.AgentConfig{MaxToolRounds: 7, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50},
+		Agent:   config.AgentConfig{MaxToolRounds: 10, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50, PurchaseBoundaryTopK: 1, PurchaseBoundaryChars: 200},
 		Document: config.DocumentConfig{AutoSaveDelay: 2, RagSync: true, MaxUploadSize: 20 << 20, AllowedFormats: []string{".pdf", ".pptx", ".docx", ".md", ".txt"}},
 	}
 

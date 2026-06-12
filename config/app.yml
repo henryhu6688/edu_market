@@ -35,8 +35,10 @@ captcha:
   resend_seconds: 60
 
 agent:
-  max_tool_rounds: 7
+  max_tool_rounds: 10
   context_max_messages: 20
+  purchase_boundary_topk: 1
+  purchase_boundary_chars: 200
   embedding_model: ""
   embedding_api_url: ""
   chunk_size: 500

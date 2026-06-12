@@ -58,5 +58,6 @@ func autoMigrate() error {
 		&model.DocumentChunk{},
 		&model.Material{},
 		&model.Document{},
+		&model.FAQ{},
 	)
 }

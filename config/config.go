@@ -77,12 +77,14 @@ type AIConfig struct {
 
 // AgentConfig Agent 配置
 type AgentConfig struct {
-	MaxToolRounds  int    `mapstructure:"max_tool_rounds"`
-	ContextMaxMsg  int    `mapstructure:"context_max_messages"`
-	EmbeddingModel string `mapstructure:"embedding_model"`
-	EmbeddingAPIURL string `mapstructure:"embedding_api_url"`
-	ChunkSize      int    `mapstructure:"chunk_size"`
-	ChunkOverlap   int    `mapstructure:"chunk_overlap"`
+	MaxToolRounds         int    `mapstructure:"max_tool_rounds"`
+	ContextMaxMsg         int    `mapstructure:"context_max_messages"`
+	EmbeddingModel        string `mapstructure:"embedding_model"`
+	EmbeddingAPIURL       string `mapstructure:"embedding_api_url"`
+	ChunkSize             int    `mapstructure:"chunk_size"`
+	ChunkOverlap          int    `mapstructure:"chunk_overlap"`
+	PurchaseBoundaryTopK  int    `mapstructure:"purchase_boundary_topk"`
+	PurchaseBoundaryChars int    `mapstructure:"purchase_boundary_chars"`
 }
 
 // CaptchaConfig 验证码配置
