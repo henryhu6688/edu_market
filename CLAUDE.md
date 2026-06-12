@@ -34,7 +34,8 @@ Go + Gin + GORM + MySQL + Redis 后端，Vue3 + Vite 前端。在线学习资料
 - Service 层不碰 `gin.Context`，只返回 Go `error`
 - JWT 注入 `user_id`、`username`、`role`（`user`|`admin`）到 ctx
 - `config/app.yml` 已 gitignore，用 `config/app.example.yml` 做模板
-- 敏感字段环境变量覆盖：`AI_API_KEY`、`JWT_SECRET`、`DB_PASSWORD`、`REDIS_PASSWORD`
+- 敏感字段环境变量覆盖或用 `readConfigYAML("key")` 从 `config/app.yml` 读取，禁止硬编码
+- `config/app.example.yml` 和 `config/app.yml` 结构必须一致，改配置时两个文件同步更新
 - 测试库独立（`edu_market_test`），TestMain 自动建库 + 清空
 - 删除等不可逆操作必须先确认
 - 功能开发严格按 Superpowers 工作流
