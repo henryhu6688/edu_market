@@ -87,8 +87,9 @@ func (e *AgentEngine) Run(
 	tools map[string]Tool,
 	systemPrompt string,
 	sseHandler SSEHandler,
+	requestID string,
 ) error {
-	slog.Info("Agent 开始", "session_id", session.ID, "question_preview", truncateRunes(userMsg, 50))
+	slog.Info("Agent 开始", "request_id", requestID, "session_id", session.ID, "question_preview", truncateRunes(userMsg, 50))
 
 	// 1. 存用户消息
 	userMessage := &model.Message{
@@ -134,7 +135,7 @@ func (e *AgentEngine) Run(
 				// 通知前端
 				sseHandler("thinking", fmt.Sprintf(`{"tool":"%s","status":"executing"}`, toolName))
 
-				slog.Info("Agent Tool 执行", "session_id", session.ID, "tool", toolName, "round", round+1)
+				slog.Info("Agent Tool 执行", "request_id", requestID, "session_id", session.ID, "tool", toolName, "round", round+1)
 
 				// 查找并执行工具
 				tool, ok := tools[toolName]

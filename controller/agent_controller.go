@@ -31,9 +31,9 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 	}
 
 	userID := c.GetUint("user_id")
-	q := req.Question
-	if len(q) > 50 { q = q[:50] }
-	slog.Info("Agent 对话请求", "user_id", userID, "question", q)
+	requestID, _ := c.Get("request_id")
+	rid := fmt.Sprint(requestID)
+	slog.Info("Agent 对话请求", "request_id", rid, "user_id", userID, "question", req.Question[:min(len(req.Question), 50)])
 
 	// 设置 SSE 响应头
 	c.Header("Content-Type", "text/event-stream")
@@ -72,7 +72,7 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 		}
 	}
 
-	session, err := ctr.svc.Chat(userID, req.SessionID, req.Question, searchFunc, sseHandler)
+	session, err := ctr.svc.Chat(userID, req.SessionID, req.Question, searchFunc, sseHandler, rid)
 	if err != nil {
 		// 引擎内部已尝试发 error 事件，这里补一个兜底
 		fmt.Fprintf(c.Writer, "event: error\ndata: {\"message\":\"%s\"}\n\n", err.Error())

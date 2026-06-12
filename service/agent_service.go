@@ -21,7 +21,7 @@ func NewAgentService(engine *AgentEngine) *AgentService {
 }
 
 // Chat 发起/继续 Agent 对话（v3: 单一 Agent + Workflow 骨架）
-func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searchFunc SearchFunc, sseHandler SSEHandler) (*model.Session, error) {
+func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searchFunc SearchFunc, sseHandler SSEHandler, requestID string) (*model.Session, error) {
 	// 1. 获取或创建 Session
 	var session *model.Session
 	if sessionID != nil {
@@ -55,7 +55,7 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 	tools := buildToolSet(searchFunc)
 
 	// 4. 运行引擎
-	if err := s.engine.Run(session, question, tools, systemPrompt, sseHandler); err != nil {
+	if err := s.engine.Run(session, question, tools, systemPrompt, sseHandler, requestID); err != nil {
 		return session, err
 	}
 
