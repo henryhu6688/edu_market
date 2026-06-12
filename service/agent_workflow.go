@@ -21,7 +21,7 @@ func ClassifyIntent(question string) string {
 
 	buyWords := []string{"买", "购买", "下单", "怎么收费", "多少钱"}
 	afterSaleWords := []string{"退款", "订单", "支付失败", "投诉", "申诉", "退", "付", "发货"}
-	consultWords := []string{"有没有", "内容", "目录", "讲什么", "适合", "推荐", "学什么", "资料", "课程", "哪", "入门", "进阶", "可以", "好"}
+	consultWords := []string{"有没有", "内容", "目录", "讲什么", "适合", "推荐", "学什么", "资料", "课程", "哪", "入门", "进阶", "哪个好", "想学"}
 
 	if matchAny(msgLower, buyWords) {
 		return IntentPurchase
