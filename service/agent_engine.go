@@ -40,10 +40,11 @@ type toolCallFunc struct {
 
 // llmRequest LLM 请求体
 type llmRequest struct {
-	Model    string                   `json:"model"`
-	Messages []agentChatMsg                `json:"messages"`
-	Stream   bool                     `json:"stream"`
-	Tools    []map[string]interface{} `json:"tools,omitempty"`
+	Model     string                   `json:"model"`
+	Messages  []agentChatMsg           `json:"messages"`
+	Stream    bool                     `json:"stream"`
+	Tools     []map[string]interface{} `json:"tools,omitempty"`
+	MaxTokens int                      `json:"max_tokens,omitempty"`
 }
 
 // llmChoice LLM 响应 choice（非流式）
@@ -201,6 +202,10 @@ func (e *AgentEngine) Run(
 		if answer == "" {
 			answer = "抱歉，我暂时无法处理这个问题。"
 		}
+		// 检测截断：DeepSeek 返回 finish_reason="length" 表示超出 token 限制
+		if choice.FinishReason == "length" {
+			answer += "\n\n(回复过长已截断，可追问获取完整内容)"
+		}
 
 		// 先清理切换标记再输出给前端（避免用户看到 [TRANSFER:xxx]）
 		displayAnswer := CleanTransferMarkers(answer)
@@ -257,10 +262,11 @@ func (e *AgentEngine) loadContext(sessionID uint, systemPrompt string) []agentCh
 // callLLM 调用 LLM API（非流式，用于 Tool Calling 场景）
 func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interface{}) (*llmResponse, error) {
 	reqBody := llmRequest{
-		Model:    config.App.AI.Model,
-		Messages: history,
-		Stream:   false,
-		Tools:    tools,
+		Model:     config.App.AI.Model,
+		Messages:  history,
+		Stream:    false,
+		Tools:     tools,
+		MaxTokens: 4096,
 	}
 
 	jsonBytes, err := json.Marshal(reqBody)
