@@ -88,7 +88,7 @@ async function loadSessions() {
 async function loadMessages(sessionId) {
   try {
     const res = await getMessages(sessionId, { page: 1, page_size: 100 })
-    messages.value = (res.data.list || []).map(m => ({
+    messages.value = (res.data.list || []).filter(m => m.role !== 'tool').map(m => ({
       role: m.role,
       content: m.content
     }))
@@ -234,7 +234,7 @@ async function send() {
           scrollToBottom()
         }
       }
-      if (streamEnded) reader.cancel()
+      if (streamEnded) break
     }
   } catch (e) {
     messages.value.push({ role: 'assistant', content: `连接失败: ${e.message}` })

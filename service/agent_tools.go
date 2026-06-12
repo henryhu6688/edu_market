@@ -45,7 +45,7 @@ type SearchFunc func(materialID uint, query string, topK int) (string, error)
 
 const (
 	ToolQueryOrders   = "query_orders"
-	ToolQueryCourses  = "query_courses"
+	ToolQueryMaterials = "query_materials"
 	ToolSearchMaterials = "search_course_materials"
 )
 
@@ -82,7 +82,7 @@ type queryCoursesTool struct{}
 
 func (t queryCoursesTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        ToolQueryCourses,
+		Name:        ToolQueryMaterials,
 		Description: "按关键词、分类ID、价格范围搜索课程列表，返回课程标题、描述、价格、分类等信息",
 		Parameters: map[string]interface{}{
 			"type": "object",
