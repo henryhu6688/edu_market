@@ -1,21 +1,15 @@
-# v3 Agent 改进设计：Workflow 骨架 + Agent 内核
+# v3 Agent 重新设计：单一 Agent + LLM 自主规划
 
 > 日期: 2026-06-12
 > 状态: 设计完成
 > 分支: v3_agentImprove
-> 基于: v2 Agent 设计 (2026-06-10-agent-design.md)
+> 取代: v2 Agent 设计 (2026-06-10-agent-design.md)
 
-## 改进目标
+## 设计理念
 
-从 "固定流程 Workflow" 升级为 "Workflow 做骨架，Agent 做内核"：
+**从 "3 个按规则运作的 Workflow" 变成一个 "LLM 自主规划的 Agent"。**
 
-| | v2（现在） | v3（目标） |
-|---|-----------|-----------|
-| 路由 | 关键词匹配，不命中默认客服 | 关键词优先，LLM 二级判断，无关话题拒绝 |
-| Tool 数量 | 每个 Agent 只有 1 个 tool | 每个 Agent 3-4 个 tool |
-| 工具使用 | 调 1 个就回答 | 多 tool 串联：思考→行动→观察→再行动→回答 |
-| 失败处理 | 错误信息给 LLM 兜底 | LLM 自主换策略 |
-| Agent 动作 | 只能返回文字 | 新增 `action` SSE 事件，可触发前端操作 |
+核心理念：LLM 拥有规划权。Workflow 层只做安全兜底。
 
 ## 架构
 
@@ -23,210 +17,191 @@
 用户消息
   │
   ▼
-┌─────────────────────────────────┐
-│      Workflow 层（固定）          │
-│  - 关键词 + LLM 路由 → 确定领域    │
-│  - Tool 白名单 → 安全边界         │
-│  - 步数上限(10轮) → 防死循环      │
-│  - 无关话题拒绝 → 礼貌引导回正轨    │
-└──────────┬──────────────────────┘
-           ▼
-┌─────────────────────────────────┐
-│      Agent 层（自主）             │
-│  - 领域内多 tool 串联             │
-│  - 思考-行动-观察循环             │
-│  - 失败后自主换策略               │
-│  - LLM 决定何时回答               │
-│  - action 事件触发前端操作         │
-└──────────┬──────────────────────┘
-           ▼
-     DeepSeek API
+┌─────────────────────────────────────────┐
+│           Workflow 层（极薄）              │
+│  - Tool 白名单（只读 DB，不下线）            │
+│  - 最大步数 10（防死循环）                 │
+│  - 步间延迟、Token 计数                   │
+│  - SSE 连接管理                          │
+│  - 兜底：100% 有回复                      │
+└──────────────────┬──────────────────────┘
+                   ▼
+┌─────────────────────────────────────────┐
+│            一个 Agent                    │
+│                                         │
+│  全部 Tool 可用（10 个）                   │
+│  LLM 自己规划：先做什么、后做什么            │
+│  LLM 自己决策：Tool 结果不好 → 换策略       │
+│  LLM 自己判断：什么时候回答、什么时候发action │
+│  LLM 自己处理：闲聊就闲聊、无关就拒绝        │
+└──────────────────┬──────────────────────┘
+                   ▼
+             DeepSeek API
 ```
 
-## Router 改进
+## 和 v2 的本质区别
 
-### 三层路由
+| | v2（3 个 Agent + Router） | v3（1 个 Agent） |
+|---|---|---|
+| 谁会做什么 | Router 关键词匹配决定 | LLM 自己分析用户意图 |
+| Tool 给谁 | 硬编码分配给 3 个 Agent | 全部 tool 都可用，LLM 自己选 |
+| 多步骤 | 每次 1 个 tool | LLM 规划多步串联 |
+| 跨领域 | Transfer 标记切换 | LLM 自己决定转变话题 |
+| 兜底 | 不匹配默认客服 | LLM 判断是否无关，礼貌拒绝 |
+| 自主性 | 无。走固定流程 | 有。LLM 可以临时调整计划 |
 
-```
-用户消息
-  │
-  ▼
-第一层：关键词匹配（规则）
-  ├─ 命中 → 直接路由到对应 Agent
-  └─ 未命中 → 第二层
-        ▼
-第二层：LLM 快判（1 句话 prompt）
-  ├─ customer_service → 客服
-  ├─ course_recommend → 推荐
-  ├─ qa → 答疑
-  └─ irrelevant → 第三层
-        ▼
-第三层：客服 Agent 兜底 + 礼貌拒绝
-  "我是学习助手，可以帮你找资料、查订单、解答课程问题。你想了解什么？"
-```
-
-### 关键词表（更新为 v3 术语）
-
-| 意图 | 关键词 |
-|------|--------|
-| customer_service | 退款、订单、支付失败、怎么买、申诉、客服、联系、投诉、价格、优惠券 |
-| course_recommend | 推荐、有什么资料、适合我、哪个好、入门、进阶、有没有、零基础、学什么 |
-| qa | 目录、第几章、讲什么、内容、讲义、课件、解释、推导、证明、怎么理解 |
-
-## 三个 Agent 的能力（v3 升级）
-
-### 客服 Agent
-
-| Tool | 说明 | 数据来源 |
-|------|------|---------|
-| `query_orders` | 查用户订单列表 | orders 表 |
-| `get_order_detail` | 单笔订单详情（状态、金额、时间） | orders 表 |
-| `search_faq` | 搜索平台 FAQ | 新增 faqs 表 |
-
-新增 `faqs` 表：
-```sql
-CREATE TABLE faqs (
-    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    question VARCHAR(500) NOT NULL,
-    answer   TEXT NOT NULL,
-    category VARCHAR(50) DEFAULT 'general',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### 推荐 Agent
+## 全部 Tool（一个 Agent 用所有）
 
 | Tool | 说明 | 数据来源 |
 |------|------|---------|
 | `query_materials` | 按关键词/分类/价格搜索资料 | materials 表 |
-| `get_material_detail` | 资料详情 + 评价数 + 购买数 + 文档目录概览 | materials + documents |
-| `get_reviews` | 某资料的用户评价 | reviews 表 |
-| `get_categories` | 所有分类列表 | categories 表 |
-
-### 答疑 Agent
-
-| Tool | 说明 | 数据来源 |
-|------|------|---------|
+| `get_material_detail` | 资料详情：价格、评价数、购买数、文档目录 | materials + documents |
 | `get_material_outline` | 文档目录结构（章节标题） | documents 表 |
-| `search_documents` | RAG 检索文档内容，买前限制返回量 | document_chunks |
-| `get_document_content` | 某篇文档完整内容（仅买后开放） | documents 表 |
-| `trigger_purchase_offer` | 引导购买，发送 action SSE 事件 | materials 表 |
+| `get_reviews` | 某资料的用户评价 | reviews 表 |
+| `get_categories` | 所有分类 | categories 表 |
+| `query_orders` | 当前用户订单列表 | orders 表 |
+| `get_order_detail` | 单笔订单详情 | orders 表 |
+| `search_faq` | 搜索平台 FAQ | 新增 faqs 表 |
+| `search_documents` | RAG 检索文档内容（买前限制） | document_chunks |
+| `trigger_purchase_offer` | 引导购买（发 action SSE） | materials 表 |
 
-## 答疑内容边界
-
-| 能力 | 买前 | 买后 |
-|------|------|------|
-| 目录结构 | ✅ | ✅ |
-| 试读文档 | ✅ 全文 | ✅ |
-| "有没有X"类概括回答 | ✅ | ✅ |
-| 全文检索 | ❌ | ✅ |
-| 逐章详细讲解 | ❌ | ✅ |
-| 代码/案例细节 | ❌ | ✅ |
-
-### 技术兜底
-
-不只靠 System Prompt。代码层强制：
-- `search_documents` 买前调用时 `topK=1`，截断每个片段到 200 字
-- `get_document_content` 买前直接返回错误："购买后可查看完整内容"
-
-## 新的 SSE 事件：action
-
-v2 只有 `thinking / delta / done / error`。v3 新增 `action`——让 Agent 不只是说，还能做。
-
-### 事件定义
+## System Prompt（核心）
 
 ```
-event: action
-data: {"type":"<action_type>","payload":{...}}
+你是 edu_market 学习平台的智能助手。你拥有以下能力：
+
+搜资料、查订单、看评价、检索资料内容、平台FAQ、引导购买。
+
+你的工作方式：
+1. 收到用户请求后，自己分析需要什么信息
+2. 自己决定调哪些工具、按什么顺序
+3. 工具结果不理想时，自己换策略
+4. 信息够了就给回答，不要多余操作
+
+答疑内容边界：
+- 未购买资料的用户问内容 → 只回答目录级别 + "有没有X"的概括，不暴露具体内容
+- 已购买用户可以深度答疑，检索全文
+- 主动判断用户是否购买过资料
+
+关于引导购买：
+- 用户表现出对某资料的兴趣且未购买 → 主动发购买卡片
+- 用户问的内容超出买前边界 → 提示购买后可查看
+
+关于边界：
+- 用户说无关话题（写代码、写作文）→ 礼貌引导回学习资料相关
+- 不确定时宁可多问一句，不要猜
+- 始终友好、专业、简洁
 ```
+
+## 答疑边界技术实现
+
+不只靠 Prompt，代码层强制：
+
+| Tool | 买前限制 | 买后 |
+|------|---------|------|
+| `search_documents` | topK=1，每个片段截断到 200 字 | 无限制 |
+| `get_document_content` | 返回错误："购买后可查看" | 返回全文 |
+
+## SSE 事件
+
+| 事件 | 说明 | v3 新增 |
+|------|------|---------|
+| `thinking` | 正在调 tool | - |
+| `delta` | 逐字输出 | - |
+| `done` | 完成 | - |
+| `error` | 出错 | - |
+| `action` | 触发前端操作 | ✅ 新增 |
 
 ### action 类型
 
-| type | 触发时机 | 前端渲染 |
+| type | 触发时机 | payload |
 |------|---------|---------|
-| `purchase_offer` | 答疑买前 → 用户表现出兴趣 | 购买卡片（标题、价格、按钮） |
-| `transfer_agent` | 需要切换到其他 Agent | 切换提示 |
-| `order_link` | 客服查订单后 | 订单详情卡片 |
+| `purchase_offer` | 用户表现出购买兴趣 | material_id, title, price, cover |
+| `transfer_agent` | 保留，暂不使用（v3 只有一个 Agent） | target |
 
-### purchase_offer JSON 结构
+## 数据模型
 
-```json
-{
-  "type": "purchase_offer",
-  "payload": {
-    "material_id": 1,
-    "title": "Python 数据分析实战",
-    "price": 29.90,
-    "cover_image": "/uploads/covers/xxx.jpg"
-  }
-}
+### 新增 faqs 表
+
+```sql
+CREATE TABLE faqs (
+    id        BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    question  VARCHAR(500) NOT NULL,
+    answer    TEXT NOT NULL,
+    category  VARCHAR(50) DEFAULT 'general',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-### 实现
+其他表不变：`sessions`、`messages`、`document_chunks` 继续使用。
 
-`trigger_purchase_offer` tool：
-1. 校验用户未购买该资料
-2. 查 material 信息
-3. 通过 SSEHandler 发送 `action` 事件
-4. 前端收到后渲染购买卡片
+## Agent 引擎改动
+
+v3 引擎和 v2 核心逻辑相同（Tool Calling 循环），改动点：
+
+| 改动 | 说明 |
+|------|------|
+| 去掉 `agentType` 参数 | 只有一个 Agent，不需要区分类型 |
+| Router 逻辑简化 | 去掉关键词路由，LLM 自己判断 |
+| Tool 注册改为全量 | `buildToolSet` 不再按 agentType 筛选 |
+| System Prompt 统一 | 一个 prompt，不再分三种 |
+| 最大轮数提升 | 7 → 10 |
+| action 事件 | 引擎支持发送 action SSE 事件 |
 
 ## 前端改动
 
-### action 事件处理
+### action 事件渲染
 
 ```javascript
 if (currentEvent === 'action') {
   const d = JSON.parse(payload)
   if (d.type === 'purchase_offer') {
     messages.value.push({
-      role: 'assistant',
-      actionCard: {
-        type: 'purchase',
-        materialId: d.payload.material_id,
-        title: d.payload.title,
-        price: d.payload.price
-      }
+      role: 'action',
+      action: { type: 'purchase', ...d.payload }
     })
   }
 }
 ```
 
-### 购买卡片组件
+### 购买卡片
 
-聊天气泡中渲染：
-```
-┌─────────────────────────────┐
-│ 🛒 Python 数据分析实战       │
-│    ¥29.90                   │
-│    [立即购买]                 │
-└─────────────────────────────┘
-```
+聊天气泡中渲染操作卡片（不是纯文字）。
+
+### Agent 标签
+
+去掉客服/推荐/答疑标签。改为统一的"AI 助手"。
 
 ## 配置
 
 ```yaml
 agent:
-  max_tool_rounds: 10           # 提升到 10 轮（多 tool 串联需要更多步数）
+  max_tool_rounds: 10
   context_max_messages: 20
-  purchase_boundary_topk: 1     # 买前检索 topK
-  purchase_boundary_chars: 200  # 买前检索片段截断长度
+  purchase_boundary_topk: 1
+  purchase_boundary_chars: 200
 ```
 
-## 改进点汇总
+## API 不变
 
-| # | v2 问题 | v3 改进 |
-|---|---------|---------|
-| 1 | 未命中关键词默认客服 | LLM 二级判断 + 无关话题拒绝 |
-| 2 | 每个 Agent 只有 1 个 tool | 3-4 个 tool，支持多工具串联 |
-| 3 | 答疑边界纯靠 Prompt | 代码层 topK/截断兜底 |
-| 4 | Agent 只能返回文字 | action SSE 事件，触发购买/订单等操作 |
-| 5 | 缺少 FAQ | 新增 faqs 表 + search_faq tool |
-| 6 | Tool 循环上限 7 轮 | 提升到 10 轮 |
-| 7 | transfer 标记硬编码 | 保留兼容，优先用 action 切换 |
+```
+POST /api/agent/chat          SSE 对话
+GET  /api/agent/sessions      会话列表
+DELETE /api/agent/sessions/:id  删除会话
+GET  /api/agent/sessions/:id/messages  消息历史
+```
 
-## 向后兼容
+## 与 v2 的向后兼容
 
-- 现有 `sessions`、`messages` 表不变
-- `[TRANSFER:xxx]` 标记继续支持，与 `action` 并行
-- 旧 API 路由不变
-- old `conversations` 表已删除
+- `sessions.agent_type` 字段保留但废弃，默认 `agent`
+- `[TRANSFER:xxx]` 检测保留但不依赖
+- 旧 `conversations` 表已删除
+
+## 测试策略
+
+| 测试 | 内容 |
+|------|------|
+| `agent_engine_test.go` | Tool 循环、上下文、10 轮上限、action 事件 |
+| `agent_router_test.go` | LLM 判断路由、无关话题拒绝 |
+| `agent_tools_test.go` | 各 tool 正确性、内容边界限制 |
+| `agent_service_test.go` | 会话管理、权限、SSE 输出 |
