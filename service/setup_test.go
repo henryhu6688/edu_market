@@ -62,14 +62,14 @@ func TestMain(m *testing.M) {
 	config.App = &config.Config{
 		Server: config.ServerConfig{Port: 8080, Mode: "test"},
 		Database: config.DatabaseConfig{
-			Host: "127.0.0.1", Port: 3306, User: "root", Password: "123456",
+			Host: "127.0.0.1", Port: 3306, User: "root", Password: readConfigYAML("database.password"),
 			DBName: testDBName, Charset: "utf8mb4", MaxIdleConns: 5, MaxOpenConns: 10,
 		},
 		Redis: config.RedisConfig{
 			Addr: "127.0.0.1:6379", Password: "", DB: 2,
 		},
-		JWT: config.JWTConfig{Secret: "test-secret-key", AccessTTLMin: 30, RefreshTTLHours: 24},
-		AI:    config.AIConfig{Provider: "deepseek", APIKey: readAPIKeyFromYAML(), APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-chat"},
+		JWT: config.JWTConfig{Secret: readConfigYAML("jwt.secret"), AccessTTLMin: 30, RefreshTTLHours: 24},
+		AI:    config.AIConfig{Provider: "deepseek", APIKey: readConfigYAML("ai.api_key"), APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-chat"},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
 		Agent:   config.AgentConfig{MaxToolRounds: 10, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50, PurchaseBoundaryTopK: 1, PurchaseBoundaryChars: 200},
 		Document: config.DocumentConfig{AutoSaveDelay: 2, RagSync: true, MaxUploadSize: 20 << 20, AllowedFormats: []string{".pdf", ".pptx", ".docx", ".md", ".txt"}},
@@ -110,8 +110,8 @@ func TestMain(m *testing.M) {
 	}
 }
 
-// readAPIKeyFromYAML 从本地 app.yml 读取 ai.api_key
-func readAPIKeyFromYAML() string {
+// readConfigYAML 从本地 app.yml 读取指定 key（如 "database.password"）
+func readConfigYAML(key string) string {
 	v := viper.New()
 	v.SetConfigName("app")
 	v.SetConfigType("yml")
@@ -122,5 +122,5 @@ func readAPIKeyFromYAML() string {
 	if err := v.ReadInConfig(); err != nil {
 		return ""
 	}
-	return v.GetString("ai.api_key")
+	return v.GetString(key)
 }
