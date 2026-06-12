@@ -51,7 +51,7 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 
 	// 2. 构建 Prompt + Tools
 	systemPrompt := GetAgentPrompt(session.AgentType)
-	tools := buildToolSet(session.AgentType, searchFunc)
+	tools := buildToolSet(searchFunc)
 
 	// 3. 运行引擎
 	if err := s.engine.Run(session, question, tools, systemPrompt, sseHandler); err != nil {

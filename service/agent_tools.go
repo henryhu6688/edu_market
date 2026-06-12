@@ -178,21 +178,235 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 	return ToolResult{Success: true, Content: content}
 }
 
-// ============ Tool 集合构建 ============
+// ============ 新增 v3 Tool ============
 
-// buildToolSet 构建 Agent 的 Tool 集合
-func buildToolSet(agentType string, searchFunc SearchFunc) map[string]Tool {
-	tools := make(map[string]Tool)
+type getMaterialDetailTool struct{}
 
-	switch agentType {
-	case model.AgentCustomerService:
-		tools[ToolQueryOrders] = queryOrdersTool{}
-	case model.AgentCourseRecommend:
-		tools[ToolQueryCourses] = queryCoursesTool{}
-	case model.AgentQA:
-		if searchFunc != nil {
-			tools[ToolSearchMaterials] = newSearchMaterialsTool(searchFunc)
-		}
+func (t getMaterialDetailTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "get_material_detail",
+		Description: "获取某份学习资料的详细信息，包括价格、评价数、购买数、文档目录结构",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"material_id": map[string]interface{}{"type": "number", "description": "资料ID"},
+			},
+			"required": []string{"material_id"},
+		},
+	}
+}
+
+func (t getMaterialDetailTool) Execute(_ uint, argsJSON string) ToolResult {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var material model.Material
+	if err := database.DB.Preload("Category").Preload("Documents").
+		First(&material, args.MaterialID).Error; err != nil {
+		return ToolResult{Success: false, Content: "资料不存在"}
+	}
+
+	type OutlineItem struct {
+		Title    string `json:"title"`
+		IsFree   bool   `json:"is_free_preview"`
+	}
+	var outline []OutlineItem
+	for _, d := range material.Documents {
+		outline = append(outline, OutlineItem{Title: d.Title, IsFree: d.IsFreePreview})
+	}
+
+	result := map[string]interface{}{
+		"id": material.ID, "title": material.Title, "price": material.Price,
+		"description": material.Description, "view_count": material.ViewCount,
+		"buy_count": material.BuyCount, "category": material.Category.Name,
+		"outline": outline,
+	}
+	b, _ := json.Marshal(result)
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+type getReviewsTool struct{}
+
+func (t getReviewsTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "get_reviews",
+		Description: "获取某份资料的用户评价列表，含评分和内容",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"material_id": map[string]interface{}{"type": "number"},
+			},
+			"required": []string{"material_id"},
+		},
+	}
+}
+
+func (t getReviewsTool) Execute(_ uint, argsJSON string) ToolResult {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var reviews []model.Review
+	database.DB.Where("course_id = ?", args.MaterialID).
+		Order("created_at DESC").Limit(10).Find(&reviews)
+
+	type ReviewItem struct {
+		Rating  int    `json:"rating"`
+		Content string `json:"content"`
+	}
+	var items []ReviewItem
+	for _, r := range reviews {
+		items = append(items, ReviewItem{Rating: r.Rating, Content: r.Content})
+	}
+	b, _ := json.Marshal(map[string]interface{}{
+		"count": len(reviews), "reviews": items,
+	})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+type getCategoriesTool struct{}
+
+func (t getCategoriesTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "get_categories",
+		Description: "获取平台所有学习资料分类列表",
+		Parameters: map[string]interface{}{
+			"type": "object", "properties": map[string]interface{}{},
+		},
+	}
+}
+
+func (t getCategoriesTool) Execute(_ uint, _ string) ToolResult {
+	var cats []model.Category
+	database.DB.Order("id ASC").Find(&cats)
+
+	type CatItem struct {
+		ID   uint   `json:"id"`
+		Name string `json:"name"`
+	}
+	var items []CatItem
+	for _, c := range cats {
+		items = append(items, CatItem{ID: c.ID, Name: c.Name})
+	}
+	b, _ := json.Marshal(items)
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+type searchFAQTool struct{}
+
+func (t searchFAQTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "search_faq",
+		Description: "在平台FAQ中搜索相关问题，用于解答退款、支付、使用等问题",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]interface{}{"type": "string", "description": "搜索关键词"},
+			},
+			"required": []string{"query"},
+		},
+	}
+}
+
+func (t searchFAQTool) Execute(_ uint, argsJSON string) ToolResult {
+	var args struct{ Query string `json:"query"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var faqs []model.FAQ
+	database.DB.Where("question LIKE ? OR answer LIKE ?",
+		"%"+args.Query+"%", "%"+args.Query+"%").Limit(5).Find(&faqs)
+
+	type FAQItem struct {
+		Question string `json:"question"`
+		Answer   string `json:"answer"`
+	}
+	var items []FAQItem
+	for _, f := range faqs {
+		items = append(items, FAQItem{Question: f.Question, Answer: f.Answer})
+	}
+	b, _ := json.Marshal(items)
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+type getOrderDetailTool struct{}
+
+func (t getOrderDetailTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "get_order_detail",
+		Description: "获取单笔订单的详细信息：订单号、金额、状态、时间、关联资料",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"order_no": map[string]interface{}{"type": "string", "description": "订单号"},
+			},
+			"required": []string{"order_no"},
+		},
+	}
+}
+
+func (t getOrderDetailTool) Execute(userID uint, argsJSON string) ToolResult {
+	var args struct{ OrderNo string `json:"order_no"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var order model.Order
+	if err := database.DB.Where("order_no = ? AND user_id = ?", args.OrderNo, userID).
+		First(&order).Error; err != nil {
+		return ToolResult{Success: false, Content: "订单不存在"}
+	}
+	b, _ := json.Marshal(order)
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+type triggerPurchaseOfferTool struct{}
+
+func (t triggerPurchaseOfferTool) Definition() ToolDef {
+	return ToolDef{
+		Name:        "trigger_purchase_offer",
+		Description: "向用户发送购买引导卡片。仅在用户表现出购买兴趣时调用。",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"material_id": map[string]interface{}{"type": "number", "description": "要推荐的资料ID"},
+			},
+			"required": []string{"material_id"},
+		},
+	}
+}
+
+func (t triggerPurchaseOfferTool) Execute(_ uint, argsJSON string) ToolResult {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var material model.Material
+	if err := database.DB.First(&material, args.MaterialID).Error; err != nil {
+		return ToolResult{Success: false, Content: "资料不存在"}
+	}
+
+	result := map[string]interface{}{
+		"__action":    "purchase_offer",
+		"material_id": material.ID,
+		"title":       material.Title,
+		"price":       material.Price,
+		"cover_image": material.CoverImage,
+	}
+	b, _ := json.Marshal(result)
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+// ============ Tool 集合构建（v3：全量注册，不按 agentType 筛选） ============
+
+func buildToolSet(searchFunc SearchFunc) map[string]Tool {
+	tools := map[string]Tool{
+		"query_materials":        queryCoursesTool{},
+		"get_material_detail":    getMaterialDetailTool{},
+		"get_reviews":            getReviewsTool{},
+		"get_categories":         getCategoriesTool{},
+		"query_orders":           queryOrdersTool{},
+		"get_order_detail":       getOrderDetailTool{},
+		"search_faq":             searchFAQTool{},
+		"trigger_purchase_offer": triggerPurchaseOfferTool{},
+	}
+	if searchFunc != nil {
+		tools["search_documents"] = newSearchMaterialsTool(searchFunc)
 	}
 	return tools
 }
