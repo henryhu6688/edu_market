@@ -43,7 +43,7 @@ Go + Gin + GORM + MySQL + Redis 后端，Vue3 + Vite 前端。在线学习资料
 - `.claude/rules/superpowers-workflow.md` — 开发流程
 - `.claude/rules/go/gorm.md` — GORM 约定
 - `.claude/rules/go/testing.md` — 测试约定
-- `.claude/rules/project/conventions.md` — HTTP 响应、Context 注入、中文注释等约定
+- `.claude/rules/project/conventions.md` — HTTP响应、开发流水线、Context注入、敏感数据保护、Git分支规则
 - `.claude/rules/project/architecture.md` — 分层架构、数据模型、路由表、前端
-- `.claude/rules/project/agent.md` — Agent 设计、Tool、SSE 协议
-- `.claude/rules/project/materials.md` — 资料/文档系统、编辑器、权限
+- `.claude/rules/project/agent.md` — Agent架构、9个Tool、SSE协议、上下文管理
+- `.claude/rules/project/materials.md` — 资料/文档模型、编辑器、解析器、权限
