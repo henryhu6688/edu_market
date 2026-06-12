@@ -242,28 +242,12 @@ func (e *AgentEngine) loadContext(sessionID uint, systemPrompt string) []agentCh
 		Order("id ASC").Limit(e.contextLimit).Find(&dbMsgs)
 
 	for _, m := range dbMsgs {
-		msg := agentChatMsg{Role: m.Role, Content: m.Content}
-		if m.Role == model.RoleTool && len(m.ToolCalls) > 0 {
-			// tool 消息：设置 tool_call_id 关联到对应的 assistant tool_call
-			callID := m.ToolCalls[0].CallID
-			if callID == "" {
-				callID = fmt.Sprintf("call_legacy_%d", m.ID)
-			}
-			msg.ToolCallID = callID
-		} else if m.Role == model.RoleAssistant && len(m.ToolCalls) > 0 {
-			// assistant 消息：重建 tool_calls 数组
-			for _, tc := range m.ToolCalls {
-				callID := tc.CallID
-				if callID == "" {
-					callID = fmt.Sprintf("call_legacy_%d", m.ID)
-				}
-				msg.ToolCalls = append(msg.ToolCalls, toolCallItem{
-					ID:       callID,
-					Type:     "function",
-					Function: toolCallFunc{Name: tc.Name, Arguments: tc.Arguments},
-				})
-			}
+		// 跳过 tool 消息和有 tool_calls 的 assistant 消息
+		// 历史中的 tool 调用不完整的配对会导致 API 400 错误
+		if m.Role == model.RoleTool || len(m.ToolCalls) > 0 {
+			continue
 		}
+		msg := agentChatMsg{Role: m.Role, Content: m.Content}
 		history = append(history, msg)
 	}
 
