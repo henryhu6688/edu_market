@@ -39,11 +39,6 @@
             {{ msg.content }}
           </div>
         </div>
-        <div v-if="loading" class="msg assistant">
-          <div class="bubble assistant thinking-dots">
-            <span class="dot">&#9679;</span><span class="dot">&#9679;</span><span class="dot">&#9679;</span>
-          </div>
-        </div>
       </div>
 
       <div class="input-area">
@@ -181,18 +176,7 @@ async function send() {
         if (line.startsWith('data: ')) {
           const payload = line.slice(6)
 
-          if (currentEvent === 'thinking') {
-            try {
-              const d = JSON.parse(payload)
-              const thinkIdx = messages.value.length
-              messages.value.push({ role: 'thinking', content: `正在查询: ${d.tool || ''}` })
-              setTimeout(() => {
-                if (messages.value[thinkIdx]?.role === 'thinking') {
-                  messages.value.splice(thinkIdx, 1)
-                }
-              }, 3000)
-            } catch {}
-          } else if (currentEvent === 'delta') {
+          if (currentEvent === 'delta') {
             try {
               const d = JSON.parse(payload)
               if (currentAssistantIdx === -1) {
