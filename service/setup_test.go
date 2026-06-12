@@ -11,6 +11,7 @@ import (
 	"edu_market/model"
 	"edu_market/utils"
 
+	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -68,7 +69,7 @@ func TestMain(m *testing.M) {
 			Addr: "127.0.0.1:6379", Password: "", DB: 2,
 		},
 		JWT: config.JWTConfig{Secret: "test-secret-key", AccessTTLMin: 30, RefreshTTLHours: 24},
-		AI:    config.AIConfig{Provider: "deepseek", APIKey: "sk-ecf0252bdb84471dae993d99967b465e", APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-chat"},
+		AI:    config.AIConfig{Provider: "deepseek", APIKey: readAPIKeyFromYAML(), APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-chat"},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
 		Agent:   config.AgentConfig{MaxToolRounds: 10, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50, PurchaseBoundaryTopK: 1, PurchaseBoundaryChars: 200},
 		Document: config.DocumentConfig{AutoSaveDelay: 2, RagSync: true, MaxUploadSize: 20 << 20, AllowedFormats: []string{".pdf", ".pptx", ".docx", ".md", ".txt"}},
@@ -107,4 +108,19 @@ func TestMain(m *testing.M) {
 	if code != 0 {
 		log.Printf("测试失败，退出码: %d", code)
 	}
+}
+
+// readAPIKeyFromYAML 从本地 app.yml 读取 ai.api_key
+func readAPIKeyFromYAML() string {
+	v := viper.New()
+	v.SetConfigName("app")
+	v.SetConfigType("yml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./config")
+	v.AddConfigPath("../config")
+	v.AddConfigPath("../../config")
+	if err := v.ReadInConfig(); err != nil {
+		return ""
+	}
+	return v.GetString("ai.api_key")
 }
