@@ -66,7 +66,7 @@ func cleanAllTestData() {
 
 ## 测试配置
 
-测试不依赖 `config/app.yml`，直接在 TestMain 中手动构造：
+测试在 TestMain 中手动构造 `config.App`。大部分配置硬编码，敏感字段（如 `ai.api_key`）通过 `viper.New()` 从本地 `config/app.yml` 读取，不硬编码在测试代码中：
 
 ```go
 config.App = &config.Config{
@@ -79,6 +79,7 @@ config.App = &config.Config{
         Addr: "127.0.0.1:6379", Password: "", DB: 2,
     },
     JWT: config.JWTConfig{Secret: "test-secret-key", ...},
+    AI:  config.AIConfig{...APIKey: readAPIKeyFromYAML()...},  // 从 app.yml 读取
 }
 ```
 
