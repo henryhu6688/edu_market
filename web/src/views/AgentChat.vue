@@ -39,6 +39,11 @@
             {{ msg.content }}
           </div>
         </div>
+        <div v-if="loading" class="msg assistant">
+          <div class="bubble assistant thinking-dots">
+            <span class="dot">&#9679;</span><span class="dot">&#9679;</span><span class="dot">&#9679;</span>
+          </div>
+        </div>
       </div>
 
       <div class="input-area">
