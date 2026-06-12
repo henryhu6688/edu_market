@@ -13,30 +13,10 @@ func TestClassifyIntent_Purchase_Keyword(t *testing.T) {
 	}
 }
 
-func TestClassifyIntent_Purchase_LLM(t *testing.T) {
-	tests := []string{"帮我下单买这个", "我要这个资料买了", "现在下单", "我想买这个"}
-	for _, msg := range tests {
-		got := ClassifyIntent(msg)
-		if got != IntentPurchase {
-			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentPurchase)
-		}
-	}
-}
-
 func TestClassifyIntent_AfterSale_Keyword(t *testing.T) {
 	tests := []string{"我要退款", "我的订单", "支付失败", "退货", "申请退款"}
 	for _, msg := range tests {
 		if got := ClassifyIntent(msg); got != IntentAfterSale {
-			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentAfterSale)
-		}
-	}
-}
-
-func TestClassifyIntent_AfterSale_LLM(t *testing.T) {
-	tests := []string{"我怎么退掉这个", "订单怎么查", "钱付了没到账"}
-	for _, msg := range tests {
-		got := ClassifyIntent(msg)
-		if got != IntentAfterSale {
 			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentAfterSale)
 		}
 	}
@@ -51,33 +31,23 @@ func TestClassifyIntent_Consult_Keyword(t *testing.T) {
 	}
 }
 
-func TestClassifyIntent_Consult_LLM(t *testing.T) {
-	// 这些走 LLM 快判
-	tests := []string{"Python 和 Java 有什么区别", "数据分析适合我吗", "有没有深度学习相关的"}
-	for _, msg := range tests {
-		got := ClassifyIntent(msg)
-		if got != IntentConsult {
-			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentConsult)
-		}
-	}
-}
-
 func TestClassifyIntent_Chat_Keyword(t *testing.T) {
+	// 这些是闲聊，不命中任何关键词 → 返回空，由 Agent 自己处理
 	tests := []string{"你好", "在吗", "讲个笑话", "谢谢"}
 	for _, msg := range tests {
-		if got := ClassifyIntent(msg); got != IntentChat {
-			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentChat)
+		if got := ClassifyIntent(msg); got != "" {
+			t.Errorf("ClassifyIntent(%q) = %s, want \"\" (let Agent handle)", msg, got)
 		}
 	}
 }
 
-func TestClassifyIntent_Chat_LLM(t *testing.T) {
-	// LLM 应该能识别这些是闲聊
-	tests := []string{"周末去哪玩", "你叫什么名字", "天气不错"}
+func TestClassifyIntent_Unmatched(t *testing.T) {
+	// 关键词不命中时返回空，由 Agent 自己处理
+	tests := []string{"Python 和 Java 的区别", "周末去哪玩", "钱付了没到账"}
 	for _, msg := range tests {
 		got := ClassifyIntent(msg)
-		if got != IntentChat {
-			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentChat)
+		if got != "" {
+			t.Errorf("ClassifyIntent(%q) = %s, want \"\" (no keyword match, let Agent handle)", msg, got)
 		}
 	}
 }

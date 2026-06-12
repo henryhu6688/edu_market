@@ -1,15 +1,8 @@
 package service
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
 
-	"edu_market/config"
 	"edu_market/database"
 	"edu_market/model"
 )
@@ -41,78 +34,8 @@ func ClassifyIntent(question string) string {
 		return IntentConsult
 	}
 
-	// 第二层：LLM 快判（关键词没命中时）
-	return classifyByLLM(question)
-}
-
-// classifyByLLM 用轻量 LLM 调用判断意图
-func classifyByLLM(question string) string {
-	prompt := fmt.Sprintf(`判断这句话的意图，只回答一个词（purchase/aftersale/consult/chat）：
-
-- purchase: 用户想买资料、下单、付钱
-- aftersale: 退款、订单问题、支付问题、投诉
-- consult: 咨询资料内容、推荐、学习方向、资料介绍
-- chat: 闲聊、问候、无关话题、学习相关的自由提问
-
-用户消息: %s
-意图:`, question)
-
-	reqBody := map[string]interface{}{
-		"model":    config.App.AI.Model,
-		"messages": []map[string]string{{"role": "user", "content": prompt}},
-		"stream":   false,
-		"max_tokens": 10,
-	}
-
-	jsonBytes, _ := json.Marshal(reqBody)
-	req, err := http.NewRequest("POST", config.App.AI.APIURL, bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return IntentChat
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+config.App.AI.APIKey)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return IntentChat
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return IntentChat
-	}
-
-	var result struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return IntentChat
-	}
-
-	if len(result.Choices) == 0 {
-		return IntentChat
-	}
-
-	answer := strings.TrimSpace(strings.ToLower(result.Choices[0].Message.Content))
-
-	// 解析 LLM 返回的意图词
-	if strings.Contains(answer, "purchase") || strings.Contains(answer, "购买") {
-		return IntentPurchase
-	}
-	if strings.Contains(answer, "aftersale") || strings.Contains(answer, "售后") {
-		return IntentAfterSale
-	}
-	if strings.Contains(answer, "consult") || strings.Contains(answer, "咨询") {
-		return IntentConsult
-	}
-
-	return IntentChat
+	// 关键词不命中 → 让 Agent 自己判断，不再二阶段 LLM
+	return ""
 }
 
 // CheckPurchaseStatus 判断是否已购买（Workflow 固定——代码查库，不靠 LLM）
