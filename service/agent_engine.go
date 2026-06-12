@@ -14,6 +14,7 @@ import (
 	"edu_market/database"
 	"edu_market/model"
 	"log"
+	"log/slog"
 )
 
 // SSEHandler SSE 事件回调接口（由控制器实现）
@@ -87,6 +88,8 @@ func (e *AgentEngine) Run(
 	systemPrompt string,
 	sseHandler SSEHandler,
 ) error {
+	slog.Info("Agent 开始", "session_id", session.ID, "question_preview", truncateRunes(userMsg, 50))
+
 	// 1. 存用户消息
 	userMessage := &model.Message{
 		SessionID: session.ID,
@@ -130,6 +133,8 @@ func (e *AgentEngine) Run(
 
 				// 通知前端
 				sseHandler("thinking", fmt.Sprintf(`{"tool":"%s","status":"executing"}`, toolName))
+
+				slog.Info("Agent Tool 执行", "session_id", session.ID, "tool", toolName, "round", round+1)
 
 				// 查找并执行工具
 				tool, ok := tools[toolName]

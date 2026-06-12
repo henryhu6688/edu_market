@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/rand"
 	"io"
 	"log"
 	"log/slog"
@@ -50,4 +51,15 @@ func InitLogger() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
 	slog.Info("日志系统初始化完成", "mode", config.App.Server.Mode, "logDir", logDir)
+}
+
+// NewRequestID 生成短请求 ID（8位随机字符串）
+func NewRequestID() string {
+	const chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+	b := make([]byte, 8)
+	rand.Read(b)
+	for i := range b {
+		b[i] = chars[int(b[i])%len(chars)]
+	}
+	return string(b)
 }
