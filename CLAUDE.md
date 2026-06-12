@@ -28,6 +28,7 @@ Go + Gin + GORM + MySQL + Redis 后端，Vue3 + Vite 前端。在线学习资料
 
 ## 关键约定
 
+- **🔴 改代码前必须先拉分支**：`git checkout -b vX_feature_name`，禁止在 master 直接提交（pre-commit hook 会拦）
 - 新功能按 **model → dto/request → service → controller → router** 顺序开发
 - 所有 HTTP 响应走 `utils/response.go`（Success/BadRequest/NotFound 等），禁止 `c.JSON()`
 - Service 层不碰 `gin.Context`，只返回 Go `error`
