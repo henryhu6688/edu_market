@@ -144,7 +144,11 @@ func (e *AgentEngine) Run(
 				} else {
 					result = tool.Execute(session.UserID, tc.Function.Arguments)
 				}
-				slog.Info("Agent Tool 执行", "request_id", requestID, "session_id", session.ID, "tool", toolName, "round", round+1, "result_len", len(result.Content))
+				resultPreview := result.Content
+			if len([]rune(resultPreview)) > 200 {
+				resultPreview = string([]rune(resultPreview)[:200]) + "..."
+			}
+			slog.Info("Agent Tool 执行", "request_id", requestID, "session_id", session.ID, "tool", toolName, "round", round+1, "result", resultPreview)
 
 				// 检测 action 标记（如 trigger_purchase_offer）
 				if strings.Contains(result.Content, `"__action"`) {
