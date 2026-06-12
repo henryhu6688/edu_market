@@ -27,7 +27,7 @@ ai:
   provider: deepseek
   api_key: ""            # 用环境变量 AI_API_KEY 覆盖（必填）
   api_url: https://api.deepseek.com/v1/chat/completions
-  model: deepseek-v4-pro
+  model: deepseek-v4-flash
 
 captcha:
   length: 6

@@ -69,7 +69,7 @@ func TestMain(m *testing.M) {
 			Addr: "127.0.0.1:6379", Password: "", DB: 2,
 		},
 		JWT: config.JWTConfig{Secret: readConfigYAML("jwt.secret"), AccessTTLMin: 30, RefreshTTLHours: 24},
-		AI:    config.AIConfig{Provider: "deepseek", APIKey: readConfigYAML("ai.api_key"), APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-v4-pro"},
+		AI:    config.AIConfig{Provider: "deepseek", APIKey: readConfigYAML("ai.api_key"), APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-v4-flash"},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
 		Agent:   config.AgentConfig{MaxToolRounds: 10, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50, PurchaseBoundaryTopK: 1, PurchaseBoundaryChars: 200},
 		Document: config.DocumentConfig{AutoSaveDelay: 2, RagSync: true, MaxUploadSize: 20 << 20, AllowedFormats: []string{".pdf", ".pptx", ".docx", ".md", ".txt"}},
