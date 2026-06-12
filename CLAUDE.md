@@ -94,4 +94,7 @@ go test ./service/ -run TestCreateCourse -v
 - `.claude/rules/superpowers-workflow.md` — 开发流程
 - `.claude/rules/go/gorm.md` — GORM 使用约定
 - `.claude/rules/go/testing.md` — 测试约定
-- `.claude/rules/project/conventions.md` — 项目约定（HTTP响应、开发流水线、Agent设计）
+- `.claude/rules/project/conventions.md` — 通用约定（HTTP响应、开发流水线、Context注入）
+- `.claude/rules/project/architecture.md` — 分层架构 + 数据模型 + 路由表 + 前端
+- `.claude/rules/project/agent.md` — Agent 设计（架构、Tool、SSE）
+- `.claude/rules/project/materials.md` — 资料/文档系统（模型、编辑器、权限）
