@@ -193,10 +193,15 @@ func (e *AgentEngine) Run(
 				}
 
 				roundMsgs = append(roundMsgs,
-					agentChatMsg{Role: "assistant", ToolCalls: []toolCallItem{{
-						ID: tc.ID, Type: "function",
-						Function: toolCallFunc{Name: toolName, Arguments: tc.Function.Arguments},
-					}}},
+					agentChatMsg{
+						Role:             "assistant",
+						ReasoningContent: choice.Message.ReasoningContent,
+						Content:          choice.Message.Content,
+						ToolCalls: []toolCallItem{{
+							ID: tc.ID, Type: "function",
+							Function: toolCallFunc{Name: toolName, Arguments: tc.Function.Arguments},
+						}},
+					},
 					agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID},
 				)
 			}
@@ -261,6 +266,10 @@ func (e *AgentEngine) loadContext(sessionID uint, systemPrompt string) []agentCh
 			continue
 		}
 		if m.Role == model.RoleAssistant && len(m.ToolCalls) > 0 && m.Content == "" {
+			continue
+		}
+		// deepseek-v4-pro: 助理消息没有 reasoning_content 则跳过（旧数据）
+		if m.Role == model.RoleAssistant && m.ReasoningContent == "" {
 			continue
 		}
 		msg := agentChatMsg{

@@ -33,13 +33,15 @@ func InitLogger() {
 	if config.App.Server.Mode == "release" {
 		// 生产：JSON 格式只写文件
 		handler = slog.NewJSONHandler(fileWriter, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
+			Level:     slog.LevelInfo,
+			AddSource: true,
 		})
 	} else {
 		// 开发：文本格式同时输出到控制台和文件
 		multi := io.MultiWriter(os.Stdout, fileWriter)
 		handler = slog.NewTextHandler(multi, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
+			Level:     slog.LevelDebug,
+			AddSource: true,
 		})
 	}
 
