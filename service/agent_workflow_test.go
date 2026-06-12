@@ -4,9 +4,8 @@ import (
 	"testing"
 )
 
-func TestClassifyIntent_Purchase(t *testing.T) {
-	// 只测关键词能命中的（不依赖 LLM）
-	tests := []string{"我想买", "帮我下单", "我要买", "想买", "买哪个"}
+func TestClassifyIntent_Purchase_Keyword(t *testing.T) {
+	tests := []string{"我想买", "我要买", "帮我下单", "想买", "买哪个"}
 	for _, msg := range tests {
 		if got := ClassifyIntent(msg); got != IntentPurchase {
 			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentPurchase)
@@ -14,7 +13,17 @@ func TestClassifyIntent_Purchase(t *testing.T) {
 	}
 }
 
-func TestClassifyIntent_AfterSale(t *testing.T) {
+func TestClassifyIntent_Purchase_LLM(t *testing.T) {
+	tests := []string{"帮我下单买这个", "我要这个资料买了", "现在下单", "我想买这个"}
+	for _, msg := range tests {
+		got := ClassifyIntent(msg)
+		if got != IntentPurchase {
+			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentPurchase)
+		}
+	}
+}
+
+func TestClassifyIntent_AfterSale_Keyword(t *testing.T) {
 	tests := []string{"我要退款", "我的订单", "支付失败", "退货", "申请退款"}
 	for _, msg := range tests {
 		if got := ClassifyIntent(msg); got != IntentAfterSale {
@@ -23,7 +32,17 @@ func TestClassifyIntent_AfterSale(t *testing.T) {
 	}
 }
 
-func TestClassifyIntent_Consult(t *testing.T) {
+func TestClassifyIntent_AfterSale_LLM(t *testing.T) {
+	tests := []string{"我怎么退掉这个", "订单怎么查", "钱付了没到账"}
+	for _, msg := range tests {
+		got := ClassifyIntent(msg)
+		if got != IntentAfterSale {
+			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentAfterSale)
+		}
+	}
+}
+
+func TestClassifyIntent_Consult_Keyword(t *testing.T) {
 	tests := []string{"有没有入门资料", "推荐一下", "学什么好", "想学", "哪个好"}
 	for _, msg := range tests {
 		if got := ClassifyIntent(msg); got != IntentConsult {
@@ -32,15 +51,33 @@ func TestClassifyIntent_Consult(t *testing.T) {
 	}
 }
 
-// 以下测试不需要 API key：关键词不命中时 LLM 调用失败 → fallback IntentChat
-func TestClassifyIntent_Chat(t *testing.T) {
-	// 关键词不命中 → LLM 调不到 → 应该 fallback 到 chat
-	tests := []string{"你好", "在吗", "讲个笑话", "谢谢", "Python 和 Java 的区别"}
+func TestClassifyIntent_Consult_LLM(t *testing.T) {
+	// 这些走 LLM 快判
+	tests := []string{"Python 和 Java 有什么区别", "数据分析适合我吗", "有没有深度学习相关的"}
 	for _, msg := range tests {
 		got := ClassifyIntent(msg)
-		// LLM 不可用时 fallback 到 chat，这是正确的兜底行为
+		if got != IntentConsult {
+			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentConsult)
+		}
+	}
+}
+
+func TestClassifyIntent_Chat_Keyword(t *testing.T) {
+	tests := []string{"你好", "在吗", "讲个笑话", "谢谢"}
+	for _, msg := range tests {
+		if got := ClassifyIntent(msg); got != IntentChat {
+			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentChat)
+		}
+	}
+}
+
+func TestClassifyIntent_Chat_LLM(t *testing.T) {
+	// LLM 应该能识别这些是闲聊
+	tests := []string{"周末去哪玩", "你叫什么名字", "天气不错"}
+	for _, msg := range tests {
+		got := ClassifyIntent(msg)
 		if got != IntentChat {
-			t.Logf("ClassifyIntent(%q) = %s (LLM 可用时可能不是 chat)", msg, got)
+			t.Errorf("ClassifyIntent(%q) = %s, want %s", msg, got, IntentChat)
 		}
 	}
 }
