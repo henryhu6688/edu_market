@@ -20,7 +20,7 @@ func NewAgentService(engine *AgentEngine) *AgentService {
 	return &AgentService{engine: engine}
 }
 
-// Chat 发起/继续 Agent 对话
+// Chat 发起/继续 Agent 对话（v3: 单一 Agent + Workflow 骨架）
 func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searchFunc SearchFunc, sseHandler SSEHandler) (*model.Session, error) {
 	// 1. 获取或创建 Session
 	var session *model.Session
@@ -33,33 +33,26 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 			return nil, err
 		}
 	} else {
-		// 新会话：先路由，再创建
-		agentType, _ := RouteIntent(question)
-		if agentType == "" {
-			agentType = model.AgentCustomerService // 默认客服
-		}
 		session = &model.Session{
-			UserID:    userID,
-			AgentType: agentType,
-			Status:    model.SessionActive,
-			Title:     truncateRunes(question, 30),
+			UserID: userID, AgentType: "agent", Status: model.SessionActive,
+			Title: truncateRunes(question, 30),
 		}
 		if err := database.DB.Create(session).Error; err != nil {
 			return nil, fmt.Errorf("创建会话失败: %w", err)
 		}
 	}
 
-	// 2. 构建 Prompt + Tools
-	systemPrompt := GetAgentPrompt(session.AgentType)
+	// 2. Workflow 层：意图分类 → 选择 Prompt
+	intent := ClassifyIntent(question)
+	systemPrompt := GetAgentPrompt(intent)
+
+	// 3. 全量 Tool 注册
 	tools := buildToolSet(searchFunc)
 
-	// 3. 运行引擎
+	// 4. 运行引擎
 	if err := s.engine.Run(session, question, tools, systemPrompt, sseHandler); err != nil {
 		return session, err
 	}
-
-	// 4. 检测 Agent 切换标记
-	s.checkTransfer(session)
 
 	return session, nil
 }

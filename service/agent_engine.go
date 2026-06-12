@@ -139,6 +139,29 @@ func (e *AgentEngine) Run(
 					result = tool.Execute(session.UserID, tc.Function.Arguments)
 				}
 
+				// 检测 action 标记（如 trigger_purchase_offer）
+				if strings.Contains(result.Content, `"__action"`) {
+					var actionData map[string]interface{}
+					if json.Unmarshal([]byte(result.Content), &actionData) == nil {
+						if actionType, ok := actionData["__action"].(string); ok {
+							actionJSON, _ := json.Marshal(map[string]interface{}{
+								"type":    actionType,
+								"payload": actionData,
+							})
+							sseHandler("action", string(actionJSON))
+
+							// 存 action 消息到历史
+							actionMsg := model.Message{
+								SessionID: session.ID,
+								Role:      model.RoleAssistant,
+								Content:   fmt.Sprintf("已发送购买引导: %v", actionData["title"]),
+							}
+							database.DB.Create(&actionMsg)
+							continue
+						}
+					}
+				}
+
 				// 存 assistant tool_calls 消息（DB 必须有，否则后续 loadContext 时报错）
 				assistantToolMsg := model.Message{
 					SessionID: session.ID,

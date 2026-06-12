@@ -91,16 +91,3 @@ func CleanTransferMarkers(answer string) string {
 	return strings.TrimSpace(answer)
 }
 
-// GetAgentPrompt 根据 Agent 类型返回对应的 System Prompt
-func GetAgentPrompt(agentType string) string {
-	switch agentType {
-	case model.AgentCustomerService:
-		return SystemPromptCustomerService
-	case model.AgentCourseRecommend:
-		return SystemPromptCourseRecommend
-	case model.AgentQA:
-		return SystemPromptQA
-	default:
-		return SystemPromptCustomerService
-	}
-}
