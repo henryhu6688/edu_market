@@ -114,6 +114,15 @@ func GenerateAccessToken(userID uint, username, role string) (string, error) { .
 
 改配置结构时，两个文件**必须同时同步更新**。
 
+## 敏感数据保护
+
+**禁止将任何敏感数据（API Key、密码、Token、Secret）硬编码在代码或测试文件中提交到 git。** 所有敏感数据必须通过引用配置文件来使用：
+
+- 测试代码用 `readConfigYAML("key")` 从本地 `config/app.yml` 读取
+- 生产代码用 `config.App.XXX` 或环境变量
+
+`config/app.yml` 已在 `.gitignore` 中，不会被提交。`config/app.example.yml` 可以提交，但敏感字段必须为空字符串。
+
 ## Git 分支规则
 
 **所有代码改动必须先创建新分支，禁止直接在 master 提交。** 修改前执行 `git checkout -b vN_featureName`。
