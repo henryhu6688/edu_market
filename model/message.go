@@ -51,8 +51,9 @@ type Message struct {
 	SessionID  uint      `gorm:"not null;index" json:"session_id"`
 	Role       string    `gorm:"type:varchar(20);not null" json:"role"`
 	Content    string    `gorm:"type:text;not null" json:"content"`
-	ToolCalls  ToolCalls `gorm:"type:json;default:null" json:"tool_calls,omitempty"`
-	TokensUsed int       `gorm:"default:0" json:"tokens_used"`
+	ToolCalls         ToolCalls `gorm:"type:json;default:null" json:"tool_calls,omitempty"`
+	ReasoningContent  string    `gorm:"type:text" json:"reasoning_content,omitempty"`
+	TokensUsed        int       `gorm:"default:0" json:"tokens_used"`
 	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
 
 	Session Session `gorm:"foreignKey:SessionID;constraint:OnDelete:CASCADE" json:"-"`

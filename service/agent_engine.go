@@ -22,10 +22,11 @@ type SSEHandler func(event string, data string) error
 
 // agentChatMsg LLM 消息格式（OpenAI 兼容）
 type agentChatMsg struct {
-	Role       string         `json:"role"`
-	Content    string         `json:"content,omitempty"`
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-	ToolCalls  []toolCallItem `json:"tool_calls,omitempty"`
+	Role             string         `json:"role"`
+	Content          string         `json:"content,omitempty"`
+	ToolCallID       string         `json:"tool_call_id,omitempty"`
+	ToolCalls        []toolCallItem `json:"tool_calls,omitempty"`
+	ReasoningContent string         `json:"reasoning_content,omitempty"`
 }
 
 type toolCallItem struct {
@@ -223,12 +224,13 @@ func (e *AgentEngine) Run(
 
 		slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID, "answer_preview", truncateRunes(displayAnswer, 80))
 
-		// 存 assistant message（存清理后的版本）
+		// 存 assistant message（含 reasoning_content，deepseek-v4-pro 需要）
 		assistantMsg := &model.Message{
-			SessionID:  session.ID,
-			Role:       model.RoleAssistant,
-			Content:    displayAnswer,
-			TokensUsed: resp.Usage.TotalTokens,
+			SessionID:        session.ID,
+			Role:             model.RoleAssistant,
+			Content:          displayAnswer,
+			ReasoningContent: choice.Message.ReasoningContent,
+			TokensUsed:       resp.Usage.TotalTokens,
 		}
 		if err := database.DB.Create(assistantMsg).Error; err != nil {
 			return fmt.Errorf("保存回答失败: %w", err)
@@ -255,12 +257,17 @@ func (e *AgentEngine) loadContext(sessionID uint, systemPrompt string) []agentCh
 		Order("id ASC").Limit(e.contextLimit).Find(&dbMsgs)
 
 	for _, m := range dbMsgs {
-		// 跳过 tool 消息和有 tool_calls 的 assistant 消息
-		// 历史中的 tool 调用不完整的配对会导致 API 400 错误
-		if m.Role == model.RoleTool || len(m.ToolCalls) > 0 {
+		if m.Role == model.RoleTool {
 			continue
 		}
-		msg := agentChatMsg{Role: m.Role, Content: m.Content}
+		if m.Role == model.RoleAssistant && len(m.ToolCalls) > 0 && m.Content == "" {
+			continue
+		}
+		msg := agentChatMsg{
+			Role:             m.Role,
+			Content:          m.Content,
+			ReasoningContent: m.ReasoningContent,
+		}
 		history = append(history, msg)
 	}
 
