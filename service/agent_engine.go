@@ -221,6 +221,8 @@ func (e *AgentEngine) Run(
 			return err
 		}
 
+		slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID, "answer_preview", truncateRunes(displayAnswer, 80))
+
 		// 存 assistant message（存清理后的版本）
 		assistantMsg := &model.Message{
 			SessionID:  session.ID,
