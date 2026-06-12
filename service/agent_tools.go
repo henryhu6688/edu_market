@@ -126,7 +126,7 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 		return ToolResult{Success: false, Content: "搜索课程失败: " + err.Error()}
 	}
 	if len(courses) == 0 {
-		return ToolResult{Success: true, Content: "未找到匹配的课程"}
+		return ToolResult{Success: true, Content: "平台暂无相关资料，建议换个方向"}
 	}
 	bytes, _ := json.Marshal(courses)
 	return ToolResult{Success: true, Content: string(bytes)}
@@ -173,7 +173,7 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 		return ToolResult{Success: false, Content: "检索失败: " + err.Error()}
 	}
 	if content == "" {
-		return ToolResult{Success: true, Content: "未找到相关资料"}
+		return ToolResult{Success: true, Content: "资料中未找到相关内容，建议换个问法"}
 	}
 	return ToolResult{Success: true, Content: content}
 }
