@@ -101,3 +101,15 @@ type User struct { ... }
 // GenerateAccessToken 生成短期 Access Token
 func GenerateAccessToken(userID uint, username, role string) (string, error) { ... }
 ```
+
+## 配置文件同步
+
+`config/app.example.yml` 和 `config/app.yml` 必须保持**结构完全一致**（字段、缩进、注释），唯一区别是敏感字段的值：
+
+| 字段 | example | 真实 |
+|------|---------|------|
+| `database.password` | `""` | `"实际密码"` |
+| `jwt.secret` | `""` | `"实际secret"` |
+| `ai.api_key` | `""` | `"实际key"` |
+
+改配置结构时，两个文件**必须同时同步更新**。
