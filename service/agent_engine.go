@@ -209,39 +209,27 @@ func (e *AgentEngine) Run(
 			continue
 		}
 
-		// 没有 Tool Call → 流式输出最终回答
-		answer := choice.Message.Content
-		if answer == "" {
-			answer = "抱歉，我暂时无法处理这个问题。"
-		}
-		// 检测截断：DeepSeek 返回 finish_reason="length" 表示超出 token 限制
-		if choice.FinishReason == "length" {
-			answer += "\n\n(回复过长已截断，可追问获取完整内容)"
-		}
-
-		// 先清理切换标记再输出给前端（避免用户看到 [TRANSFER:xxx]）
-		displayAnswer := CleanTransferMarkers(answer)
-
-		// 流式输出
-		if err := e.streamAnswer(displayAnswer, sseHandler); err != nil {
+		// 没有 Tool Call → 用原生流式 SSE 输出最终回答
+		answer, tokens, err := e.callLLMStream(history, openAITools, sseHandler)
+		if err != nil {
+			sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后再试"}`)
 			return err
 		}
+		displayAnswer := CleanTransferMarkers(answer)
 
-		slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID, "answer_preview", truncateRunes(displayAnswer, 80))
+		slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID, "answer_len", len([]rune(displayAnswer)), "answer_preview", truncateRunes(displayAnswer, 200))
 
-		// 存 assistant message（含 reasoning_content，deepseek-v4-pro 需要）
+		// 存 assistant message
 		assistantMsg := &model.Message{
-			SessionID:        session.ID,
-			Role:             model.RoleAssistant,
-			Content:          displayAnswer,
-			ReasoningContent: choice.Message.ReasoningContent,
-			TokensUsed:       resp.Usage.TotalTokens,
+			SessionID: session.ID,
+			Role:      model.RoleAssistant,
+			Content:   displayAnswer,
+			TokensUsed: tokens,
 		}
 		if err := database.DB.Create(assistantMsg).Error; err != nil {
 			return fmt.Errorf("保存回答失败: %w", err)
 		}
 
-		// 完成
 		sseHandler("done", fmt.Sprintf(`{"session_id":%d,"agent_type":"%s"}`, session.ID, session.AgentType))
 		return nil
 	}
@@ -330,20 +318,11 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 	return &result, nil
 }
 
-// streamAnswer 将完整回答按字符逐个输出，模拟打字机效果
+// streamAnswer 一次发送完整回复（不用逐字流式，避免前端丢字问题）
 func (e *AgentEngine) streamAnswer(answer string, sseHandler SSEHandler) error {
-	runes := []rune(answer)
-	for i := 0; i < len(runes); i++ {
-		data, _ := json.Marshal(map[string]string{"content": string(runes[i])})
-		if err := sseHandler("delta", string(data)); err != nil {
-			return err
-		}
-		// 每个字之间延迟 30ms，创造打字机效果
-		time.Sleep(20 * time.Millisecond)
-	}
-	return nil
+	data, _ := json.Marshal(map[string]string{"content": answer})
+	return sseHandler("delta", string(data))
 }
-
 // callLLMStream 真正的流式调用 LLM API（预留，后续替代 streamAnswer）
 func (e *AgentEngine) callLLMStream(history []agentChatMsg, tools []map[string]interface{}, sseHandler SSEHandler) (string, int, error) {
 	reqBody := llmRequest{
