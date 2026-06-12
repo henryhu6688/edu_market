@@ -118,22 +118,19 @@ controller/
 ## CLAUDE.md 拆分
 
 ```
-CLAUDE.md                     → 入口（项目概述 + 启动命令 + 链接）
+CLAUDE.md                     → 入口（启动命令 + 测试命令 + 索引，≤30行）
+
 .claude/rules/
-  ├── superpowers-workflow.md  → 已有
-  ├── go/gorm.md               → 已有
-  ├── go/testing.md            → 已有
-  ├── project/conventions.md   → 已有
-  ├── project/architecture.md  → 新建：目录结构、分层、模块说明
-  ├── project/agent.md         → 新建：Agent 架构、Tool 定义、SSE
-  └── project/materials.md     → 新建：资料/文档模型、权限
+  ├── superpowers-workflow.md  → 已有，不动
+  ├── go/gorm.md               → 已有，不动
+  ├── go/testing.md            → 已有，不动
+  ├── project/conventions.md   → 修正过时引用（student→user, courses→materials）+ Agent 概览
+  ├── project/architecture.md  → 新建：分层架构图 + 数据模型 + 路由表 + 前端概要
+  ├── project/agent.md         → 新建：Agent 设计 + Tool 定义 + SSE 协议 + System Prompt
+  └── project/materials.md     → 新建：资料/文档模型 + 编辑器 + 解析器 + 权限
 ```
 
-主 CLAUDE.md 内容：
-- 启动命令（go run / npm run）
-- 架构概览图
-- 指向子规则文件的链接
-- 不再放详细设计文档
+共 7 个规则文件。后续按需再拆。
 
 ## 改动清单
 
