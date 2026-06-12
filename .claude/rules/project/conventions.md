@@ -72,7 +72,7 @@ JWT 中间件向 `gin.Context` 注入以下 key，后续通过 `c.Get()` 获取�
 |-----|------|------|
 | `user_id` | `uint` | 用户 ID |
 | `username` | `string` | 用户名 |
-| `role` | `string` | `student` 或 `admin` |
+| `role` | `string` | `user` 或 `admin` |
 
 ```go
 userID, _ := c.Get("user_id")
