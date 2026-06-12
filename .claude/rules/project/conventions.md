@@ -113,3 +113,7 @@ func GenerateAccessToken(userID uint, username, role string) (string, error) { .
 | `ai.api_key` | `""` | `"实际key"` |
 
 改配置结构时，两个文件**必须同时同步更新**。
+
+## Git 分支规则
+
+**所有代码改动必须先创建新分支，禁止直接在 master 提交。** 修改前执行 `git checkout -b vN_featureName`。
