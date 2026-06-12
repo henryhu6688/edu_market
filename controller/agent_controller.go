@@ -7,6 +7,7 @@ import (
 	"edu_market/dto/request"
 	"edu_market/service"
 	"edu_market/utils"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,9 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 	}
 
 	userID := c.GetUint("user_id")
+	q := req.Question
+	if len(q) > 50 { q = q[:50] }
+	slog.Info("Agent 对话请求", "user_id", userID, "question", q)
 
 	// 设置 SSE 响应头
 	c.Header("Content-Type", "text/event-stream")
