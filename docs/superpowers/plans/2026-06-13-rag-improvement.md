@@ -1,32 +1,12 @@
 # RAG 改进实现计划
 
-> **For agentic workers:** Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
+> **For agentic workers:** Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans.
 
-**Goal:** 从 MySQL LIKE 关键词搜索升级为 DeepSeek Embedding + Redis Stack 混合向量搜索
+**Goal:** 实现 DeepSeek Embedding + Redis Stack 向量搜索 + MySQL 备份 + Redis 宕机降级
 
-**Architecture:** 新增 `embedText()` 调 DeepSeek Embedding API，新增 `RedisStackVectorStore` 实现 `VectorStore` 接口，InitRAG 切换到新实现
+**Architecture:** MySQL 存 content + embedding 备份，Redis Stack 做向量索引搜索，Go 内存余弦相似度做 fallback
 
-**Tech Stack:** Go + Redis Stack (RediSearch) + DeepSeek Embedding API
-
----
-
-## 文件结构
-
-### 修改
-| 文件 | 改动 |
-|------|------|
-| `model/document_chunk.go` | 新增 `Embedding []float32` 字段 |
-| `service/agent_rag.go` | 新增 `embedText()` + `RedisStackVectorStore` + 余弦相似度计算 |
-| `service/agent_rag.go` | `InitRAG()` 默认换 `RedisStackVectorStore`，`SimpleSearchVectorStore` 做 fallback |
-| `service/setup_test.go` | TestMain 加 `embedding_model`/`embedding_api_url` 配置 |
-| `database/mysql.go` | AutoMigrate 更新 `document_chunks` 表 |
-
-### 不变
-| 文件 | 原因 |
-|------|------|
-| `service/agent_tools.go` | `search_documents` tool 不变，只调 `RAGService.Search()` |
-| `service/document_service.go` | `reindexDocument()` 不变，`IndexCourse()` 会走新向量存储 |
-| `controller/*` | 不动 |
+**Tech Stack:** Go + Redis Stack (FT.SEARCH KNN) + DeepSeek Embedding API + MySQL
 
 ---
 
@@ -36,26 +16,20 @@
 
 - [ ] **Step 1: 修改模型**
 
-`model/document_chunk.go`：
-
 ```go
+// model/document_chunk.go
 type DocumentChunk struct {
 	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	CourseID   uint      `gorm:"not null;index" json:"course_id"`
 	Content    string    `gorm:"type:text;not null" json:"content"`
-	Embedding  []float32 `gorm:"type:blob" json:"-"`           // 新增：向量
+	Embedding  []float32 `gorm:"type:blob" json:"-"`           // 新增
 	ChunkIndex int       `gorm:"not null;default:0" json:"chunk_index"`
 	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
-
-	Course Course `gorm:"foreignKey:CourseID;constraint:OnDelete:CASCADE" json:"-"`
+	Course     Course    `gorm:"foreignKey:CourseID;constraint:OnDelete:CASCADE" json:"-"`
 }
 ```
 
-- [ ] **Step 2: 注册 AutoMigrate + TestMain 清理**
-
-`database/mysql.go` 已有 `DocumentChunk`，自动迁移会更新。TestMain 清理已有。
-
-- [ ] **Step 3: 编译 + Commit**
+- [ ] **Step 2: 编译 + Commit**
 
 ```bash
 go build ./...
@@ -67,20 +41,12 @@ git commit -m "feat: add Embedding field to DocumentChunk"
 
 ## Phase 2: Embedding 服务
 
-### Task 2: embedText 函数
+### Task 2: embedText + cosineSimilarity
 
-- [ ] **Step 1: 写入 `embedText()`**
-
-在 `service/agent_rag.go` 末尾加入：
+- [ ] **Step 1: 写入 `agent_rag.go`**
 
 ```go
-import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-)
-
-// embedText 调 DeepSeek Embedding API，返回文本向量
+// embedText 调 DeepSeek Embedding API，返回 1024 维文本向量
 func embedText(text string) ([]float32, error) {
 	apiURL := config.App.Agent.EmbeddingAPIURL
 	if apiURL == "" {
@@ -88,7 +54,7 @@ func embedText(text string) ([]float32, error) {
 	}
 	model := config.App.Agent.EmbeddingModel
 	if model == "" {
-		model = "deepseek-text-embedding" // DeepSeek 默认 embedding 模型
+		model = "deepseek-text-embedding"
 	}
 
 	reqBody := map[string]interface{}{
@@ -98,52 +64,39 @@ func embedText(text string) ([]float32, error) {
 	jsonBytes, _ := json.Marshal(reqBody)
 
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return nil, err
-	}
+	if err != nil { return nil, err }
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+config.App.AI.APIKey)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
+	if err != nil { return nil, err }
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("embedding API 返回 %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("embedding API 错误: status=%d body=%s", resp.StatusCode, string(body))
 	}
-
 	var result struct {
-		Data []struct {
-			Embedding []float32 `json:"embedding"`
-		} `json:"data"`
+		Data []struct { Embedding []float32 `json:"embedding"` } `json:"data"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
+	json.Unmarshal(body, &result)
 	if len(result.Data) == 0 {
 		return nil, fmt.Errorf("embedding 返回空")
 	}
 	return result.Data[0].Embedding, nil
 }
 
-// cosineSimilarity 余弦相似度（两个等长向量）
+// cosineSimilarity 余弦相似度
 func cosineSimilarity(a, b []float32) float32 {
-	if len(a) != len(b) {
-		return 0
-	}
+	if len(a) != len(b) { return 0 }
 	var dot, normA, normB float32
 	for i := range a {
 		dot += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
 	}
-	if normA == 0 || normB == 0 {
-		return 0
-	}
+	if normA == 0 || normB == 0 { return 0 }
 	return dot / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
 }
 ```
@@ -153,7 +106,7 @@ func cosineSimilarity(a, b []float32) float32 {
 ```bash
 go build ./...
 git add service/agent_rag.go
-git commit -m "feat: add embedText + cosineSimilarity functions"
+git commit -m "feat: add embedText + cosineSimilarity"
 ```
 
 ---
@@ -164,219 +117,179 @@ git commit -m "feat: add embedText + cosineSimilarity functions"
 
 - [ ] **Step 1: 实现 VectorStore 接口**
 
-替换 `service/agent_rag.go` 中的 `RedisStackVectorStore` 空壳：
-
 ```go
-import (
-	"github.com/redis/go-redis/v9"  // 已有依赖
-)
-
-// RedisStackVectorStore 基于 Redis Stack 的向量存储
-type RedisStackVectorStore struct {
-	client *redis.Client
-}
+// RedisStackVectorStore 基于 Redis Stack + MySQL fallback 的向量存储
+type RedisStackVectorStore struct{}
 
 func NewRedisStackVectorStore() *RedisStackVectorStore {
-	return &RedisStackVectorStore{client: database.RDB}
+	return &RedisStackVectorStore{}
 }
 
-// Search 向量 + 关键词混合搜索
+// Search 优先 Redis KNN，失败时回落 MySQL 内存计算
 func (vs *RedisStackVectorStore) Search(courseID uint, query string, topK int) ([]SearchResult, error) {
-	// 1. 把问题向量化
 	vec, err := embedText(query)
 	if err != nil {
-		// fallback 到关键词搜索
-		return NewSimpleSearchVectorStore().Search(courseID, query, topK)
+		return nil, fmt.Errorf("embedding 失败: %w", err)
 	}
 
-	// 2. 构造 KNN 搜索
-	// FT.SEARCH idx:chunks "@material_id:[3 3] =>[KNN 5 @embedding $V AS score]"
+	// 尝试 Redis KNN 搜索
+	if database.RDB != nil {
+		results, err := vs.searchRedis(courseID, vec, topK)
+		if err == nil {
+			return results, nil
+		}
+		// Redis 不可用 → 降级
+		slog.Warn("Redis 搜索失败，降级到内存计算", "err", err)
+	}
+
+	// Fallback: MySQL 加载 → 内存余弦相似度
+	return vs.searchInMemory(courseID, vec, topK)
+}
+
+// searchRedis Redis KNN 向量搜索
+func (vs *RedisStackVectorStore) searchRedis(courseID uint, vec []float32, topK int) ([]SearchResult, error) {
+	// 将 vec 转为 Redis 需要的二进制格式
+	buf := new(bytes.Buffer)
+	for _, v := range vec {
+		binary.Write(buf, binary.LittleEndian, v)
+	}
+
 	queryStr := fmt.Sprintf("@course_id:[%d %d] =>[KNN %d @embedding $V AS score]", courseID, courseID, topK)
-	
-	// Redis Stack 向量搜索（简化版：用余弦相似度在内存算）
-	// 完整版用 go-redis FT.Search，这里先做纯向量 + MySQL 加载计算
+	docs, err := database.RDB.Do(
+		context.Background(),
+		"FT.SEARCH", "idx:chunks", queryStr,
+		"RETURN", "3", "content", "course_id", "score",
+		"PARAMS", "2", "V", buf.Bytes(),
+		"DIALECT", "2",
+	).Slice()
+	if err != nil { return nil, err }
+
+	var results []SearchResult
+	// 解析 Redis 返回的 [count, key1, [field1, val1, ...], key2, ...]
+	for i := 1; i < len(docs); i += 2 {
+		fields := docs[i+1].([]interface{})
+		content := ""
+		score := float32(0)
+		for j := 0; j < len(fields); j += 2 {
+			switch fields[j].(string) {
+			case "content": content = fields[j+1].(string)
+			case "score": score = float32(fields[j+1].(float64))
+			}
+		}
+		if content != "" {
+			results = append(results, SearchResult{Content: content, Score: score})
+		}
+	}
+	return results, nil
+}
+
+// searchInMemory MySQL 加载向量 + Go 内存余弦相似度（Redis 挂了的降级方案）
+func (vs *RedisStackVectorStore) searchInMemory(courseID uint, vec []float32, topK int) ([]SearchResult, error) {
 	var chunks []model.DocumentChunk
 	if err := database.DB.Where("course_id = ?", courseID).Find(&chunks).Error; err != nil {
 		return nil, err
 	}
 
-	// 3. 计算余弦相似度并排序
 	type scored struct {
 		chunk model.DocumentChunk
 		score float32
 	}
-	var results []scored
+	var candidates []scored
 	for _, c := range chunks {
-		if len(c.Embedding) == 0 {
-			continue
-		}
+		if len(c.Embedding) == 0 { continue }
 		s := cosineSimilarity(vec, c.Embedding)
-		if s > 0.5 { // 相似度阈值
-			results = append(results, scored{c, s})
+		if s > 0.5 {
+			candidates = append(candidates, scored{c, s})
 		}
 	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].score > candidates[j].score })
+	if len(candidates) > topK { candidates = candidates[:topK] }
 
-	// 排序，取 topK
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].score > results[j].score
-	})
-	if len(results) > topK {
-		results = results[:topK]
-	}
-
-	// 4. 返回
-	var final []SearchResult
-	for _, r := range results {
-		final = append(final, SearchResult{
+	var results []SearchResult
+	for _, r := range candidates {
+		results = append(results, SearchResult{
 			ChunkID: r.chunk.ID,
 			Content: r.chunk.Content,
 			Score:   r.score,
 		})
 	}
-	return final, nil
+	return results, nil
 }
 
+// Index 建索引：embed → 存 MySQL + Redis
 func (vs *RedisStackVectorStore) Index(chunkID uint, courseID uint, content string) error {
 	vec, err := embedText(content)
-	if err != nil {
-		return fmt.Errorf("embedding failed: %w", err)
+	if err != nil { return fmt.Errorf("embedding 失败: %w", err) }
+
+	// 1. MySQL 备份向量
+	if err := database.DB.Model(&model.DocumentChunk{}).Where("id = ?", chunkID).
+		Update("embedding", vec).Error; err != nil {
+		return err
 	}
-	// 更新 DB 中的 embedding
-	return database.DB.Model(&model.DocumentChunk{}).
-		Where("id = ?", chunkID).
-		Update("embedding", vec).Error
+
+	// 2. Redis 建索引（失败不阻塞）
+	if database.RDB != nil {
+		buf := new(bytes.Buffer)
+		for _, v := range vec { binary.Write(buf, binary.LittleEndian, v) }
+		database.RDB.HSet(context.Background(), fmt.Sprintf("doc:%d", chunkID),
+			"content", content, "course_id", courseID, "embedding", buf.Bytes(),
+		)
+	}
+	return nil
 }
 
+// Delete 删除某课程的所有向量
 func (vs *RedisStackVectorStore) Delete(courseID uint) error {
-	// content 在 MySQL 删除时 FK CASCADE 自动清理
+	if database.RDB != nil {
+		// Redis 中清理（可选，非关键）
+		database.RDB.Do(context.Background(), "FT.DROPINDEX", "idx:chunks", "DD")
+	}
 	return nil
 }
 ```
 
-> 注：Redis Stack 完整版 TODO——当前用 Go 内存 + MySQL 计算，后续安装 Redis Stack module 后改用 `FT.SEARCH`。
-
-- [ ] **Step 2: 编译 + 补 import + Commit**
-
-需要补 `"sort"`、`"math"`、`"time"`、`"io"`、`"net/http"`、`"bytes"`、`"encoding/json"`、`"fmt"` 到 `agent_rag.go`。
-
-```bash
-go build ./...
-git add service/agent_rag.go
-git commit -m "feat: implement RedisStackVectorStore with cosine similarity search"
-```
-
----
-
-## Phase 4: 切换实现
-
-### Task 4: InitRAG 默认使用新 VectorStore
-
-- [ ] **Step 1: 改 InitRAG**
+- [ ] **Step 2: 更新 InitRAG**
 
 ```go
 func InitRAG() {
-	// 优先 Redis Stack
 	vs := NewRedisStackVectorStore()
 	globalRAG = NewRAGService(vs)
 }
 ```
 
-- [ ] **Step 2: Search 增加 fallback**
+- [ ] **Step 3: 补 import**
 
-`RedisStackVectorStore.Search()` 中 embedding 失败时自动回落 `SimpleSearchVectorStore`。
+```go
+import (
+    "bytes"
+    "context"
+    "encoding/binary"
+    "encoding/json"
+    "fmt"
+    "io"
+    "log/slog"
+    "math"
+    "net/http"
+    "sort"
+    "time"
+)
+```
 
-- [ ] **Step 3: 编译 + Commit**
+- [ ] **Step 4: 编译 + Commit**
 
 ```bash
 go build ./...
 git add service/agent_rag.go
-git commit -m "feat: switch InitRAG to RedisStackVectorStore"
+git commit -m "feat: implement RedisStackVectorStore with Redis KNN + MySQL fallback"
 ```
 
 ---
 
-## Phase 5: 测试
+## Phase 4: 配置 + 测试
 
-### Task 5: RAG 测试
+### Task 4: 配置文件更新
 
-- [ ] **Step 1: 测试 embedText**
-
-```go
-func TestEmbedText(t *testing.T) {
-	if config.App.AI.APIKey == "" {
-		t.Skip("API key not configured")
-	}
-	vec, err := embedText("你好世界")
-	if err != nil {
-		t.Fatalf("embedText failed: %v", err)
-	}
-	if len(vec) == 0 {
-		t.Error("embedding should not be empty")
-	}
-}
-```
-
-- [ ] **Step 2: 测试余弦相似度**
-
-```go
-func TestCosineSimilarity(t *testing.T) {
-	a := []float32{1, 0, 0}
-	b := []float32{0, 1, 0}
-	c := []float32{1, 0, 0}
-
-	// 正交 → 相似度 0
-	if cosineSimilarity(a, b) > 0.01 {
-		t.Error("orthogonal vectors should have ~0 similarity")
-	}
-	// 相同 → 相似度 1
-	if cosineSimilarity(a, c) < 0.99 {
-		t.Error("identical vectors should have ~1 similarity")
-	}
-}
-```
-
-- [ ] **Step 3: 测试 Index + Search**
-
-```go
-func TestRAGIndexAndSearch(t *testing.T) {
-	if config.App.AI.APIKey == "" {
-		t.Skip("API key not configured")
-	}
-	rag := GetRAG()
-	if rag == nil {
-		t.Fatal("RAG not initialized")
-	}
-	// 入库测试
-	err := rag.IndexCourse(999, "这是一段测试文本，用于验证向量搜索是否正常工作")
-	if err != nil {
-		t.Fatalf("IndexCourse failed: %v", err)
-	}
-	// 检索测试
-	results, err := rag.Search(999, "测试文本", 3)
-	if err != nil {
-		t.Fatalf("Search failed: %v", err)
-	}
-	if len(results) == 0 {
-		t.Error("should return at least 1 result")
-	}
-}
-```
-
-- [ ] **Step 4: 全量编译 + 测试 + Commit**
-
-```bash
-go build ./... && go test ./... -count=1 2>&1 | grep -E "ok|FAIL"
-git add service/agent_rag_test.go
-git commit -m "test: add RAG embedding and search tests"
-```
-
----
-
-## Phase 6: 配置
-
-### Task 6: 更新配置文件
-
-- [ ] **Step 1: app.example.yml 加 embedding 配置**
+- [ ] **Step 1: app.example.yml**
 
 ```yaml
 agent:
@@ -388,10 +301,26 @@ agent:
 
 - [ ] **Step 3: Commit**
 
+### Task 5: 测试
+
+- [ ] **Step 1: TestEmbedText** — 验证 API 调用成功
+- [ ] **Step 2: TestCosineSimilarity** — 验证相似度计算
+- [ ] **Step 3: TestRAGIndexAndSearch** — 端到端入库+检索
+- [ ] **Step 4: TestRAGRedisFallback** — 模拟 Redis 宕机后的内存降级
+- [ ] **Step 5: 全量测试 + Commit**
+
+```bash
+go test ./... -count=1
+git add service/agent_rag_test.go config/app.example.yml service/setup_test.go
+git commit -m "test: add RAG embedding, search and fallback tests"
+```
+
 ---
 
-## 注意事项
+## Phase 5: 全量验证
 
-1. **Redis Stack 完整版**：当前实现用 MySQL 存向量 + Go 内存计算余弦相似度。安装 Redis Stack module 后，可替换为 `FT.SEARCH` 的 KNN 模式，代码改动小于 20 行。
-2. **Embedding 维度**：DeepSeek embedding 返回 1024 维 `float32`，每个 chunk 的 embedding 存储约 4KB。
-3. **性能**：几百个 chunk 在内存计算余弦相似度足够快。数据量超 1000 chunk 时，切到 Redis FT.SEARCH 原生的 KNN 搜索。
+### Task 6: E2E 验证
+
+- [ ] `go test ./... -count=1` → 全部 PASS
+- [ ] `npm run build` → 前端构建成功
+- [ ] 启动服务 → 上传文档 → Agent 问答 → 验证 RAG 检索结果
