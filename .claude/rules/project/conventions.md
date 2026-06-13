@@ -125,4 +125,4 @@ func GenerateAccessToken(userID uint, username, role string) (string, error) { .
 
 ## Git 分支规则
 
-**所有代码改动必须先创建新分支，禁止直接在 master 提交。** 修改前执行 `git checkout -b vN_featureName`。
+**所有代码改动必须先创建新分支，禁止直接在 master 提交。** 修改前执行 `git checkout -b vN_featureName`。合并到 master 前必须先确认，禁止自动合并。
