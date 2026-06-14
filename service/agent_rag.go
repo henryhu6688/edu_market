@@ -1,9 +1,15 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
+	"net/http"
 	"strings"
+	"time"
 
 	"edu_market/config"
 	"edu_market/database"
@@ -167,6 +173,98 @@ func (vs *SimpleSearchVectorStore) Delete(courseID uint) error {
 var globalRAG *RAGService
 
 // InitRAG 初始化全局 RAG 服务
+// ============ Embedding 服务 ============
+
+// embedTexts 批量调 DeepSeek Embedding API，返回多个文本的向量
+func embedTexts(texts []string) ([][]float32, error) {
+	apiURL := config.App.Agent.EmbeddingAPIURL
+	if apiURL == "" {
+		apiURL = "https://api.deepseek.com/v1/embeddings"
+	}
+	model := config.App.Agent.EmbeddingModel
+	if model == "" {
+		model = "deepseek-text-embedding"
+	}
+
+	reqBody := map[string]interface{}{
+		"model": model,
+		"input": texts,
+	}
+	jsonBytes, _ := json.Marshal(reqBody)
+
+	// 3 次指数退避重试
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(1<<uint(attempt-1)) * time.Second) // 0s, 1s, 2s
+		}
+
+		req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonBytes))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+config.App.AI.APIKey)
+
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("embedding API 返回状态 %d: %s", resp.StatusCode, string(body))
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("embedding API 错误: status=%d body=%s", resp.StatusCode, string(body))
+		}
+
+		var result struct {
+			Data []struct {
+				Embedding []float32 `json:"embedding"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, err
+		}
+		if len(result.Data) == 0 {
+			return nil, fmt.Errorf("embedding 返回空")
+		}
+
+		embeddings := make([][]float32, len(result.Data))
+		for i, d := range result.Data {
+			embeddings[i] = d.Embedding
+		}
+		return embeddings, nil
+	}
+	return nil, fmt.Errorf("embedding 重试 3 次后仍失败: %w", lastErr)
+}
+
+// cosineSimilarity 余弦相似度（两个等长向量）
+func cosineSimilarity(a, b []float32) float32 {
+	if len(a) != len(b) {
+		return 0
+	}
+	var dot, normA, normB float32
+	for i := range a {
+		dot += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
+	}
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+	return dot / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
+}
+
+// ============ 初始化 ============
+
 func InitRAG() {
 	vs := NewSimpleSearchVectorStore()
 	globalRAG = NewRAGService(vs)
