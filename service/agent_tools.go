@@ -121,14 +121,14 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 		db = db.Where("price <= ?", *args.MaxPrice)
 	}
 
-	var courses []model.Course
-	if err := db.Order("id DESC").Limit(10).Find(&courses).Error; err != nil {
-		return ToolResult{Success: false, Content: "搜索课程失败: " + err.Error()}
+	var materials []model.Material
+	if err := db.Order("id DESC").Limit(10).Find(&materials).Error; err != nil {
+		return ToolResult{Success: false, Content: "搜索资料失败: " + err.Error()}
 	}
-	if len(courses) == 0 {
+	if len(materials) == 0 {
 		return ToolResult{Success: true, Content: "平台暂无相关资料，建议换个方向"}
 	}
-	bytes, _ := json.Marshal(courses)
+	bytes, _ := json.Marshal(materials)
 	return ToolResult{Success: true, Content: string(bytes)}
 }
 
