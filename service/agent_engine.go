@@ -143,14 +143,7 @@ func (e *AgentEngine) Run(
 				sameToolCount = 1
 			}
 			if sameToolCount > 2 {
-				result := ToolResult{Success: true, Content: "已多次尝试，暂无结果。请根据已有信息直接回答用户。"}
-				toolMsg := model.Message{SessionID: session.ID, Role: model.RoleTool, Content: result.Content,
-					ToolCalls: model.ToolCalls{{CallID: tc.ID, Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}}}
-				database.DB.Create(&toolMsg)
-					history = append(history,
-						agentChatMsg{Role: "assistant", ToolCalls: []toolCallItem{{ID: tc.ID, Type: "function", Function: toolCallFunc{Name: toolName, Arguments: tc.Function.Arguments}}}},
-						agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID},
-					)
+				// 跳过本次 tool 调用，不做任何操作，LLM 下一轮会看到空结果自然停止
 				continue
 			}
 				// 通知前端
