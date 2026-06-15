@@ -41,7 +41,7 @@ git commit -m "feat: add Embedding field to DocumentChunk"
 
 ## Phase 2: Embedding 服务
 
-### Task 2: embedText + cosineSimilarity
+### Task 2: embedTexts（批量） + cosineSimilarity + 重试
 
 - [ ] **Step 1: 写入 `agent_rag.go`**
 

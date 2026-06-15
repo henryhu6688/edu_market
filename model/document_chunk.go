@@ -7,11 +7,12 @@ type DocumentChunk struct {
 	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	CourseID   uint      `gorm:"not null;index" json:"course_id"`
 	Content    string    `gorm:"type:text;not null" json:"content"`
-	Embedding  []float32 `gorm:"type:blob" json:"-"`
+	Embedding  []byte    `gorm:"type:blob" json:"-"`
 	ChunkIndex int       `gorm:"not null;default:0" json:"chunk_index"`
 	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
 
-	Course Course `gorm:"foreignKey:CourseID;constraint:OnDelete:CASCADE" json:"-"`
+	// CourseID 实际引用 materials.id（兼容旧字段名）
+
 }
 
 // TableName 指定表名

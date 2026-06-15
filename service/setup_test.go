@@ -71,7 +71,7 @@ func TestMain(m *testing.M) {
 		JWT: config.JWTConfig{Secret: readConfigYAML("jwt.secret"), AccessTTLMin: 30, RefreshTTLHours: 24},
 		AI:    config.AIConfig{Provider: "deepseek", APIKey: readConfigYAML("ai.api_key"), APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-v4-pro"},
 		Captcha: config.CaptchaConfig{Length: 6, ExpireSeconds: 300, ResendSeconds: 1},
-		Agent:   config.AgentConfig{MaxToolRounds: 10, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50, PurchaseBoundaryTopK: 1, PurchaseBoundaryChars: 200, EmbeddingModel: "deepseek-text-embedding", EmbeddingAPIURL: "https://api.deepseek.com/v1/embeddings"},
+		Agent:   config.AgentConfig{MaxToolRounds: 10, ContextMaxMsg: 20, ChunkSize: 500, ChunkOverlap: 50, PurchaseBoundaryTopK: 1, PurchaseBoundaryChars: 200, EmbeddingModel: "BAAI/bge-large-zh-v1.5", EmbeddingAPIURL: "https://api.siliconflow.cn/v1/embeddings"},
 		Document: config.DocumentConfig{AutoSaveDelay: 2, RagSync: true, MaxUploadSize: 20 << 20, AllowedFormats: []string{".pdf", ".pptx", ".docx", ".md", ".txt"}},
 	}
 

@@ -106,6 +106,8 @@ func (e *AgentEngine) Run(
 	history := e.loadContext(session.ID, systemPrompt)
 
 	// 3. Tool Calling 循环
+	var lastTool string
+	var sameToolCount int
 	openAITools := toolDefsToOpenAI(tools)
 	if len(openAITools) == 0 {
 		openAITools = nil
@@ -133,6 +135,21 @@ func (e *AgentEngine) Run(
 			for _, tc := range choice.Message.ToolCalls {
 				toolName := tc.Function.Name
 
+			// 同一 tool 连续超过 2 次 → 强制终止
+			if toolName == lastTool {
+				sameToolCount++
+			} else {
+				lastTool = toolName
+				sameToolCount = 1
+			}
+			if sameToolCount > 2 {
+				result := ToolResult{Success: true, Content: "已多次尝试，暂无结果。请根据已有信息直接回答用户。"}
+				toolMsg := model.Message{SessionID: session.ID, Role: model.RoleTool, Content: result.Content,
+					ToolCalls: model.ToolCalls{{CallID: tc.ID, Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}}}
+				database.DB.Create(&toolMsg)
+				history = append(history, agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID})
+				continue
+			}
 				// 通知前端
 				sseHandler("thinking", fmt.Sprintf(`{"tool":"%s","status":"executing"}`, toolName))
 

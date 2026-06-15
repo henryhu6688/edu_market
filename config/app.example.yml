@@ -39,8 +39,9 @@ agent:
   context_max_messages: 20
   purchase_boundary_topk: 1
   purchase_boundary_chars: 200
-  embedding_model: "deepseek-text-embedding"
-  embedding_api_url: "https://api.deepseek.com/v1/embeddings"
+  embedding_model: "BAAI/bge-large-zh-v1.5"
+  embedding_api_url: "https://api.siliconflow.cn/v1/embeddings"
+  embedding_api_key: ""
   chunk_size: 500
   chunk_overlap: 50
 

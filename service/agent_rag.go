@@ -190,9 +190,14 @@ func embedTexts(texts []string) ([][]float32, error) {
 		model = "deepseek-text-embedding"
 	}
 
+	input := texts[0]
+	if len(texts) > 1 {
+		input = strings.Join(texts, "\n")
+	}
 	reqBody := map[string]interface{}{
-		"model": model,
-		"input": texts,
+		"model":           model,
+		"input":           input,
+		"encoding_format": "float",
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
@@ -209,7 +214,11 @@ func embedTexts(texts []string) ([][]float32, error) {
 			continue
 		}
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+config.App.AI.APIKey)
+apiKey := config.App.Agent.EmbeddingAPIKey
+	if apiKey == "" {
+		apiKey = config.App.AI.APIKey
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 		client := &http.Client{Timeout: 60 * time.Second}
 		resp, err := client.Do(req)
@@ -359,7 +368,7 @@ func (vs *RedisStackVectorStore) searchInMemory(courseID uint, vec []float32, to
 		if len(c.Embedding) == 0 {
 			continue
 		}
-		s := cosineSimilarity(vec, c.Embedding)
+		s := cosineSimilarity(vec, bytesToFloats(c.Embedding))
 		if s > 0.5 {
 			candidates = append(candidates, scored{c, s})
 		}
@@ -391,7 +400,7 @@ func (vs *RedisStackVectorStore) Index(chunkID uint, courseID uint, content stri
 	// 1. MySQL 备份向量
 	if err := database.DB.Model(&model.DocumentChunk{}).
 		Where("id = ?", chunkID).
-		Update("embedding", vec).Error; err != nil {
+		Update("embedding", floatsToBytes(vec)).Error; err != nil {
 		return err
 	}
 
@@ -442,4 +451,23 @@ func InitRAG() {
 // GetRAG 获取全局 RAG 服务实例
 func GetRAG() *RAGService {
 	return globalRAG
+}
+
+// ============ 辅助函数 ============
+
+// floatsToBytes []float32 → []byte（小端序，每 float32 4 字节）
+func floatsToBytes(v []float32) []byte {
+	buf := new(bytes.Buffer)
+	for _, f := range v {
+		binary.Write(buf, binary.LittleEndian, f)
+	}
+	return buf.Bytes()
+}
+
+// bytesToFloats []byte → []float32（小端序，每 4 字节一个 float32）
+func bytesToFloats(b []byte) []float32 {
+	buf := bytes.NewReader(b)
+	v := make([]float32, len(b)/4)
+	binary.Read(buf, binary.LittleEndian, &v)
+	return v
 }

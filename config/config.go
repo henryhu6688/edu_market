@@ -82,6 +82,7 @@ type AgentConfig struct {
 	ContextMaxMsg         int    `mapstructure:"context_max_messages"`
 	EmbeddingModel        string `mapstructure:"embedding_model"`
 	EmbeddingAPIURL       string `mapstructure:"embedding_api_url"`
+EmbeddingAPIKey       string `mapstructure:"embedding_api_key"`
 	ChunkSize             int    `mapstructure:"chunk_size"`
 	ChunkOverlap          int    `mapstructure:"chunk_overlap"`
 	PurchaseBoundaryTopK  int    `mapstructure:"purchase_boundary_topk"`

@@ -72,10 +72,39 @@ type DocumentChunk struct {
 ## Embedding
 
 - 服务：DeepSeek Embedding API（已有账号）
-- 输入：文本字符串
-- 输出：`[]float32`（1024 维）
-- 维度：1024
-- 存储：约 4KB/chunk
+- 输入：批量文本数组 `["块1", "块2", ...]`，一次请求返回多个向量
+- 输出：`[][]float32`（1024 维）
+- 维度：1024，每个 chunk 约 4KB
+
+**重试机制**：Embedding API 偶发 429/500，采用 3 次指数退避重试（1s → 2s → 4s），全部失败才报错。
+
+## Redis 索引初始化
+
+启动时 `InitRAG()` 自动创建索引：
+
+```sql
+FT.CREATE idx:chunks IF NOT EXISTS
+  ON HASH PREFIX 1 doc:
+  SCHEMA
+    content AS content TEXT
+    course_id AS course_id NUMERIC SORTABLE
+    embedding AS embedding VECTOR HNSW 6 TYPE FLOAT32 DIM 1024 DISTANCE_METRIC COSINE
+```
+
+`IF NOT EXISTS` 确保重启不报错。
+
+## Redis 宕机恢复
+
+Redis 挂了 → 搜索降级到 MySQL + Go 内存计算。Redis 恢复后重建索引：
+
+```
+遍历 document_chunks
+  → 读 embedding 字段（MySQL 备份）
+  → HSET doc:N embedding content course_id
+  → 全部插入后 FT.CREATE 重建
+```
+
+可手动触发，也可在 `InitRAG()` 时检测 Redis 恢复后自动执行。
 
 ## Redis 索引
 
