@@ -42,14 +42,8 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 		}
 	}
 
-	// 2. 关键词意图分类 → 命中给提示，不命中用基础 Prompt
-	intent := ClassifyIntent(question)
-	var systemPrompt string
-	if intent != "" {
-		systemPrompt = GetAgentPrompt(intent)
-	} else {
-		systemPrompt = SystemPromptV3
-	}
+	// 2. 统一 Prompt，LLM 自己判断意图
+	systemPrompt := SystemPromptV3
 
 	// 3. 全量 Tool 注册
 	tools := buildToolSet(searchFunc)

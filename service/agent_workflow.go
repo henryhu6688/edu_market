@@ -22,7 +22,7 @@ func ClassifyIntent(question string) string {
 	// 第一层：关键词精确匹配（只保留最明确的词组）
 	buyWords := []string{"我要买", "帮我买", "帮我下单", "想买", "买哪个", "买这个", "下单"}
 	afterSaleWords := []string{"我要退款", "申请退款", "申请退", "支付失败", "我的订单", "投诉", "申诉", "退款", "退货", "发货"}
-	consultWords := []string{"有没有", "推荐", "学什么", "入门", "进阶", "哪个好", "想学", "适合我", "感兴趣", "介绍一下", "了解", "看看", "有什么", "资料"}
+	consultWords := []string{"有没有", "推荐", "学什么", "哪个好", "想学", "适合我", "感兴趣", "介绍一下", "了解", "看看", "有什么", "资料"}
 
 	if matchAny(msgLower, buyWords) {
 		return IntentPurchase
