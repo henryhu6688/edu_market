@@ -147,7 +147,10 @@ func (e *AgentEngine) Run(
 				toolMsg := model.Message{SessionID: session.ID, Role: model.RoleTool, Content: result.Content,
 					ToolCalls: model.ToolCalls{{CallID: tc.ID, Name: toolName, Arguments: tc.Function.Arguments, Result: result.Content}}}
 				database.DB.Create(&toolMsg)
-				history = append(history, agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID})
+					history = append(history,
+						agentChatMsg{Role: "assistant", ToolCalls: []toolCallItem{{ID: tc.ID, Type: "function", Function: toolCallFunc{Name: toolName, Arguments: tc.Function.Arguments}}}},
+						agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID},
+					)
 				continue
 			}
 				// 通知前端
