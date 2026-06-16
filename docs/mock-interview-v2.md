@@ -8,7 +8,7 @@
 
 **参考回答：**
 
-我独立开发了一个在线学习资料交易平台，后端 Go + Gin，前端 Vue3。核心亮点是自研了一套 LLM Agent 引擎——没有用 LangChain 这类框架，纯 Go 写了约 500 行的 Tool Calling 循环，驱动智能客服、资料推荐和 RAG 答疑。还做了完整的文档处理流水线，PDF/DOCX/PPTX 上传自动转 Markdown 在线编辑器。生产环境上加了 Redis 滑动窗口限流、Semaphore 并发控制、全链路 request_id 日志追踪。
+我独立开发了一个在线学习资料交易平台，后端 Go + Gin，前端 Vue3。核心亮点是自研了一套 LLM Agent 引擎——没有用 LangChain 这类框架，纯 Go 写了约 500 行的 Tool Calling 循环，驱动智能客服、资料推荐和 RAG 答疑。还做了完整的文档处理流水线，PDF/DOCX/PPTX 上传自动转 Markdown 在线编辑器。生产环境上加了 Redis 滑动窗口限流、令牌桶 API 频率控制、全链路 request_id 日志追踪。
 
 ---
 
@@ -44,7 +44,7 @@
 
 中间层做了死循环防范：同一 Tool 连续调用超过 2 次就自动跳过，不再执行。
 
-内层是对第三方 API 的保护：LLM API 和 Embedding API 都用 Semaphore 控制了全局并发数，避免触发 429 限流。LLM 调用本身也有 60 秒超时，超时返回"服务暂不可用"。
+内层是对第三方 API 的保护：LLM API 和 Embedding API 都用令牌桶控制调用频率，避免触发 429 限流。LLM 调用本身也有 60 秒超时，超时返回"服务暂不可用"。
 
 此外 Redis 存储还设计了自动降级机制：向量搜索如果 Redis 集群故障，会自动切换为 MySQL 加载向量 + Go 内存计算余弦相似度的备选方案。
 
@@ -106,13 +106,7 @@ PDF 坑最多。试了两个 Go 库——`ledongthuc/pdf` 和 `rsc.io/pdf`——
 
 做了两层。第一层是 API 限流，Redis 滑动窗口计数器。每用户每分钟最多 30 次请求，每 IP 每分钟最多 100 次。Redis 记录每次请求的时间戳，每次新请求进来先清 60 秒前的旧记录，再数当前窗口内还剩多少次。超限返回 429。
 
-第二层是资源并发控制。LLM API 调用全局最多同时 5 个，Embedding API 最多 3 个，文件解析最多 2 个。用 Go 的 buffered channel 做了个轻量 Semaphore——`Acquire()` 往里塞一个空 struct，`Release()` 取出来。塞不进去就阻塞等，实现自然排队。
-
-GORM 连接池已经设了 `MaxOpenConns: 100, MaxIdleConns: 10`，MySQL 侧不用额外处理。
-
-**追问：buffered channel 塞满怎么办？**
-
-就是阻塞等待，不会有请求失败。调用方在 goroutine 里等，排到队就继续执行。对于文件解析这种不紧急的操作，阻塞排队完全可接受。
+第二层是 API 频率控制。用 `golang.org/x/time/rate` 令牌桶限制 LLM API（10次/s，突发 3 次）和 Embedding API（8次/s，突发 2 次）。令牌桶不做并发数限制——正常用户不受影响，突发请求排队等几十毫秒就能获得令牌，不会让一个用户的慢调用卡死其他所有人。文件解析不限流，Go scheduler 自己管 CPU。GORM 连接池已设 `MaxOpenConns: 100`。
 
 ---
 
@@ -219,22 +213,20 @@ vs := NewSimpleSearchVectorStore()
 
 业务代码只依赖接口，不管底层是 Redis 还是 Qdrant 还是 MySQL。从最简单的 MySQL LIKE 升级到 Redis Stack 向量搜索时只改了初始化一行。
 
-**Q: 简历提到"buffered channel 控制全局并发数"，怎么用 channel 做限流？**
+**Q: 简历提到"令牌桶控制 API 调用频率"，和并发限制有什么区别？**
+
+并发限制是"同时最多 N 个在执行"，令牌桶是"每秒最多 N 次调用"。并发限制的问题：一个用户慢响应会卡住其他所有人。令牌桶天然隔离——每个请求快速消耗一个令牌后立即释放，正常用户不受影响，瞬间洪峰排队等几十毫秒。
 
 ```go
-type Semaphore struct { ch chan struct{} }
-
-func NewSemaphore(capacity int) *Semaphore {
-    return &Semaphore{ch: make(chan struct{}, capacity)}
-}
-
-func (s *Semaphore) Acquire() { s.ch <- struct{}{} }
-func (s *Semaphore) Release() { <-s.ch }
+var (
+    llmRate   = rate.NewLimiter(10, 3) // 10次/s，突发 3
+    embedRate = rate.NewLimiter(8, 2)  // 8次/s，突发 2
+)
+// 调用处
+llmRate.Wait(context.Background())
 ```
 
-全局声明 `var LLMSem = NewSemaphore(5)`，每个 LLM 调用前 `LLMSem.Acquire()`，完成后 `defer LLMSem.Release()`。当 5 个 goroutine 都占着时，第 6 个请求会被 channel 阻塞排队，等到前面的 Release 后才能继续。没有用到任何第三方库。
-
-分别设了三个量：LLM 5 并发、Embedding 3 并发、文件解析 2 并发。这三个是独立的 channel，互不影响。
+`rate.NewLimiter(10, 3)`：每秒产生 10 个令牌，桶容量 3（允许瞬时 3 连发）。`Wait()` 阻塞直到有令牌可用。API 限流和令牌桶是两层互补——前者防用户刷接口，后者防 LLM/Embedding API 被整体打爆。
 
 **Q: 简历提到"滑动窗口 API 限流"，Redis 怎么实现滑动窗口？**
 
@@ -250,7 +242,7 @@ func (s *Semaphore) Release() { <-s.ch }
 
 **Q: goroutine 和 channel 在你项目里怎么用的？**
 
-goroutine 有两处。一是文档保存后异步触发 RAG 重切片：`go reindexDocument(&doc)`，不阻塞 HTTP 响应。二是 Semaphore 的并发控制，buffered channel 限制了 LLM 调用的全局并发数。
+goroutine 有两处。一是文档保存后异步触发 RAG 重切片：`go reindexDocument(&doc)`，不阻塞 HTTP 响应。二是令牌桶的 `Wait()` 在需要限速时主动让出 CPU，等令牌就绪后再继续。
 
 **Q: defer 的执行顺序？你项目里 defer 用来做什么？**
 

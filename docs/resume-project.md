@@ -20,6 +20,6 @@ PDF/DOCX/PPTX/TXT/MD → 纯文本提取 → Markdown 编辑器。中文 PDF 对
 
 **并发控制与工程实践**
 
-Redis 滑动窗口实现 API 限流，防止单用户高频调用耗尽 LLM 配额。buffered channel 控制 LLM、Embedding、文件解析三类全局并发数，避免第三方 API 触发 429 限流。全链路 `request_id` 贯穿中间件至引擎层，结构化日志聚合排查
+Redis 滑动窗口实现 API 限流，防止单用户高频调用。令牌桶控制 LLM 和 Embedding API 的调用频率，避免触发第三方 429，不阻塞其他用户。全链路 `request_id` 追踪，结构化日志聚合
 
 **技术栈：** Go · Gin · GORM · MySQL · Redis Stack · DeepSeek · SiliconFlow · Vue3 · Vite · ByteMD · SSE
