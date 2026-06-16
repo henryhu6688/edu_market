@@ -297,6 +297,9 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 		MaxTokens: 4096,
 	}
 
+	LLMSem.Acquire()
+	defer LLMSem.Release()
+
 	jsonBytes, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("请求编码失败: %w", err)
