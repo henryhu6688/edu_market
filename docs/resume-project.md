@@ -8,7 +8,7 @@
 
 **Agent 引擎（Go 自研，~500 行）**
 
-设计 Workflow（安全兜底）+ Agent（自主决策）双层架构。LLM 在 Workflow 约束内自主规划 9 个 Tool 的调用顺序。支持 Tool Calling 多轮迭代、死循环检测、SSE 流式对话。解决了 `stream:true` 与 `tools` 互斥、`reader.cancel()` 丢弃缓冲区数据、推理模型 `reasoning_content` 回传（Message 表字段 + 引擎存取 + loadContext 恢复）等问题。
+双层架构：Workflow 层定义安全边界（轮数上限、防死循环），Agent 层由 LLM 自主规划 9 个 Tool 的调用顺序与策略。支持 Tool Calling 多轮迭代与 SSE 流式对话。解决了 `stream:true` 与 `tools` 参数互斥、buffer 数据丢失导致的响应截断、推理模型 `reasoning_content` 上下文回传等关键问题。
 
 **RAG 语义检索**
 
@@ -16,10 +16,10 @@
 
 **文件处理流水线**
 
-PDF/DOCX/PPTX/TXT/MD → 纯文本提取 → Markdown 编辑器。中文 PDF 采用 `pdftotext` 命令方案(Go 库 CMap 编码失败)。ByteMD WYSIWYG + 文档树 + 2s 防抖保存，异 goroutine 触发 RAG 重切片
+PDF/DOCX/PPTX/TXT/MD → 纯文本提取 → Markdown 编辑器。中文 PDF 对比多个 Go 库后采用系统 `pdftotext` 命令方案解决乱码问题。ByteMD WYSIWYG + 文档树 + 2s 防抖自动保存，保存后异步触发 RAG 重索引
 
 **并发控制与工程实践**
 
-API 限流（Redis 滑动窗口，30次/用户/min，100次/IP）、LLM/Embedding/Parser Semaphore 并发控制(buffered channel)。全链路 `request_id` 追踪，slog 结构化日志 + `AddSource`。Pre-commit Hook、敏感配置 `viper.New()` 独立实例读取
+Redis 滑动窗口实现 API 限流，防止单用户高频调用耗尽 LLM 配额。buffered channel 控制 LLM、Embedding、文件解析三类全局并发数，避免第三方 API 触发 429 限流。全链路 `request_id` 贯穿中间件至引擎层，结构化日志聚合排查
 
 **技术栈：** Go · Gin · GORM · MySQL · Redis Stack · DeepSeek · SiliconFlow · Vue3 · Vite · ByteMD · SSE
