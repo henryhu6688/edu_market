@@ -15,6 +15,7 @@ func Setup() *gin.Engine {
 	// 全局中间件
 	r.Use(middleware.Cors())
 	r.Use(middleware.Logger())
+	r.Use(middleware.RateLimit())
 
 	// 静态文件（上传文件访问）
 	r.Static("/uploads", "./uploads")
