@@ -150,6 +150,100 @@ DeepSeek v4-pro 推理模型的 `reasoning_content` 问题。这个模型每次�
 
 ---
 
+### 补充实战题（对应简历各模块）
+
+**Q: 简历提到"Redis 宕机自动降级内存余弦相似度计算"，具体怎么实现的？**
+
+```go
+func (vs *RedisStackVectorStore) Search(courseID uint, query string, topK int) ([]SearchResult, error) {
+    vecs, _ := embedTexts([]string{query})
+    vec := vecs[0]
+
+    // 优先 Redis KNN
+    if database.RDB != nil {
+        results, err := vs.searchRedis(courseID, vec, topK)
+        if err == nil { return results, nil }
+        slog.Warn("Redis 搜索失败，降级到内存计算", "err", err)
+    }
+
+    // 降级：MySQL 加载向量 → 内存算余弦相似度
+    return vs.searchInMemory(courseID, vec, topK)
+}
+```
+
+`searchInMemory` 从 MySQL 加载该资料所有 chunk 的 embedding，逐个和问题向量算余弦相似度，过滤低于 0.5 的，排序取 Top-K。几百个 chunk 内存算 10ms 内完成。MySQL 的 embedding 字段是备份，Redis 是热缓存——挂了重建不需要再调 Embedding API。
+
+**追问：为什么不直接用 MySQL 做向量搜索？**
+
+MySQL 不适合——向量是 1024 维 float32 数组，SQL 没有原生向量运算符，用 LIKE 只能做关键词不能做语义。Redis Stack 的 HNSW 索引是专门为 KNN 搜索优化的数据结构，对数复杂度。MySQL 只做备份。
+
+**Q: 简历提到"解决了 buffer 数据丢失导致的响应截断"，展开说说？**
+
+SSE 流式场景：后端发 delta → 前端逐字渲染 → 收到 done 事件后原来调了 `reader.cancel()` 立即销毁 ReadableStream。但 `done` 可能比最后几个 delta 早到前端（TCP 乱序或调度延迟），`cancel()` 把缓冲里未读的 delta 全丢了——用户看到的是截断后的半句话。
+
+排查时对比后端日志（完整回复已生成）和前端实际显示内容，发现长度差了一大截。改成收到 done 后只设 `streamEnded = true` 然后 `break` 自然退出循环，让浏览器自行处理缓冲数据，不再丢字了。
+
+**Q: 简历提到"推理模型 reasoning_content 上下文回传"，这个怎么做的？**
+
+DeepSeek v4-pro 每次回复带 `reasoning_content` 字段（模型的思考过程），API 要求下一次请求中必须将同条消息的 `reasoning_content` 原样传回。
+
+改了三处：
+1. `model/message.go`：Message 表新增 `ReasoningContent string` 字段
+2. `agent_engine.go` Run()：存 assistant 消息时把 `choice.Message.ReasoningContent` 写入 DB
+3. `agent_engine.go` loadContext()：从 DB 加载历史消息时，助理消息设置 `msg.ReasoningContent = m.ReasoningContent`
+
+内存中 Tool Calling 循环新建的合成 assistant 消息也得带 `ReasoningContent`——如果漏了，下一轮 LLM 一样报 400。
+
+**Q: 简历提到"VectorStore 接口三方法抽象，存储引擎一行代码切换"，展开讲讲？**
+
+```go
+type VectorStore interface {
+    Search(courseID uint, query string, topK int) ([]SearchResult, error)
+    Index(chunkID uint, courseID uint, content string) error
+    Delete(courseID uint) error
+}
+```
+
+初始化时决定用哪个实现：
+
+```go
+// 现用版本
+vs := NewRedisStackVectorStore()
+
+// 未来切 Qdrant
+vs := NewQdrantVectorStore()
+
+// 简易版（测试环境）
+vs := NewSimpleSearchVectorStore()
+```
+
+业务代码只依赖接口，不管底层是 Redis 还是 Qdrant 还是 MySQL。从最简单的 MySQL LIKE 升级到 Redis Stack 向量搜索时只改了初始化一行。
+
+**Q: 简历提到"buffered channel 控制全局并发数"，怎么用 channel 做限流？**
+
+```go
+type Semaphore struct { ch chan struct{} }
+
+func NewSemaphore(capacity int) *Semaphore {
+    return &Semaphore{ch: make(chan struct{}, capacity)}
+}
+
+func (s *Semaphore) Acquire() { s.ch <- struct{}{} }
+func (s *Semaphore) Release() { <-s.ch }
+```
+
+全局声明 `var LLMSem = NewSemaphore(5)`，每个 LLM 调用前 `LLMSem.Acquire()`，完成后 `defer LLMSem.Release()`。当 5 个 goroutine 都占着时，第 6 个请求会被 channel 阻塞排队，等到前面的 Release 后才能继续。没有用到任何第三方库。
+
+分别设了三个量：LLM 5 并发、Embedding 3 并发、文件解析 2 并发。这三个是独立的 channel，互不影响。
+
+**Q: 简历提到"滑动窗口 API 限流"，Redis 怎么实现滑动窗口？**
+
+每次请求记录当前时间戳到 ZSet：`ZADD ratelimit:user:123 <timestamp> <timestamp>`。然后清掉 60 秒前的旧数据：`ZREMRANGEBYSCORE ... 0 <now-60s>`。在 `ZCard` 查询剩余计数，如果 >= 限额就 429。
+
+选择 ZSet 而不是 INCR 的原因是滑动窗口比固定窗口更精确——第 59 秒 30 次请求，第 61 秒就清零重新计数，不会被绕过。
+
+---
+
 ## 项目相关八股文
 
 ### Go 基础
