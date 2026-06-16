@@ -1,33 +1,27 @@
 # 项目经历
 
-## 在线学习平台 — 自研 Agent + RAG + 并发控制
+## 在线学习平台 · 独立开发
 
-**2025.03 — 至今 | 独立开发 | Go + Vue3 + DeepSeek + Redis Stack**
+**2025.03 — 至今 | Go + Vue3 + DeepSeek + Redis**
 
-### 项目简介
-在线学习资料交易平台，集成 **Go 自研 LLM Agent** 实现智能客服、个性化推荐、深度答疑。支持 Markdown 在线编辑器、多格式文件解析（PDF/DOCX/PPTX）。
+在线学习资料交易平台。最大的技术投入是自研了一套 Agent 引擎，替代 LangChain 这类现成框架，驱动平台的智能客服、资料推荐和 RAG 答疑。
 
-### 重点成果
+**Agent 引擎（自研）**
 
-**LLM Agent 引擎**
-- Go 自研 ~500 行实现完整 Tool Calling 循环，9 个 Tool，最大 10 轮迭代，不依赖 LangChain
-- 设计 Workflow（安全兜底）+ Agent（自主决策）双层架构。死循环检测：同一 Tool 连续 3 次自动终止
-- SSE 流式对话，`stream:true` 与 `tools` 互斥 → Tool Calling 轮非流式，最终回复轮流式
-- 上下文管理：近 20 轮拼入上下文。深度适配推理模型的 `reasoning_content` 保存回传
+没有用 LangChain，纯 Go 写了 ~500 行。核心是一个 Tool Calling 循环：LLM 自己决定调哪个 Tool、什么顺序、失败后换什么策略。最多 10 轮迭代，设了死循环检测（同一 Tool 连续 3 次自动打住）。SSE 流式对话踩了不少坑——`stream:true` 和 `tools` 参数互斥，最后拆成 Tool Calling 轮非流式 + 最终回复轮流式。推理模型要求 `reasoning_content` 必须在每次请求中回传，改了三层：Message 表加字段、引擎存的时候带上、loadContext 加载时恢复。
 
-**RAG 语义检索**
-- 文档存储 → 切片(500字/50重叠) → 硅基流动 BAAI/bge 1024D Embedding → Redis Stack HNSW KNN 向量搜索
-- `VectorStore` 接口抽象（Search/Index/Delete），切换存储引擎仅改一行代码
-- Redis 宕机自动降级 Go 内存 `cosineSimilarity` 计算，功能不挂
+**RAG 检索**
 
-**文件处理流水线**
-- PDF(`pdftotext` CJK 完美)/DOCX(`<w:t>` XML 提取)/PPTX(archive/zip `<a:t>` 提取)/TXT/MD 上传自动转 Markdown
-- ByteMD WYSIWYG 编辑器 + 文档树 + 2s 自动保存，保存后异步 goroutine 触发 RAG 重新切片
+文档上传后自动切成 500 字小块，调硅基流动的 Embedding API 生成 1024 维向量，双写 MySQL 和 Redis Stack。搜索优先走 Redis 的 HNSW KNN，Redis 挂了自动切到 Go 内存算余弦相似度。VectorStore 只定义了 Search/Index/Delete 三个方法，后面想切 Qdrant 改一行初始化就行。
 
-**并发控制与安全**
-- Redis 滑动窗口 API 限流：30 次/用户/min，100 次/IP，buffered channel 实现 LLM/Embedding/Parser Semaphore 并发控制
-- Pre-commit Hook 拦截 master 直接提交，敏感字段 `viper.New()` 独立实例读取
-- 全链路 `request_id` 追踪，`slog` 结构化日志 + `AddSource` 行号显示
+**文件处理**
 
-### 技术栈
-Go · Gin · GORM · MySQL · Redis Stack · DeepSeek API · SiliconFlow Embedding · Vue3 · Vite · ByteMD · SSE · Semaphore · slog
+PDF/DOCX/PPTX/TXT/MD 上传自动转 Markdown。中文 PDF 试了两个 Go 库都是乱码，最后直接调系统 `pdftotext` 解决。编辑器用的 ByteMD，左侧文档树 + 右侧所见即所得，2 秒自动保存，保存后起一个 goroutine 触发 RAG 重新切片。
+
+**并发控制**
+
+Redis 滑动窗口做了 API 限流，buffered channel 封了个 Semaphore 控制 LLM（5 并发）、Embedding（3 并发）、文件解析（2 并发）的全局并发量。全链路 `request_id` 追日志，slog 开了 `AddSource` 显示行号。敏感配置用 viper 独立实例读，pre-commit hook 拦着不让直接在 master 提交。
+
+**技术栈**
+
+Go · Gin · GORM · MySQL · Redis Stack · DeepSeek · SiliconFlow · Vue3 · Vite · ByteMD · SSE
