@@ -42,16 +42,11 @@ type toolCallFunc struct {
 
 // llmRequest LLM 请求体
 type llmRequest struct {
-	Model          string                   `json:"model"`
-	Messages       []agentChatMsg           `json:"messages"`
-	Stream         bool                     `json:"stream"`
-	Tools          []map[string]interface{} `json:"tools,omitempty"`
-	MaxTokens      int                      `json:"max_tokens,omitempty"`
-	ResponseFormat *responseFormat          `json:"response_format,omitempty"`
-}
-
-type responseFormat struct {
-	Type string `json:"type"`
+	Model     string                   `json:"model"`
+	Messages  []agentChatMsg           `json:"messages"`
+	Stream    bool                     `json:"stream"`
+	Tools     []map[string]interface{} `json:"tools,omitempty"`
+	MaxTokens int                      `json:"max_tokens,omitempty"`
 }
 
 // llmChoice LLM 响应 choice（非流式）
@@ -300,9 +295,6 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 		Stream:    false,
 		Tools:     tools,
 		MaxTokens: 4096,
-	}
-	if tools == nil {
-		reqBody.ResponseFormat = &responseFormat{Type: "json_object"}
 	}
 
 	jsonBytes, err := json.Marshal(reqBody)
