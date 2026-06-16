@@ -14,8 +14,8 @@
 
 - Go 自研，约 500 行核心代码实现完整 Tool Calling 循环。LLM 自主规划 9 个 Tool 的调用顺序（资料搜索、订单查询、FAQ 检索、RAG 文档搜索、购买卡片触发），最大 10 轮迭代
 - 设计 Workflow + Agent 双层架构：Workflow 层做安全兜底（轮数限制、Tool 白名单、防死循环），Agent 层做自主决策（选 Tool、排序、错误重试）
-- SSE 流式对话：Native 转发 DeepSeek SSE 流（非模拟逐字），首字延迟 < 200ms。踩过 `reader.cancel()` 丢弃缓冲数据、`stream:true` 与 `tools` 参数互斥等流式坑
-- 上下文管理：取最近 20 轮对话拼入 System Prompt，兼容 deepseek-v4-pro 的 `reasoning_content` 必须在每次请求中回传的限制（模型字段 + DB 存储 + loadContext 恢复三层适配）
+- SSE 流式对话：转发 LLM 原生 SSE 流至前端，首字延迟 < 200ms。解决 `stream:true` 与 `tools` 互斥问题——Tool Calling 轮次非流式，最终回复轮次流式，兼顾功能与体验
+- 上下文管理：近 20 轮对话拼入 System Prompt。深度适配 deepseek-v4-pro 推理模型——Message 表新增 `reasoning_content` 字段，引擎存储与加载双向同步，确保多轮对话上下文完整性
 
 **2. RAG 语义检索系统**
 
@@ -27,7 +27,7 @@
 **3. 在线文档编辑器**
 
 - ByteMD WYSIWYG Markdown 编辑 + 左侧文档树（`parent_id` 层级），2s 防抖自动保存，保存后异 goroutine 触发 RAG 重新切片
-- 中文 PDF 解析方案：Go 库 `ledongthuc/pdf`/`rsc.io/pdf` 对中文 CMap 字体编码支持差 → 改用系统 `pdftotext -layout -enc UTF-8`，完美支持 CJK
+- 中文 PDF 解析：采用 `pdftotext` 命令方案，完美支持 CJK 字体编码
 
 **4. 工程实践**
 
