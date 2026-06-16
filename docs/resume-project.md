@@ -2,26 +2,24 @@
 
 ## 在线学习平台 · 独立开发
 
-**2025.03 — 至今 | Go + Vue3 + DeepSeek + Redis**
+**2025.03 — 至今 | Go + Vue3 + DeepSeek + Redis Stack**
 
-在线学习资料交易平台。最大的技术投入是自研了一套 Agent 引擎，替代 LangChain 这类现成框架，驱动平台的智能客服、资料推荐和 RAG 答疑。
+在线学习资料交易平台，支持资料发布购买、Markdown 在线编辑、PDF/DOCX/PPTX 解析。核心亮点是自研 LLM Agent 引擎与 RAG 语义检索系统。
 
-**Agent 引擎（自研）**
+**Agent 引擎（Go 自研，~500 行）**
 
-没有用 LangChain，纯 Go 写了 ~500 行。核心是一个 Tool Calling 循环：LLM 自己决定调哪个 Tool、什么顺序、失败后换什么策略。最多 10 轮迭代，设了死循环检测（同一 Tool 连续 3 次自动打住）。SSE 流式对话踩了不少坑——`stream:true` 和 `tools` 参数互斥，最后拆成 Tool Calling 轮非流式 + 最终回复轮流式。推理模型要求 `reasoning_content` 必须在每次请求中回传，改了三层：Message 表加字段、引擎存的时候带上、loadContext 加载时恢复。
+设计 Workflow（安全兜底）+ Agent（自主决策）双层架构。LLM 在 Workflow 约束内自主规划 9 个 Tool 的调用顺序。支持 Tool Calling 多轮迭代、死循环检测、SSE 流式对话。解决了 `stream:true` 与 `tools` 互斥、`reader.cancel()` 丢弃缓冲区数据、推理模型 `reasoning_content` 回传（Message 表字段 + 引擎存取 + loadContext 恢复）等问题。
 
-**RAG 检索**
+**RAG 语义检索**
 
-文档上传后自动切成 500 字小块，调硅基流动的 Embedding API 生成 1024 维向量，双写 MySQL 和 Redis Stack。搜索优先走 Redis 的 HNSW KNN，Redis 挂了自动切到 Go 内存算余弦相似度。VectorStore 只定义了 Search/Index/Delete 三个方法，后面想切 Qdrant 改一行初始化就行。
+文档切片(500字/50重叠) → 硅基流动 Embedding(1024D) → Redis Stack HNSW 向量搜索 + MySQL 备份。VectorStore 接口三方法抽象，存储引擎一行代码切换。Redis 宕机自动降级内存余弦相似度计算
 
-**文件处理**
+**文件处理流水线**
 
-PDF/DOCX/PPTX/TXT/MD 上传自动转 Markdown。中文 PDF 试了两个 Go 库都是乱码，最后直接调系统 `pdftotext` 解决。编辑器用的 ByteMD，左侧文档树 + 右侧所见即所得，2 秒自动保存，保存后起一个 goroutine 触发 RAG 重新切片。
+PDF/DOCX/PPTX/TXT/MD → 纯文本提取 → Markdown 编辑器。中文 PDF 采用 `pdftotext` 命令方案(Go 库 CMap 编码失败)。ByteMD WYSIWYG + 文档树 + 2s 防抖保存，异 goroutine 触发 RAG 重切片
 
-**并发控制**
+**并发控制与工程实践**
 
-Redis 滑动窗口做了 API 限流，buffered channel 封了个 Semaphore 控制 LLM（5 并发）、Embedding（3 并发）、文件解析（2 并发）的全局并发量。全链路 `request_id` 追日志，slog 开了 `AddSource` 显示行号。敏感配置用 viper 独立实例读，pre-commit hook 拦着不让直接在 master 提交。
+API 限流（Redis 滑动窗口，30次/用户/min，100次/IP）、LLM/Embedding/Parser Semaphore 并发控制(buffered channel)。全链路 `request_id` 追踪，slog 结构化日志 + `AddSource`。Pre-commit Hook、敏感配置 `viper.New()` 独立实例读取
 
-**技术栈**
-
-Go · Gin · GORM · MySQL · Redis Stack · DeepSeek · SiliconFlow · Vue3 · Vite · ByteMD · SSE
+**技术栈：** Go · Gin · GORM · MySQL · Redis Stack · DeepSeek · SiliconFlow · Vue3 · Vite · ByteMD · SSE
