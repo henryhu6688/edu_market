@@ -17,4 +17,6 @@ func (s *Semaphore) Acquire() { s.ch <- struct{}{} }
 func (s *Semaphore) Release() { <-s.ch }
 
 // 全局并发控制
-var LLMSem = NewSemaphore(5) // LLM API 全局最多 5 并发
+var LLMSem = NewSemaphore(5)   // LLM API 全局最多 5 并发
+var EmbedSem = NewSemaphore(3) // Embedding API 全局最多 3 并发
+var ParserSem = NewSemaphore(2) // 文件解析全局最多 2 并发

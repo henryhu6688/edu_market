@@ -208,8 +208,10 @@ func embedTexts(texts []string) ([][]float32, error) {
 			time.Sleep(time.Duration(1<<uint(attempt-1)) * time.Second) // 0s, 1s, 2s
 		}
 
+		EmbedSem.Acquire()
 		req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonBytes))
 		if err != nil {
+			EmbedSem.Release()
 			lastErr = err
 			continue
 		}
@@ -231,10 +233,12 @@ apiKey := config.App.Agent.EmbeddingAPIKey
 		resp.Body.Close()
 
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			EmbedSem.Release()
 			lastErr = fmt.Errorf("embedding API 返回状态 %d: %s", resp.StatusCode, string(body))
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
+			EmbedSem.Release()
 			return nil, fmt.Errorf("embedding API 错误: status=%d body=%s", resp.StatusCode, string(body))
 		}
 
@@ -254,6 +258,7 @@ apiKey := config.App.Agent.EmbeddingAPIKey
 		for i, d := range result.Data {
 			embeddings[i] = d.Embedding
 		}
+		EmbedSem.Release()
 		return embeddings, nil
 	}
 	return nil, fmt.Errorf("embedding 重试 3 次后仍失败: %w", lastErr)

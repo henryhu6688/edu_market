@@ -33,6 +33,9 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 		return "", fmt.Errorf("不支持: %s（支持 .txt .md .docx .pdf .pptx）", ext)
 	}
 
+	ParserSem.Acquire()
+	defer ParserSem.Release()
+
 	var text string
 	var err error
 	switch ext {
