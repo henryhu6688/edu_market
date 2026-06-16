@@ -3,6 +3,7 @@ package service
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -297,8 +298,7 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 		MaxTokens: 4096,
 	}
 
-	LLMSem.Acquire()
-	defer LLMSem.Release()
+	llmRate.Wait(context.Background())
 
 	jsonBytes, err := json.Marshal(reqBody)
 	if err != nil {
