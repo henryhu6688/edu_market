@@ -5,7 +5,9 @@
       "Bash(taskkill //F //IM edu_market.exe)",
       "Bash(taskkill //F //IM main.exe)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/categories)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/materials)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/materials)",
+      "Bash(tasklist //FI \"IMAGENAME eq main.exe\")",
+      "Bash(tasklist //FI \"IMAGENAME eq edu_market.exe\")"
     ]
   }
 }

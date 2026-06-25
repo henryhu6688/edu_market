@@ -232,7 +232,7 @@ func (e *AgentEngine) Run(
 
 			// Level 1: 精确重复
 			if blocked, reason := breaker.Check(tool, toolName, argsJSON); blocked {
-				result := ToolResult{Success: false, Content: reason, Source: "blocked"}
+				result := ToolResult{Success: false, Content: reason, Source: "blocked", ErrorCode: "TOOL_BLOCKED", Recoverable: false, RecommendedAction: "tell_user_boundary"}
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,
 					agentChatMsg{
@@ -250,7 +250,7 @@ func (e *AgentEngine) Run(
 
 			// 工具不存在
 			if !toolExists {
-				result := ToolResult{Success: false, Content: fmt.Sprintf("未知工具: %s", toolName), Source: "error"}
+				result := ToolResult{Success: false, Content: fmt.Sprintf("未知工具: %s，请换用其他可用工具", toolName), Source: "error", ErrorCode: "UNKNOWN_TOOL", Recoverable: true, RecommendedAction: "try_alternative_tool"}
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,
 					agentChatMsg{
@@ -266,7 +266,7 @@ func (e *AgentEngine) Run(
 
 			// 模式白名单（第一轮 mode="" 跳过）
 			if err := e.checkToolMode(tool, session.Mode); err != nil {
-				result := ToolResult{Success: false, Content: err.Error(), Source: "blocked"}
+				result := ToolResult{Success: false, Content: err.Error(), Source: "blocked", ErrorCode: "ACCESS_DENIED", Recoverable: false, RecommendedAction: "tell_user_boundary"}
 				slog.Warn("模式白名单拦截", "request_id", requestID, "tool", toolName, "mode", session.Mode, "error", err)
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,
@@ -283,7 +283,7 @@ func (e *AgentEngine) Run(
 
 			// 参数校验
 			if err := tool.ValidateArgs(argsJSON); err != nil {
-				result := ToolResult{Success: false, Content: "参数错误: " + err.Error(), Source: "blocked"}
+				result := ToolResult{Success: false, Content: "参数错误: " + err.Error(), Source: "blocked", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
 				slog.Warn("参数校验拦截", "request_id", requestID, "tool", toolName, "args", argsJSON, "error", err)
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,
@@ -300,7 +300,7 @@ func (e *AgentEngine) Run(
 
 			// 调用预算
 			if err := budget.Spend(toolName); err != nil {
-				result := ToolResult{Success: false, Content: err.Error(), Source: "blocked"}
+				result := ToolResult{Success: false, Content: err.Error(), Source: "blocked", ErrorCode: "BUDGET_EXCEEDED", Recoverable: false, RecommendedAction: "tell_user_try_later"}
 				slog.Warn("调用预算耗尽", "request_id", requestID, "tool", toolName, "error", err)
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,

@@ -20,6 +20,18 @@
       </div>
     </aside>
 
+    <!-- 删除确认弹窗 -->
+    <div v-if="showDelDialog" class="modal-overlay" @click.self="showDelDialog = false">
+      <div class="modal-box">
+        <p class="modal-title">删除对话</p>
+        <p class="modal-body">确定要删除这个对话吗？<br/><span class="modal-warn">删除后无法恢复。</span></p>
+        <div class="modal-actions">
+          <button class="btn-cancel" @click="showDelDialog = false">取消</button>
+          <button class="btn-danger" @click="confirmDelete">删除</button>
+        </div>
+      </div>
+    </div>
+
     <main class="chat-area">
       <div class="messages" ref="msgContainer">
         <div v-if="messages.length === 0 && !currentSessionId" class="welcome">
@@ -75,6 +87,8 @@ const input = ref('')
 const loading = ref(false)
 const msgContainer = ref(null)
 const inputBox = ref(null)
+const showDelDialog = ref(false)
+const pendingDeleteId = ref(null)
 
 async function loadSessions() {
   try {
@@ -132,7 +146,16 @@ function switchSession(id) {
   loadMessages(id)
 }
 
-async function removeSession(id) {
+function removeSession(id) {
+  pendingDeleteId.value = id
+  showDelDialog.value = true
+}
+
+async function confirmDelete() {
+  const id = pendingDeleteId.value
+  showDelDialog.value = false
+  pendingDeleteId.value = null
+  if (!id) return
   try {
     await deleteSession(id)
     sessions.value = sessions.value.filter(s => s.id !== id)
@@ -369,4 +392,27 @@ onMounted(() => loadSessions())
 .input-area button { padding: 10px 24px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .input-area button:hover { background: #2563eb; }
 .input-area button:disabled { background: #9ca3af; cursor: not-allowed; }
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 24px 28px;
+  min-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+.modal-title { font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 8px; }
+.modal-body { font-size: 14px; color: #6b7280; line-height: 1.7; margin: 0 0 20px; }
+.modal-warn { color: #ef4444; font-size: 13px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.btn-cancel {
+  padding: 8px 18px; border: 1px solid #d1d5db; background: #fff;
+  color: #374151; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.btn-cancel:hover { background: #f9fafb; }
+.btn-danger {
+  padding: 8px 18px; border: none; background: #ef4444; color: #fff;
+  border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.btn-danger:hover { background: #dc2626; }
 </style>

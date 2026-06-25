@@ -59,8 +59,8 @@ func (s *AgentService) GetSessions(userID uint, page, pageSize int) ([]model.Ses
 	var sessions []model.Session
 	var total int64
 
-	database.DB.Model(&model.Session{}).Where("user_id = ?", userID).Count(&total)
-	if err := database.DB.Where("user_id = ?", userID).
+	database.DB.Model(&model.Session{}).Where("user_id = ? AND status = ?", userID, model.SessionActive).Count(&total)
+	if err := database.DB.Where("user_id = ? AND status = ?", userID, model.SessionActive).
 		Order("updated_at DESC").Offset((page-1)*pageSize).Limit(pageSize).
 		Find(&sessions).Error; err != nil {
 		return nil, 0, err

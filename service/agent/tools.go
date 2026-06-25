@@ -19,9 +19,12 @@ type ToolDef struct {
 
 // ToolResult 工具执行结果
 type ToolResult struct {
-	Success bool   `json:"success"`
-	Content string `json:"content"`
-	Source  string `json:"source,omitempty"` // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
+	Success           bool   `json:"success"`
+	Content           string `json:"content"`
+	Source            string `json:"source,omitempty"`             // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
+	ErrorCode         string `json:"error_code,omitempty"`         // 结构化错误码，供 LLM 决策恢复策略
+	Recoverable       bool   `json:"recoverable"`                  // 是否可通过调整参数/换工具恢复
+	RecommendedAction string `json:"recommended_action,omitempty"` // 建议的恢复动作：fix_arguments_and_retry / narrow_query / ask_user_for_xxx / tell_user_xxx / try_alternative_tool
 }
 
 // Tool 可执行的工具接口
@@ -77,7 +80,7 @@ func (t queryOrdersTool) Definition() ToolDef {
 func (t queryOrdersTool) Execute(userID uint, _ string) ToolResult {
 	var orders []model.Order
 	if err := database.DB.Where("user_id = ?", userID).Order("created_at DESC").Limit(10).Find(&orders).Error; err != nil {
-		return ToolResult{Success: false, Content: "查询订单失败: " + err.Error()}
+		return ToolResult{Success: false, Content: "查询订单失败，请稍后重试", ErrorCode: "DATABASE_ERROR", Recoverable: false, RecommendedAction: "tell_user_system_busy"}
 	}
 	if len(orders) == 0 {
 		return ToolResult{Success: true, Content: `{"count":0,"orders":[],"hint":"用户暂无订单记录，可引导浏览资料"}`}
@@ -125,8 +128,7 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 		SortBy     string   `json:"sort_by"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-		return ToolResult{Success: false, Content: "参数解析失败"}
-	}
+		return ToolResult{Success: false, Content: "参数解析失败，请调整参数格式后重试", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}	}
 
 	db := database.DB.Where("status = ?", "published").Preload("Category").Preload("User")
 	if args.Keyword != "" {
@@ -155,7 +157,7 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 
 	var materials []model.Material
 	if err := db.Limit(10).Find(&materials).Error; err != nil {
-		return ToolResult{Success: false, Content: "搜索资料失败: " + err.Error()}
+		return ToolResult{Success: false, Content: "搜索资料失败，请稍后重试", ErrorCode: "DATABASE_ERROR", Recoverable: false, RecommendedAction: "tell_user_system_busy"}
 	}
 	if len(materials) == 0 {
 		return ToolResult{Success: true, Content: `{"count":0,"materials":[],"hint":"平台暂无相关资料，建议换个方向或浏览其他分类"}`}
@@ -217,14 +219,13 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 		Query      string `json:"query"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-		return ToolResult{Success: false, Content: "参数解析失败"}
-	}
+		return ToolResult{Success: false, Content: "参数解析失败，请调整参数格式后重试", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}	}
 	if t.searchFunc == nil {
-		return ToolResult{Success: false, Content: "资料检索服务暂不可用"}
+		return ToolResult{Success: false, Content: "资料检索服务暂不可用，请稍后重试", ErrorCode: "SERVICE_UNAVAILABLE", Recoverable: false, RecommendedAction: "tell_user_service_unavailable"}
 	}
 	content, err := t.searchFunc(args.MaterialID, args.Query, 5)
 	if err != nil {
-		return ToolResult{Success: false, Content: "检索失败: " + err.Error()}
+		return ToolResult{Success: false, Content: "文档检索失败，建议换个问法或关键词重试", ErrorCode: "SEARCH_ERROR", Recoverable: true, RecommendedAction: "retry_or_narrow_query"}
 	}
 	if content == "" {
 		return ToolResult{Success: true, Content: `{"found":false,"chunks":[],"hint":"资料中未找到相关内容，建议换个问法或确认资料是否正确"}`}
@@ -284,7 +285,7 @@ func (t getMaterialDetailTool) Execute(_ uint, argsJSON string) ToolResult {
 	var material model.Material
 	if err := database.DB.Preload("Category").Preload("Documents").
 		First(&material, args.MaterialID).Error; err != nil {
-		return ToolResult{Success: false, Content: "资料不存在"}
+		return ToolResult{Success: false, Content: "资料不存在，请确认资料ID是否正确", ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "confirm_material_id_with_user"}
 	}
 
 	type OutlineItem struct {
@@ -494,7 +495,7 @@ func (t getOrderDetailTool) Execute(userID uint, argsJSON string) ToolResult {
 	var order model.Order
 	if err := database.DB.Where("order_no = ? AND user_id = ?", args.OrderNo, userID).
 		First(&order).Error; err != nil {
-		return ToolResult{Success: false, Content: "订单不存在"}
+		return ToolResult{Success: false, Content: "订单不存在，请用 query_orders 确认订单号是否正确", ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "check_order_no_or_use_query_orders"}
 	}
 	b, _ := json.Marshal(order)
 	return ToolResult{Success: true, Content: string(b)}
@@ -531,7 +532,7 @@ func (t triggerPurchaseOfferTool) Execute(_ uint, argsJSON string) ToolResult {
 
 	var material model.Material
 	if err := database.DB.First(&material, args.MaterialID).Error; err != nil {
-		return ToolResult{Success: false, Content: "资料不存在"}
+		return ToolResult{Success: false, Content: "资料不存在，无法发送购买卡片，请用 query_materials 确认资料ID", ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "confirm_material_id_with_user"}
 	}
 
 	result := map[string]interface{}{
