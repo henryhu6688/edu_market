@@ -189,7 +189,8 @@ func (e *AgentEngine) Run(
 				"stream":      false,
 			},
 		})
-		slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "tools_available", len(openAITools))
+		modeTools := countModeTools(tools, session.Mode)
+		slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "mode", session.Mode, "tools_usable", modeTools, "tools_total", len(openAITools))
 
 		llmStart := time.Now()
 		resp, err := e.callLLMWithRetry(history, openAITools)

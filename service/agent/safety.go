@@ -144,6 +144,23 @@ func (e *AgentEngine) checkToolMode(tool Tool, sessionMode string) error {
 	return fmt.Errorf("当前模式（%s）不允许使用此工具", sessionMode)
 }
 
+// countModeTools 统计当前模式下可用工具数（mode="" 时返回全部）
+func countModeTools(tools map[string]Tool, mode string) int {
+	if mode == "" {
+		return len(tools)
+	}
+	count := 0
+	for _, t := range tools {
+		for _, m := range t.AllowedModes() {
+			if m == mode {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
 // ============ 状态机：模式判定 ============
 
 // ResolveMode 根据本轮实际执行的 Tool 类型判定当前模式。

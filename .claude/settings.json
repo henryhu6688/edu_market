@@ -7,7 +7,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/categories)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/materials)",
       "Bash(tasklist //FI \"IMAGENAME eq main.exe\")",
-      "Bash(tasklist //FI \"IMAGENAME eq edu_market.exe\")"
+      "Bash(tasklist //FI \"IMAGENAME eq edu_market.exe\")",
+      "Bash(mysql -uroot -p123456 edu_market -e \"SELECT id, user_id, LEFT\\(title,30\\) as title, status, mode, LEFT\\(FROM_UNIXTIME\\(UNIX_TIMESTAMP\\(updated_at\\)\\),19\\) as updated FROM sessions ORDER BY id DESC LIMIT 10;\")"
     ]
   }
 }
