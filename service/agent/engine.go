@@ -156,7 +156,11 @@ func (e *AgentEngine) Run(
 			"system_prompt":  prompt,
 		},
 	})
-	slog.Info("Agent 上下文就绪", "request_id", requestID, "session_id", session.ID, "history_msgs", len(history), "tools_count", len(tools))
+	toolNames := make([]string, 0, len(tools))
+	for name := range tools {
+		toolNames = append(toolNames, name)
+	}
+	slog.Info("Agent 上下文就绪", "request_id", requestID, "session_id", session.ID, "history_msgs", len(history), "tools", toolNames)
 
 	// ========== 4. Tool Calling 循环 ==========
 	openAITools := toolDefsToOpenAI(tools)
