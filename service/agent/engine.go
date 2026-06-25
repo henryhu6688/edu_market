@@ -215,6 +215,9 @@ func (e *AgentEngine) Run(
 
 		// ----- 没有 Tool Call → 最终回答 -----
 		if len(choice.Message.ToolCalls) == 0 {
+			if choice.Message.Content != "" {
+				return e.finalizeAnswer(session, choice.Message.Content, sseHandler, corrector, resp.Usage.TotalTokens)
+			}
 			return e.streamFinalAnswer(session, history, sseHandler, corrector)
 		}
 
@@ -367,7 +370,7 @@ func (e *AgentEngine) Run(
 	return nil
 }
 
-// streamFinalAnswer 最终回答：非流式获取完整回答 → quality 修正 → 模拟流式发 SSE。
+// streamFinalAnswer 最终兜底：LLM 返回空 content 时才额外调一次拿回答。
 func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentChatMsg, sseHandler SSEHandler, corrector *HardFieldCorrector) error {
 	history = append(history, agentChatMsg{
 		Role:    "system",
@@ -379,13 +382,14 @@ func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentC
 		sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后重试"}`)
 		return err
 	}
-	fullAnswer := finalResp.Choices[0].Message.Content
+	return e.finalizeAnswer(session, finalResp.Choices[0].Message.Content, sseHandler, corrector, finalResp.Usage.TotalTokens)
+}
 
-	// quality：完整回答在手，先修正再发
+// finalizeAnswer quality 修正 → 流式输出 → 存 DB → done 事件。
+func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, sseHandler SSEHandler, corrector *HardFieldCorrector, tokens int) error {
 	facts := e.getFacts(session.State)
 	fullAnswer = corrector.Correct(fullAnswer, facts)
 
-	// 模拟流式逐字发 SSE
 	e.streamAnswer(fullAnswer, func(delta string) {
 		sseHandler("delta", formatDelta(delta))
 	})
@@ -393,7 +397,7 @@ func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentC
 	displayAnswer := CleanTransferMarkers(fullAnswer)
 	slog.Info("Agent 回复", "session_id", session.ID, "answer_len", len([]rune(displayAnswer)), "answer_preview", TruncateRunes(displayAnswer, 200))
 
-	e.storeAssistantMessageDB(session.ID, fullAnswer, finalResp.Usage.TotalTokens)
+	e.storeAssistantMessageDB(session.ID, fullAnswer, tokens)
 	sseHandler("done", fmt.Sprintf(`{"session_id":%d,"agent_type":"%s"}`, session.ID, session.AgentType))
 	return nil
 }

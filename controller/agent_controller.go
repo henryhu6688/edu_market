@@ -62,10 +62,25 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 			if len(results) == 0 {
 				return "", nil
 			}
-			// 拼接结果
-			var parts []string
+			// 结构化返回：每条结果带内容和可信度标签，方便 Agent 判断引用优先级
+			type chunkResult struct {
+				Content string  `json:"content"`
+				Score   float32 `json:"score"`
+				Label   string  `json:"label"`
+			}
+			var parts []chunkResult
 			for _, r := range results {
-				parts = append(parts, r.Content)
+				label := "低"
+				if r.Score >= 0.7 {
+					label = "高"
+				} else if r.Score >= 0.4 {
+					label = "中"
+				}
+				parts = append(parts, chunkResult{
+					Content: r.Content,
+					Score:   r.Score,
+					Label:   label,
+				})
 			}
 			bytes, _ := json.Marshal(parts)
 			return string(bytes), nil

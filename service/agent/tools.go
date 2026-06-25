@@ -64,7 +64,9 @@ type queryOrdersTool struct{}
 func (t queryOrdersTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        ToolQueryOrders,
-		Description: "查询当前用户的订单列表，返回订单号、金额、状态、创建时间",
+		Description: "查询当前登录用户的订单列表，返回最近10笔订单的订单号、金额、支付状态、创建时间。" +
+			"不能查其他人的订单；不能查单笔订单详情，需用 get_order_detail；不能查退款进度或发起退款。" +
+			"当用户问「我的订单」「买了什么」且未提供具体订单号时优先使用本工具。",
 		Parameters: map[string]interface{}{
 			"type":       "object",
 			"properties": map[string]interface{}{},
@@ -78,7 +80,7 @@ func (t queryOrdersTool) Execute(userID uint, _ string) ToolResult {
 		return ToolResult{Success: false, Content: "查询订单失败: " + err.Error()}
 	}
 	if len(orders) == 0 {
-		return ToolResult{Success: true, Content: "您暂无订单记录"}
+		return ToolResult{Success: true, Content: `{"count":0,"orders":[],"hint":"用户暂无订单记录，可引导浏览资料"}`}
 	}
 	bytes, _ := json.Marshal(orders)
 	return ToolResult{Success: true, Content: string(bytes)}
@@ -98,14 +100,17 @@ type queryCoursesTool struct{}
 func (t queryCoursesTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        ToolQueryMaterials,
-		Description: "按关键词、分类ID、价格范围搜索课程列表，返回课程标题、描述、价格、分类等信息",
+		Description: "按关键词、分类、价格范围搜索平台上已发布的学习资料，返回资料标题、描述、价格、分类。" +
+			"不能查资料的具体章节内容，需用 search_documents；不能查评价，需用 get_reviews；不能查资料详情，需用 get_material_detail。" +
+			"用户表达找资料需求时优先使用；搜不到结果时直接告知用户，不要反复换关键词重试。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"keyword":     map[string]interface{}{"type": "string", "description": "搜索关键词"},
-				"category_id": map[string]interface{}{"type": "number", "description": "分类ID（可选）"},
-				"min_price":   map[string]interface{}{"type": "number", "description": "最低价格（可选）"},
-				"max_price":   map[string]interface{}{"type": "number", "description": "最高价格（可选）"},
+				"keyword":     map[string]interface{}{"type": "string", "description": "搜索关键词，匹配资料标题和描述"},
+				"category_id": map[string]interface{}{"type": "number", "description": "分类ID，用于筛选特定分类下的资料"},
+				"min_price":   map[string]interface{}{"type": "number", "description": "最低价格筛选"},
+				"max_price":   map[string]interface{}{"type": "number", "description": "最高价格筛选"},
+				"sort_by":     map[string]interface{}{"type": "string", "enum": []string{"newest", "price_asc", "price_desc", "popular"}, "description": "排序方式：newest=最新发布，price_asc=价格从低到高，price_desc=价格从高到低，popular=按购买量排序。默认 newest。"},
 			},
 		},
 	}
@@ -117,6 +122,7 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 		CategoryID *uint    `json:"category_id"`
 		MinPrice   *float64 `json:"min_price"`
 		MaxPrice   *float64 `json:"max_price"`
+		SortBy     string   `json:"sort_by"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return ToolResult{Success: false, Content: "参数解析失败"}
@@ -136,12 +142,23 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 		db = db.Where("price <= ?", *args.MaxPrice)
 	}
 
+	switch args.SortBy {
+	case "price_asc":
+		db = db.Order("price ASC")
+	case "price_desc":
+		db = db.Order("price DESC")
+	case "popular":
+		db = db.Order("buy_count DESC")
+	default:
+		db = db.Order("id DESC") // newest
+	}
+
 	var materials []model.Material
-	if err := db.Order("id DESC").Limit(10).Find(&materials).Error; err != nil {
+	if err := db.Limit(10).Find(&materials).Error; err != nil {
 		return ToolResult{Success: false, Content: "搜索资料失败: " + err.Error()}
 	}
 	if len(materials) == 0 {
-		return ToolResult{Success: true, Content: "平台暂无相关资料，建议换个方向"}
+		return ToolResult{Success: true, Content: `{"count":0,"materials":[],"hint":"平台暂无相关资料，建议换个方向或浏览其他分类"}`}
 	}
 	bytes, _ := json.Marshal(materials)
 	return ToolResult{Success: true, Content: string(bytes)}
@@ -149,7 +166,18 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 
 func (t queryCoursesTool) AllowedModes() []string { return []string{"shopping", "tutoring"} }
 func (t queryCoursesTool) AllowRepeat() bool           { return false }
-func (t queryCoursesTool) ValidateArgs(_ string) error { return nil }
+func (t queryCoursesTool) ValidateArgs(argsJSON string) error {
+	var args struct {
+		Keyword string `json:"keyword"`
+		SortBy  string `json:"sort_by"`
+	}
+	json.Unmarshal([]byte(argsJSON), &args)
+	validSorts := map[string]bool{"newest": true, "price_asc": true, "price_desc": true, "popular": true, "": true}
+	if !validSorts[args.SortBy] {
+		return errors.New("sort_by 只能为 newest / price_asc / price_desc / popular")
+	}
+	return nil
+}
 func (t queryCoursesTool) Describe(argsJSON string, result ToolResult) string {
 	var args struct{ Keyword string }
 	json.Unmarshal([]byte(argsJSON), &args)
@@ -169,12 +197,14 @@ func newSearchMaterialsTool(fn SearchFunc) searchMaterialsTool {
 func (t searchMaterialsTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        ToolSearchMaterials,
-		Description: "搜索某份学习资料的文档内容，返回相关的文本片段。用于回答关于资料内容的具体问题。",
+		Description: "在指定资料的文档内容中进行语义检索，返回与查询相关的文本片段，用于回答资料内容的具体知识点问题。" +
+			"不能搜资料的基本信息如价格、目录，需用 get_material_detail；不能搜全平台资料，需用 query_materials；不能搜FAQ，需用 search_faq。" +
+			"用户已指向某份资料并询问具体章节或知识点（如「第三章讲了什么」）时优先使用；搜不到时诚实告知，不要反复调用。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"material_id": map[string]interface{}{"type": "number", "description": "资料ID"},
-				"query":       map[string]interface{}{"type": "string", "description": "要搜索的问题或关键词"},
+				"material_id": map[string]interface{}{"type": "number", "description": "要检索的资料ID，需先通过 get_material_detail 确认资料存在"},
+				"query":       map[string]interface{}{"type": "string", "description": "要搜索的问题或关键词，不超过200字。建议用具体章节号或知识点名称，不用整段描述"},
 			},
 			"required": []string{"material_id", "query"},
 		},
@@ -197,7 +227,7 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 		return ToolResult{Success: false, Content: "检索失败: " + err.Error()}
 	}
 	if content == "" {
-		return ToolResult{Success: true, Content: "资料中未找到相关内容，建议换个问法"}
+		return ToolResult{Success: true, Content: `{"found":false,"chunks":[],"hint":"资料中未找到相关内容，建议换个问法或确认资料是否正确"}`}
 	}
 	return ToolResult{Success: true, Content: content}
 }
@@ -234,7 +264,9 @@ type getMaterialDetailTool struct{}
 func (t getMaterialDetailTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "get_material_detail",
-		Description: "获取某份学习资料的详细信息，包括价格、评价数、购买数、文档目录结构",
+		Description: "获取单份资料的完整信息，包括标题、价格、描述、浏览量、购买数、所属分类、文档目录（含试读标记）。" +
+			"不能搜索文档具体内容，需用 search_documents；不能获取用户评价，需用 get_reviews；不能搜索多份资料，需用 query_materials。" +
+			"用户提到具体资料名或问「这个资料多少钱」「有哪些章节」时优先使用。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -269,6 +301,11 @@ func (t getMaterialDetailTool) Execute(_ uint, argsJSON string) ToolResult {
 		"description": material.Description, "view_count": material.ViewCount,
 		"buy_count": material.BuyCount, "category": material.Category.Name,
 		"outline": outline,
+		"suggested_next": []string{
+			"如果用户想了解具体章节内容，使用 search_documents 搜索文档",
+			"如果用户表达购买意向，使用 trigger_purchase_offer 弹出购买卡片",
+			"如果用户想看其他用户的评价，使用 get_reviews",
+		},
 	}
 	b, _ := json.Marshal(result)
 	return ToolResult{Success: true, Content: string(b)}
@@ -295,7 +332,9 @@ type getReviewsTool struct{}
 func (t getReviewsTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "get_reviews",
-		Description: "获取某份资料的用户评价列表，含评分和内容",
+		Description: "获取某份资料的用户评价列表，包含评分（1-5分）和评价内容，最多返回10条。" +
+			"不能获取资料详情，需用 get_material_detail；不能回复、删除或修改评价；不能查某个用户的评价历史。" +
+			"用户问「评价怎么样」「口碑如何」时使用，配合 get_material_detail 效果更好。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -341,7 +380,9 @@ type getCategoriesTool struct{}
 func (t getCategoriesTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "get_categories",
-		Description: "获取平台所有学习资料分类列表",
+		Description: "获取平台所有资料分类列表，返回分类ID和名称。" +
+			"不能返回分类下的资料列表，需用 query_materials 带 category_id 参数；不能创建或修改分类。" +
+			"用户问「有哪些分类」「什么类型」时使用；帮用户缩小搜索范围时配合 query_materials 使用。",
 		Parameters: map[string]interface{}{
 			"type": "object", "properties": map[string]interface{}{},
 		},
@@ -376,11 +417,13 @@ type searchFAQTool struct{}
 func (t searchFAQTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "search_faq",
-		Description: "在平台FAQ中搜索相关问题，用于解答退款、支付、使用等问题",
+		Description: "在平台FAQ知识库中搜索相关问题，返回匹配的问答对，适用于退款政策、支付方式、使用指南等平台规则类问题。" +
+			"不能搜资料内容，需用 search_documents；不能查订单信息，需用 query_orders 或 get_order_detail；FAQ 没覆盖的问题直接引导人工客服，不要编造答案。" +
+			"用户问平台规则、退款、支付、售后等政策性问题时优先使用；搜不到时直接说「需要联系客服确认」，不要反复调用。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"query": map[string]interface{}{"type": "string", "description": "搜索关键词"},
+				"query": map[string]interface{}{"type": "string", "description": "要搜索的FAQ关键词，建议用简洁短语如「退款」「支付方式」「怎么使用」，不用完整句子"},
 			},
 			"required": []string{"query"},
 		},
@@ -409,7 +452,17 @@ func (t searchFAQTool) Execute(_ uint, argsJSON string) ToolResult {
 
 func (t searchFAQTool) AllowedModes() []string  { return []string{"shopping", "tutoring", "support"} }
 func (t searchFAQTool) AllowRepeat() bool           { return false }
-func (t searchFAQTool) ValidateArgs(_ string) error { return nil }
+func (t searchFAQTool) ValidateArgs(argsJSON string) error {
+	var args struct{ Query string `json:"query"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if strings.TrimSpace(args.Query) == "" {
+		return errors.New("搜索关键词不能为空")
+	}
+	if len(args.Query) > 100 {
+		return errors.New("搜索关键词过长，请精简到 100 字以内")
+	}
+	return nil
+}
 func (t searchFAQTool) Describe(argsJSON string, result ToolResult) string {
 	var args struct{ Query string }
 	json.Unmarshal([]byte(argsJSON), &args)
@@ -421,11 +474,13 @@ type getOrderDetailTool struct{}
 func (t getOrderDetailTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "get_order_detail",
-		Description: "获取单笔订单的详细信息：订单号、金额、状态、时间、关联资料",
+		Description: "根据订单号查询单笔订单的完整信息，包括订单状态、支付状态、金额、关联资料、创建时间。" +
+			"不能用手机号或描述查订单，需先用 query_orders 获取订单号；不能修改订单、发起退款或取消订单；不能查其他用户的订单。" +
+			"用户提供了具体订单号时使用；用户问「这笔订单怎么样了」时先确认是否有订单号，没有则先用 query_orders。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"order_no": map[string]interface{}{"type": "string", "description": "订单号"},
+				"order_no": map[string]interface{}{"type": "string", "description": "订单号，只能从 query_orders 返回的结果中获取，不能编造。用户未提供时先用 query_orders 查列表"},
 			},
 			"required": []string{"order_no"},
 		},
@@ -457,11 +512,13 @@ type triggerPurchaseOfferTool struct{}
 func (t triggerPurchaseOfferTool) Definition() ToolDef {
 	return ToolDef{
 		Name:        "trigger_purchase_offer",
-		Description: "向用户发送购买引导卡片。仅在用户表现出购买兴趣时调用。",
+		Description: "向用户弹出购买引导卡片，显示资料标题、价格和封面。这是让用户看到购买入口的唯一方式——不调用本工具，用户就无法下单。" +
+			"不能替代文字回复，调用后仍需简要引导用户点击卡片；不能用于非购买场景；不能替用户做购买决定。" +
+			"用户表达购买意向（「买」「下单」「就这个」「来一份」「怎么买」）时必须调用；即使用户之前看过卡片，再次表达意向也必须重新调用。不要只说「已发送卡片」而不调用本工具。",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"material_id": map[string]interface{}{"type": "number", "description": "要推荐的资料ID"},
+				"material_id": map[string]interface{}{"type": "number", "description": "要推荐购买的资料ID，必须来自 query_materials 或 get_material_detail 返回的真实资料"},
 			},
 			"required": []string{"material_id"},
 		},
@@ -483,6 +540,14 @@ func (t triggerPurchaseOfferTool) Execute(_ uint, argsJSON string) ToolResult {
 		"title":       material.Title,
 		"price":       material.Price,
 		"cover_image": material.CoverImage,
+		"requires_user_action": true,
+		"action_description": "购买卡片已发送，用户需要点击卡片完成下单，当前尚未产生订单",
+		"suggested_next": []string{
+			"告知用户点击卡片即可下单购买",
+			"用户未完成下单前，不要声称「已下单」或「已购买」",
+			"如果用户询问发货、退款等售后问题，使用 search_faq 查询",
+			"如果用户犹豫是否购买，可使用 get_reviews 展示其他用户的评价",
+		},
 	}
 	b, _ := json.Marshal(result)
 	return ToolResult{Success: true, Content: string(b)}
