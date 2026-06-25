@@ -39,7 +39,13 @@ type CircuitBreaker struct {
     lastToolArgs string
 }
 
-func (cb *CircuitBreaker) Check(toolName, argsJSON string) (blocked bool, reason string) {
+// Check 检查是否触发 Level 1 精确重复熔断。
+// toolName 和 argsJSON 与上一轮完全相同 → blocked=true。
+// 如果 Tool 声明了 AllowRepeat()==true（如购买卡片），则跳过检测。
+func (cb *CircuitBreaker) Check(tool Tool, toolName, argsJSON string) (blocked bool, reason string) {
+    if tool != nil && tool.AllowRepeat() {
+        return false, ""
+    }
     if toolName == cb.lastToolName && argsJSON == cb.lastToolArgs {
         return true, "重复调用：与上一轮完全相同的工具和参数，请调整策略或直接回答用户"
     }
@@ -52,7 +58,7 @@ func (cb *CircuitBreaker) Record(toolName, argsJSON string) {
 }
 ```
 
-**拦截后行为：** 不执行 Tool，返回 `ToolResult{Success: false, Content: reason}`。LLM 看到失败自然调整。
+**拦截后行为：** 不执行 Tool，返回 `ToolResult{Success: false, Content: reason, Source: "blocked", ErrorCode: "TOOL_BLOCKED", Recoverable: false, RecommendedAction: "tell_user_boundary"}`。LLM 看到结构化错误自然调整。
 
 #### Level 2：语义回路检测
 
@@ -108,12 +114,47 @@ if round >= maxRounds { // 默认 10，由 config.App.Agent.MaxToolRounds 控制
 ```go
 type Tool interface {
     Definition() ToolDef
-    AllowedModes() []string           // 允许在哪些模式下调用
-    ValidateArgs(argsJSON string) error // 参数校验，不信任 LLM
+    AllowedModes() []string                         // 允许在哪些模式下调用
+    ValidateArgs(argsJSON string) error             // 参数校验，不信任 LLM
     Execute(userID uint, argsJSON string) ToolResult
     Describe(argsJSON string, result ToolResult) string // 返回描述文本，用于 State Block 的 completed 列表
+    AllowRepeat() bool                              // 是否允许相同参数连续重复调用（用户驱动操作如购买卡片返回 true，搜索查询返回 false）
 }
 ```
+
+**ToolResult 结构：**
+
+```go
+type ToolResult struct {
+    Success           bool   `json:"success"`
+    Content           string `json:"content"`
+    Source            string `json:"source,omitempty"`             // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
+    ErrorCode         string `json:"error_code,omitempty"`         // 结构化错误码，供 LLM 决策恢复策略
+    Recoverable       bool   `json:"recoverable"`                  // 是否可通过调整参数/换工具恢复
+    RecommendedAction string `json:"recommended_action,omitempty"` // 建议的恢复动作
+}
+```
+
+**错误码枚举：**
+
+| 错误码 | 含义 | 可恢复 | 建议动作 |
+|--------|------|:---:|------|
+| `NOT_FOUND` | 资料/订单/资源不存在 | ✅ | `confirm_material_id_with_user` / `check_order_no_or_use_query_orders` |
+| `INVALID_ARGUMENT` | 参数校验失败 | ✅ | `fix_arguments_and_retry` |
+| `DATABASE_ERROR` | 数据库查询异常 | ✅ | `retry_or_narrow_query` |
+| `SEARCH_ERROR` | 搜索/RAG 检索异常 | ✅ | `retry_or_narrow_query` |
+| `SERVICE_UNAVAILABLE` | 依赖服务不可用 | ❌ | `tell_user_service_unavailable` |
+| `TOOL_BLOCKED` | Level 1 精确重复熔断 | ❌ | `tell_user_boundary` |
+| `UNKNOWN_TOOL` | LLM 调了不存在的工具 | ✅ | `try_alternative_tool` |
+| `ACCESS_DENIED` | 模式白名单拦截 | ❌ | `tell_user_boundary` |
+| `BUDGET_EXCEEDED` | 调用配额耗尽 | ❌ | `tell_user_try_later` |
+
+**AllowRepeat() 实现：**
+
+| Tool | 返回值 | 原因 |
+|------|:---:|------|
+| trigger_purchase_offer | `true` | 用户驱动，允许连续发卡 |
+| 其余 8 个 Tool | `false` | 搜索/查询类，重复无意义 |
 
 #### 2.2.2 各 Tool 的允许模式
 
@@ -141,6 +182,41 @@ func (e *AgentEngine) checkToolMode(tool Tool, sessionMode string) error {
 ```
 
 **第一轮 mode="" 时不检查**，9 个 Tool 全开放。
+
+#### 2.2.5 工具计数与限流
+
+**countModeTools** — 统计当前模式下可用工具数（用于日志显示）：
+
+```go
+func countModeTools(tools map[string]Tool, mode string) int {
+    if mode == "" {
+        return len(tools)  // 第一轮全开放
+    }
+    count := 0
+    for _, t := range tools {
+        for _, m := range t.AllowedModes() {
+            if m == mode {
+                count++
+                break
+            }
+        }
+    }
+    return count
+}
+```
+
+日志中区分 `tools_usable`（当前模式实际可用）和 `tools_total`（注册总数），避免误导。
+
+**Token Bucket 限流**（rate.go）：
+
+```go
+var (
+    llmRate   = rate.NewLimiter(10, 3) // LLM API：每秒 10 次，突发 3 次
+    embedRate = rate.NewLimiter(8, 2)  // Embedding API：每秒 8 次，突发 2 次
+)
+```
+
+使用 `golang.org/x/time/rate` 令牌桶，控制 API 调用频率（非并发数），避免触发第三方 429 速率限制。
 
 #### 2.2.3 参数校验示例
 
@@ -408,32 +484,63 @@ search_documents 返回的每条 chunk 带 `confidence` 字段：
 
 #### Tool 执行失败分类
 
-| 类别 | 场景 | 处理 |
-|------|------|------|
-| A 可重试 | 超时、网络抖动 | 重试 1 次，间隔 2s。仍失败 → 降为 C |
-| B 可降级 | Redis 挂了、Embedding API 挂了 | search_documents：Redis KNN → MySQL 内存 → MySQL LIKE |
-| C 不可恢复 | 参数非法、资料不存在、无权限 | 返回明确错误给 LLM，LLM 自然告知用户 |
+Tool 失败通过 `ToolResult` 的结构化字段传递恢复策略，LLM 根据 `error_code` + `recoverable` + `recommended_action` 自主决策：
 
-#### LLM API 调用失败
+| 层级 | 错误码 | 触发场景 | 可恢复 | 建议动作 |
+|------|--------|----------|:---:|------|
+| 引擎 | `TOOL_BLOCKED` | L1 精确重复熔断 | ❌ | `tell_user_boundary` |
+| 引擎 | `UNKNOWN_TOOL` | LLM 调了不存在的工具名 | ✅ | `try_alternative_tool` |
+| 引擎 | `ACCESS_DENIED` | 模式白名单拦截 | ❌ | `tell_user_boundary` |
+| 引擎 | `INVALID_ARGUMENT` | ValidateArgs 校验失败 | ✅ | `fix_arguments_and_retry` |
+| 引擎 | `BUDGET_EXCEEDED` | 调用配额耗尽 | ❌ | `tell_user_try_later` |
+| Tool | `NOT_FOUND` | 资料/订单/资源不存在 | ✅ | `confirm_material_id_with_user` |
+| Tool | `DATABASE_ERROR` | 数据库查询异常 | ✅ | `retry_or_narrow_query` |
+| Tool | `SEARCH_ERROR` | 搜索/RAG 检索异常 | ✅ | `retry_or_narrow_query` |
+| Tool | `SERVICE_UNAVAILABLE` | 依赖服务不可用 | ❌ | `tell_user_service_unavailable` |
+
+#### 引擎内 ToolResult 构造点
+
+引擎中有 5 个拦截点构造 ToolResult，不再经过 tool.Execute()：
 
 ```
-callLLM 超时/返回非 200：
-  → 重试 1 次（3 秒后）
-  → 仍失败 → SSE error 事件："AI 服务暂时不可用，请稍后重试"
-  → 不再重试，不让用户等
+L1 熔断       → ToolResult{ErrorCode: "TOOL_BLOCKED", Recoverable: false, RecommendedAction: "tell_user_boundary"}
+未知工具      → ToolResult{ErrorCode: "UNKNOWN_TOOL", Recoverable: true, RecommendedAction: "try_alternative_tool"}
+模式白名单    → ToolResult{ErrorCode: "ACCESS_DENIED", Recoverable: false, RecommendedAction: "tell_user_boundary"}
+参数校验失败  → ToolResult{ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
+预算耗尽      → ToolResult{ErrorCode: "BUDGET_EXCEEDED", Recoverable: false, RecommendedAction: "tell_user_try_later"}
 ```
+
+Tool 内部（tools.go）有 9 个返回点，各自携带对应的错误码：
+- `get_material_detail`: NOT_FOUND (资料不存在)
+- `trigger_purchase_offer`: NOT_FOUND (资料不存在/已下架)
+- `get_order_detail`: NOT_FOUND (订单不存在/不属于当前用户)
+- `search_documents`: INVALID_ARGUMENT (参数为空), SEARCH_ERROR (检索异常)
+- `search_faq`: DATABASE_ERROR (搜索异常)
+- `query_materials`: DATABASE_ERROR (搜索异常)
+- 等等
 
 #### ToolResult Source 标记
 
 ```go
 type ToolResult struct {
-    Success bool
-    Content string
-    Source  string // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
+    Success           bool   `json:"success"`
+    Content           string `json:"content"`
+    Source            string `json:"source,omitempty"`             // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
+    ErrorCode         string `json:"error_code,omitempty"`
+    Recoverable       bool   `json:"recoverable"`
+    RecommendedAction string `json:"recommended_action,omitempty"`
 }
 ```
 
-Source 用于日志记录和可信度调整，不影响 LLM 看到的 Content。
+Source 用于日志记录和可信度调整，不影响 LLM 看到的 Content。ErrorCode/Recoverable/RecommendedAction 三字段写入 tool 消息的 JSON 中，LLM 可据此决策恢复策略。
+
+#### LLM API 调用失败
+
+```
+callLLMWithRetry 内置重试 1 次（3 秒后），日志记录每次尝试。
+→ 仍失败 → SSE error 事件："AI 服务暂时不可用，请稍后重试"
+→ 不再重试，不让用户等
+```
 
 ---
 
@@ -1377,32 +1484,40 @@ func (m *MemoryManager) SaveUserMemory(userID uint, key, value, source string, c
 | Warn | 异常不阻断 | quality 修正、降级路径、熔断触发 |
 | Error | 需排查 | LLM 重试后仍失败、DB 写入失败 |
 
-### 必须打的日志点
+### 必须打的日志点（完整链路）
+
+单次请求的完整日志链路，grep 一个 `request_id` 即可追踪全流程：
 
 ```
-engine.go:
-  Agent 开始/完成       (Info)
-  上下文加载            (Debug)
-  模式切换              (Info)
-  每轮 LLM 请求/响应     (Debug)
+engine.go — Agent 开始:
+  slog.Info("Agent 开始", "request_id", rid, "session_id", sid, "mode", mode, "question", TruncateRunes(userMsg, 80))
+
+engine.go — 上下文就绪:
+  slog.Info("Agent 上下文就绪", "request_id", rid, "session_id", sid, "history_msgs", n, "tools", toolNames)
+
+engine.go — 每轮开始:
+  slog.Info("Round 开始", "request_id", rid, "round", round, "history_msgs", n, "mode", mode, "tools_usable", modeTools, "tools_total", len(openAITools))
+  // tools_usable = 当前模式实际可用数；tools_total = 注册总数
+
+engine.go — LLM 响应:
+  slog.Info("LLM 响应", "request_id", rid, "round", round, "finish", finishReason, "tool_calls", n, "content_len", n, "tokens", n, "llm_ms", ms)
+
+engine.go — Tool 执行（每条 tool 一条）:
+  slog.Info("Tool ✓", "request_id", rid, "tool", fmt.Sprintf("[%d/%d] %s", idx, total, name), "ok", result.Success, "len", len(content), "ms", toolMs, "preview", preview)
+  // 失败时额外带: "error_code", code, "recoverable", recoverable
+
+engine.go — 每轮结束:
+  slog.Info("Round 结束", "request_id", rid, "round", round, "tools_executed", names, "new_mode", mode, "next_round", round+2)
+
+engine.go — Agent 回复:
+  slog.Info("Agent 回复", "request_id", rid, "session_id", sid, "len", len, "preview", TruncateRunes(answer, 200))
 
 safety.go:
-  熔断 L1/L2/L3         (Warn)
-  白名单拦截            (Warn)
-  预算耗尽              (Warn)
-  状态更新              (Debug)
-
-memory.go:
-  L3 写入               (Info)
-  上下文组装(token分布) (Debug)
+  熔断 L1:    slog.Warn("L1 熔断", "request_id", rid, "tool", name)
+  白名单拦截:  slog.Warn("模式白名单拦截", "request_id", rid, "tool", name, "mode", mode, "error", err)
 
 quality.go:
-  硬字段修正            (Warn)
-
-错误恢复:
-  Tool 降级             (Warn)
-  LLM 重试              (Warn)
-  LLM 最终失败          (Error)
+  硬字段修正:  slog.Warn("quality: 硬字段修正", "field", field, "claimed", claimed, "corrected", correct)
 ```
 
 ### 约定

@@ -228,12 +228,26 @@ type Tool interface {
     ValidateArgs(argsJSON string) error
     Execute(userID uint, argsJSON string) ToolResult
     Describe(argsJSON string, result ToolResult) string
+    AllowRepeat() bool  // 用户驱动操作返回 true（如购买卡片），搜索查询返回 false
 }
 ```
 
-- [ ] **Step 2: 为每个 Tool 添加 AllowedModes()**
+- [ ] **Step 1b: ToolResult 加结构化错误字段**
 
-参照 spec 2.2.2 表格：
+```go
+type ToolResult struct {
+    Success           bool   `json:"success"`
+    Content           string `json:"content"`
+    Source            string `json:"source,omitempty"`             // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
+    ErrorCode         string `json:"error_code,omitempty"`         // NOT_FOUND | INVALID_ARGUMENT | DATABASE_ERROR | SEARCH_ERROR | SERVICE_UNAVAILABLE | TOOL_BLOCKED | UNKNOWN_TOOL | ACCESS_DENIED | BUDGET_EXCEEDED
+    Recoverable       bool   `json:"recoverable"`                  // 是否可通过调整参数/换工具恢复
+    RecommendedAction string `json:"recommended_action,omitempty"` // fix_arguments_and_retry / tell_user_boundary / try_alternative_tool / confirm_material_id_with_user / ...
+}
+```
+
+- [ ] **Step 2: 为每个 Tool 添加 AllowedModes() 和 AllowRepeat()**
+
+参照 spec 2.2.1 和 2.2.2 表格：
 
 ```go
 func (t queryCoursesTool) AllowedModes() []string     { return []string{"shopping", "tutoring"} }
@@ -245,6 +259,12 @@ func (t searchMaterialsTool) AllowedModes() []string   { return []string{"shoppi
 func (t queryOrdersTool) AllowedModes() []string       { return []string{"support"} }
 func (t getOrderDetailTool) AllowedModes() []string    { return []string{"support"} }
 func (t searchFAQTool) AllowedModes() []string         { return []string{"shopping", "tutoring", "support"} }
+
+// AllowRepeat：只有用户驱动操作允许重复，搜索查询不允许
+func (t triggerPurchaseOfferTool) AllowRepeat() bool   { return true }
+func (t queryCoursesTool) AllowRepeat() bool           { return false }
+func (t getMaterialDetailTool) AllowRepeat() bool      { return false }
+// ... 其余 6 个 Tool 全部返回 false
 ```
 
 - [ ] **Step 3: 为每个 Tool 添加 ValidateArgs()**
@@ -338,18 +358,22 @@ git commit -m "feat: Tool 接口加 AllowedModes/ValidateArgs/Describe 方法"
 
 ---
 
-### Task 5: safety.go — 熔断器与工具边界
+### Task 5: safety.go — 熔断器与工具边界 + rate.go
 
 **Files:**
 - Create: `service/agent/safety.go`
+- Create: `service/agent/rate.go`
 
 **Interfaces:**
 - Consumes: Task 4 (Tool 接口)
 - Produces:
-  - `type CircuitBreaker` + `Check()` + `Record()`
+  - `type CircuitBreaker` + `Check(tool Tool, toolName, argsJSON string)` + `Record()`
   - `type SemanticLoopDetector` + `Feed()`
   - `type ToolBudget` + `NewToolBudget()` + `Spend()`
   - `func ResolveMode()`
+  - `func countModeTools()`
+  - `func checkToolMode()`
+  - `llmRate` / `embedRate` 令牌桶限流器
 
 - [ ] **Step 1: 创建文件骨架**
 
@@ -376,7 +400,12 @@ type CircuitBreaker struct {
 }
 
 // Check 检查是否触发 Level 1 精确重复熔断。
-func (cb *CircuitBreaker) Check(toolName, argsJSON string) (blocked bool, reason string) {
+// toolName 和 argsJSON 与上一轮完全相同 → blocked=true。
+// 如果 Tool 声明了 AllowRepeat()==true（如购买卡片），则跳过检测。
+func (cb *CircuitBreaker) Check(tool Tool, toolName, argsJSON string) (blocked bool, reason string) {
+    if tool != nil && tool.AllowRepeat() {
+        return false, ""
+    }
     if toolName == cb.lastToolName && argsJSON == cb.lastToolArgs {
         return true, "重复调用：与上一轮完全相同的工具和参数，请调整策略或直接回答用户"
     }
@@ -529,6 +558,55 @@ func getFocusMaterialID(session *model.Session) uint {
 
 注：`SessionState` 和 `ContextData` 类型在 Task 7 的 prompts.go 中定义。此处先用 `interface{}` 或空结构体占位，Task 7 完成后更新。
 
+- [ ] **Step 5b: 实现 checkToolMode 和 countModeTools**
+
+```go
+// checkToolMode 检查 Tool 是否允许在当前模式下调用。
+// 第一轮 mode="" 时不检查（全开放）。
+func (e *AgentEngine) checkToolMode(tool Tool, sessionMode string) error {
+    if sessionMode == "" {
+        return nil
+    }
+    for _, m := range tool.AllowedModes() {
+        if m == sessionMode {
+            return nil
+        }
+    }
+    return fmt.Errorf("当前模式（%s）不允许使用此工具", sessionMode)
+}
+
+// countModeTools 统计当前模式下可用工具数（mode="" 时返回全部，用于日志显示）。
+func countModeTools(tools map[string]Tool, mode string) int {
+    if mode == "" {
+        return len(tools)
+    }
+    count := 0
+    for _, t := range tools {
+        for _, m := range t.AllowedModes() {
+            if m == mode {
+                count++
+                break
+            }
+        }
+    }
+    return count
+}
+```
+
+- [ ] **Step 5c: 创建 rate.go — Token Bucket 限流**
+
+```go
+package agent
+
+import "golang.org/x/time/rate"
+
+// 令牌桶：限制 API 调用频率（非并发数），避免触发第三方 429
+var (
+    llmRate   = rate.NewLimiter(10, 3) // 每秒 10 次，突发 3 次
+    embedRate = rate.NewLimiter(8, 2)  // 每秒 8 次，突发 2 次
+)
+```
+
 - [ ] **Step 6: 编译验证**
 
 ```bash
@@ -538,8 +616,8 @@ go build ./...
 - [ ] **Step 7: Commit**
 
 ```bash
-git add service/agent/safety.go
-git commit -m "feat: 熔断器 + 工具边界 + 状态机 resolveMode"
+git add service/agent/safety.go service/agent/rate.go
+git commit -m "feat: 熔断器 + 工具边界 + 状态机 resolveMode + 令牌桶限流"
 ```
 
 ---
@@ -1155,7 +1233,7 @@ git commit -m "feat: 上下文分层 + State 管理函数"
 func (e *AgentEngine) Run(session *model.Session, userMsg string,
     tools map[string]Tool, sseHandler SSEHandler, requestID string) error {
 
-    // 0. 初始化
+    // 0. 初始化安全组件
     breaker := &CircuitBreaker{}
     loopDetector := &SemanticLoopDetector{}
     budget := NewToolBudget()
@@ -1166,18 +1244,32 @@ func (e *AgentEngine) Run(session *model.Session, userMsg string,
     // 3. buildPrompt + loadRecentMessages 拼接 history
     // 4. Tool Calling 循环：
     //    - Level 3 硬上限
-    //    - callLLM（带 tools）
+    //    - callLLMWithRetry（内置 1 次重试，3s 间隔）
     //    - 有 tool_calls → 逐 tool 执行：
-    //        Level 1 精确重复 → 白名单 → 参数校验 → 预算
+    //        Level 1 精确重复（breaker.Check 带 AllowRepeat 判断）
+    //        → 未知工具检查 → 白名单 → 参数校验 → 预算
     //        → Execute → Level 2 语义回路
     //        → updateFactsAndHypotheses → updateTaskState
     //        → resolveMode → saveSession
+    //        所有拦截点返回结构化 ToolResult（ErrorCode/Recoverable/RecommendedAction）
     //    - 无 tool_calls → streamFinalAnswer:
     //        callLLM（不带 tools）→ quality.Correct → streamAnswer → store + done
 }
+
+// 日志链路（每步 slog.Info）：
+// Agent 开始 → 上下文就绪 → Round N 开始(tools_usable/tools_total)
+// → LLM 响应(finish/tool_calls/tokens/llm_ms)
+// → Tool ✓(ok/len/ms/preview, 失败时 error_code/recoverable)
+// → Round N 结束(tools_executed/new_mode)
+// → Agent 回复(len/preview)
 ```
 
-完整代码见 spec 第七章。
+引擎中 5 个拦截点构造 ToolResult（不经过 tool.Execute()）：
+- L1 熔断: `ErrorCode: "TOOL_BLOCKED", Recoverable: false, RecommendedAction: "tell_user_boundary"`
+- 未知工具: `ErrorCode: "UNKNOWN_TOOL", Recoverable: true, RecommendedAction: "try_alternative_tool"`
+- 模式拦截: `ErrorCode: "ACCESS_DENIED", Recoverable: false, RecommendedAction: "tell_user_boundary"`
+- 参数错误: `ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"`
+- 预算耗尽: `ErrorCode: "BUDGET_EXCEEDED", Recoverable: false, RecommendedAction: "tell_user_try_later"`
 
 - [ ] **Step 3: 更新 AgentService.Chat 调用签名**
 
