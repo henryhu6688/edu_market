@@ -7,7 +7,7 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/router"
-	"edu_market/service/agent"
+	"edu_market/service/rag"
 	"edu_market/utils"
 )
 
@@ -28,7 +28,7 @@ func main() {
 	utils.InitCaptcha()
 
 	// 初始化 RAG 服务
-	agent.InitRAG()
+	rag.Init()
 
 	// 初始化数据库
 	database.Init()

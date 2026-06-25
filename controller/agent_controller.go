@@ -6,6 +6,7 @@ import (
 
 	"edu_market/dto/request"
 	"edu_market/service/agent"
+	"edu_market/service/rag"
 	"edu_market/utils"
 	"log/slog"
 
@@ -52,10 +53,10 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 
 	// 获取 RAG 检索函数
 	var searchFunc agent.SearchFunc
-	rag := agent.GetRAG()
-	if rag != nil {
+	ragSvc := rag.Get()
+	if ragSvc != nil {
 		searchFunc = func(courseID uint, query string, topK int) (string, error) {
-			results, err := rag.Search(courseID, query, topK)
+			results, err := ragSvc.Search(courseID, query, topK)
 			if err != nil {
 				return "", err
 			}

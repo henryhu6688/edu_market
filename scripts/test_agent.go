@@ -14,6 +14,7 @@ import (
 	"edu_market/database"
 	"edu_market/model"
 	"edu_market/service/agent"
+	"edu_market/service/rag"
 
 	"github.com/spf13/viper"
 	"gorm.io/gorm/logger"
@@ -48,7 +49,7 @@ func main() {
 	}
 
 	// 初始化 RAG
-	agent.InitRAG()
+	rag.Init()
 
 	user := getOrCreateUser()
 	fmt.Printf("   %s✓%s 用户就绪 (id=%d)\n", cGreen, cReset, user.ID)
@@ -167,12 +168,12 @@ func getOrCreateUser() *model.User {
 // ======================== RAG ========================
 
 func buildSearchFunc() agent.SearchFunc {
-	rag := agent.GetRAG()
-	if rag == nil {
+	ragSvc := rag.Get()
+	if ragSvc == nil {
 		return nil
 	}
 	return func(courseID uint, query string, topK int) (string, error) {
-		results, err := rag.Search(courseID, query, topK)
+		results, err := ragSvc.Search(courseID, query, topK)
 		if err != nil {
 			return "", err
 		}

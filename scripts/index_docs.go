@@ -9,7 +9,7 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/model"
-	"edu_market/service/agent"
+	"edu_market/service/rag"
 
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
@@ -57,9 +57,9 @@ func main() {
 	database.InitRedis()
 
 	// 初始化 RAG
-	agent.InitRAG()
-	rag := agent.GetRAG()
-	if rag == nil {
+	rag.Init()
+	ragSvc := rag.Get()
+	if ragSvc == nil {
 		log.Fatal("RAG 初始化失败")
 	}
 
@@ -77,7 +77,7 @@ func main() {
 			fullText += d.Content + "\n\n"
 		}
 		fmt.Printf("Indexing material %d: %s (%d docs, %d chars)\n", m.ID, m.Title, len(m.Documents), len(fullText))
-		if err := rag.IndexCourse(m.ID, fullText); err != nil {
+		if err := ragSvc.IndexCourse(m.ID, fullText); err != nil {
 			fmt.Printf("  ERROR: %v\n", err)
 		} else {
 			fmt.Printf("  OK\n")
