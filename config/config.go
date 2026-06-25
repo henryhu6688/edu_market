@@ -85,8 +85,6 @@ type AgentConfig struct {
 EmbeddingAPIKey       string `mapstructure:"embedding_api_key"`
 	ChunkSize             int    `mapstructure:"chunk_size"`
 	ChunkOverlap          int    `mapstructure:"chunk_overlap"`
-	PurchaseBoundaryTopK  int    `mapstructure:"purchase_boundary_topk"`
-	PurchaseBoundaryChars int    `mapstructure:"purchase_boundary_chars"`
 }
 
 // CaptchaConfig 验证码配置

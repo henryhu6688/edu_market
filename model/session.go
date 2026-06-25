@@ -22,6 +22,10 @@ type Session struct {
 	AgentType string    `gorm:"type:varchar(30);not null;default:customer_service" json:"agent_type"`
 	Title     string    `gorm:"type:varchar(100);default:''" json:"title"`
 	Status    string    `gorm:"type:varchar(20);not null;default:active" json:"status"`
+	// Mode Agent 当前模式（shopping/tutoring/support/"" = 第一轮未判定）
+	Mode string `gorm:"type:varchar(20);default:''" json:"mode"`
+	// State 会话任务状态 JSON（task/completed/to_do/facts/hypotheses/discarded/context）
+	State string `gorm:"type:text" json:"state"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 

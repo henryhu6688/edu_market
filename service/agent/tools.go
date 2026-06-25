@@ -1,7 +1,10 @@
-package service
+package agent
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 
 	"edu_market/database"
 	"edu_market/model"
@@ -18,12 +21,17 @@ type ToolDef struct {
 type ToolResult struct {
 	Success bool   `json:"success"`
 	Content string `json:"content"`
+	Source  string `json:"source,omitempty"` // "primary" | "fallback_l1" | "fallback_l2" | "error" | "blocked"
 }
 
 // Tool 可执行的工具接口
 type Tool interface {
 	Definition() ToolDef
+	AllowedModes() []string                         // 允许在哪些模式下调用
+	ValidateArgs(argsJSON string) error             // 参数校验，不信任 LLM
 	Execute(userID uint, argsJSON string) ToolResult
+	Describe(argsJSON string, result ToolResult) string // 返回描述文本，用于 State Block 的 completed 列表
+	AllowRepeat() bool                              // 是否允许相同参数连续重复调用（用户驱动操作返回 true，搜索查询返回 false）
 }
 
 // ToOpenAITool 转为 OpenAI 兼容的 tool 定义
@@ -44,8 +52,8 @@ type SearchFunc func(materialID uint, query string, topK int) (string, error)
 // ============ 工具常量 ============
 
 const (
-	ToolQueryOrders   = "query_orders"
-	ToolQueryMaterials = "query_materials"
+	ToolQueryOrders     = "query_orders"
+	ToolQueryMaterials  = "query_materials"
 	ToolSearchMaterials = "search_course_materials"
 )
 
@@ -74,6 +82,13 @@ func (t queryOrdersTool) Execute(userID uint, _ string) ToolResult {
 	}
 	bytes, _ := json.Marshal(orders)
 	return ToolResult{Success: true, Content: string(bytes)}
+}
+
+func (t queryOrdersTool) AllowedModes() []string { return []string{"support"} }
+func (t queryOrdersTool) AllowRepeat() bool           { return false }
+func (t queryOrdersTool) ValidateArgs(_ string) error { return nil }
+func (t queryOrdersTool) Describe(argsJSON string, result ToolResult) string {
+	return fmt.Sprintf("查询用户订单 → 共 %d 笔", countJSONItems(result.Content))
 }
 
 // ============ 推荐 Agent Tools ============
@@ -132,6 +147,15 @@ func (t queryCoursesTool) Execute(_ uint, argsJSON string) ToolResult {
 	return ToolResult{Success: true, Content: string(bytes)}
 }
 
+func (t queryCoursesTool) AllowedModes() []string { return []string{"shopping", "tutoring"} }
+func (t queryCoursesTool) AllowRepeat() bool           { return false }
+func (t queryCoursesTool) ValidateArgs(_ string) error { return nil }
+func (t queryCoursesTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ Keyword string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	return fmt.Sprintf("搜索「%s」→ 找到 %d 门资料", args.Keyword, countJSONItems(result.Content))
+}
+
 // ============ 答疑 Agent Tools ============
 
 type searchMaterialsTool struct {
@@ -178,6 +202,31 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 	return ToolResult{Success: true, Content: content}
 }
 
+func (t searchMaterialsTool) AllowedModes() []string { return []string{"shopping", "tutoring"} }
+func (t searchMaterialsTool) AllowRepeat() bool           { return false }
+func (t searchMaterialsTool) ValidateArgs(argsJSON string) error {
+	var args struct {
+		MaterialID uint   `json:"material_id"`
+		Query      string `json:"query"`
+	}
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.MaterialID == 0 {
+		return errors.New("material_id 不能为空")
+	}
+	if strings.TrimSpace(args.Query) == "" {
+		return errors.New("搜索关键词不能为空")
+	}
+	if len(args.Query) > 200 {
+		return errors.New("搜索关键词过长，请精简到 200 字以内")
+	}
+	return nil
+}
+func (t searchMaterialsTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ Query string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	return fmt.Sprintf("搜索文档「%s」→ 找到 %d 条", args.Query, countJSONItems(result.Content))
+}
+
 // ============ 新增 v3 Tool ============
 
 type getMaterialDetailTool struct{}
@@ -207,8 +256,8 @@ func (t getMaterialDetailTool) Execute(_ uint, argsJSON string) ToolResult {
 	}
 
 	type OutlineItem struct {
-		Title    string `json:"title"`
-		IsFree   bool   `json:"is_free_preview"`
+		Title  string `json:"title"`
+		IsFree bool   `json:"is_free_preview"`
 	}
 	var outline []OutlineItem
 	for _, d := range material.Documents {
@@ -223,6 +272,22 @@ func (t getMaterialDetailTool) Execute(_ uint, argsJSON string) ToolResult {
 	}
 	b, _ := json.Marshal(result)
 	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t getMaterialDetailTool) AllowedModes() []string { return []string{"shopping", "tutoring"} }
+func (t getMaterialDetailTool) AllowRepeat() bool           { return false }
+func (t getMaterialDetailTool) ValidateArgs(argsJSON string) error {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.MaterialID == 0 {
+		return errors.New("material_id 不能为空")
+	}
+	return nil
+}
+func (t getMaterialDetailTool) Describe(argsJSON string, result ToolResult) string {
+	var d struct{ Title string }
+	json.Unmarshal([]byte(result.Content), &d)
+	return fmt.Sprintf("查看《%s》详情", d.Title)
 }
 
 type getReviewsTool struct{}
@@ -263,6 +328,14 @@ func (t getReviewsTool) Execute(_ uint, argsJSON string) ToolResult {
 	return ToolResult{Success: true, Content: string(b)}
 }
 
+func (t getReviewsTool) AllowedModes() []string  { return []string{"shopping", "tutoring"} }
+func (t getReviewsTool) AllowRepeat() bool           { return false }
+func (t getReviewsTool) ValidateArgs(_ string) error { return nil }
+func (t getReviewsTool) Describe(argsJSON string, result ToolResult) string {
+	count := countJSONItems(result.Content)
+	return fmt.Sprintf("查看评价 → %d 条", count)
+}
+
 type getCategoriesTool struct{}
 
 func (t getCategoriesTool) Definition() ToolDef {
@@ -289,6 +362,13 @@ func (t getCategoriesTool) Execute(_ uint, _ string) ToolResult {
 	}
 	b, _ := json.Marshal(items)
 	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t getCategoriesTool) AllowedModes() []string  { return []string{"shopping", "tutoring"} }
+func (t getCategoriesTool) AllowRepeat() bool           { return false }
+func (t getCategoriesTool) ValidateArgs(_ string) error { return nil }
+func (t getCategoriesTool) Describe(argsJSON string, result ToolResult) string {
+	return fmt.Sprintf("获取分类列表 → %d 个", countJSONItems(result.Content))
 }
 
 type searchFAQTool struct{}
@@ -327,6 +407,15 @@ func (t searchFAQTool) Execute(_ uint, argsJSON string) ToolResult {
 	return ToolResult{Success: true, Content: string(b)}
 }
 
+func (t searchFAQTool) AllowedModes() []string  { return []string{"shopping", "tutoring", "support"} }
+func (t searchFAQTool) AllowRepeat() bool           { return false }
+func (t searchFAQTool) ValidateArgs(_ string) error { return nil }
+func (t searchFAQTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ Query string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	return fmt.Sprintf("搜索FAQ「%s」→ 找到 %d 条", args.Query, countJSONItems(result.Content))
+}
+
 type getOrderDetailTool struct{}
 
 func (t getOrderDetailTool) Definition() ToolDef {
@@ -354,6 +443,13 @@ func (t getOrderDetailTool) Execute(userID uint, argsJSON string) ToolResult {
 	}
 	b, _ := json.Marshal(order)
 	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t getOrderDetailTool) AllowedModes() []string  { return []string{"support"} }
+func (t getOrderDetailTool) AllowRepeat() bool           { return false }
+func (t getOrderDetailTool) ValidateArgs(_ string) error { return nil }
+func (t getOrderDetailTool) Describe(argsJSON string, result ToolResult) string {
+	return "查看订单详情"
 }
 
 type triggerPurchaseOfferTool struct{}
@@ -392,6 +488,25 @@ func (t triggerPurchaseOfferTool) Execute(_ uint, argsJSON string) ToolResult {
 	return ToolResult{Success: true, Content: string(b)}
 }
 
+func (t triggerPurchaseOfferTool) AllowedModes() []string { return []string{"shopping"} }
+func (t triggerPurchaseOfferTool) AllowRepeat() bool           { return true }
+func (t triggerPurchaseOfferTool) ValidateArgs(argsJSON string) error {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.MaterialID == 0 {
+		return errors.New("material_id 不能为空")
+	}
+	var count int64
+	database.DB.Model(&model.Material{}).Where("id = ? AND status = ?", args.MaterialID, "published").Count(&count)
+	if count == 0 {
+		return fmt.Errorf("资料 #%d 不存在或已下架", args.MaterialID)
+	}
+	return nil
+}
+func (t triggerPurchaseOfferTool) Describe(argsJSON string, result ToolResult) string {
+	return "发送购买卡片"
+}
+
 // ============ Tool 集合构建（v3：全量注册，不按 agentType 筛选） ============
 
 func buildToolSet(searchFunc SearchFunc) map[string]Tool {
@@ -409,6 +524,39 @@ func buildToolSet(searchFunc SearchFunc) map[string]Tool {
 		tools["search_documents"] = newSearchMaterialsTool(searchFunc)
 	}
 	return tools
+}
+
+// countJSONItems 统计 JSON 数组中的元素数量
+func countJSONItems(content string) int {
+	content = strings.TrimSpace(content)
+	if content == "" || content == "[]" {
+		return 0
+	}
+	// 简单统计 JSON 对象数：匹配 "{" 开头的顶层元素
+	var depth, count int
+	inString := false
+	for _, ch := range content {
+		if ch == '"' {
+			inString = !inString
+		}
+		if inString {
+			continue
+		}
+		switch ch {
+		case '{':
+			if depth == 0 {
+				count++
+			}
+			depth++
+		case '}':
+			depth--
+		case '[':
+			depth++
+		case ']':
+			depth--
+		}
+	}
+	return count
 }
 
 // toolDefsToOpenAI 将 Tool map 转为 OpenAI 格式的 tool 数组

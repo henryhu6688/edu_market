@@ -2,42 +2,101 @@ package utils
 
 import (
 	"crypto/rand"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"edu_market/config"
-
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// InitLogger 初始化结构化日志（控制台 + 文件双写）
+// dailyWriter 按天滚动的 io.Writer（每天一个日志文件，保留最近 N 天）
+type dailyWriter struct {
+	mu       sync.Mutex
+	dir      string
+	prefix   string
+	maxAge   int           // 保留天数
+	curDate  string        // 当前日期 "2006-01-02"
+	curFile  *os.File      // 当天文件句柄
+}
+
+func newDailyWriter(dir, prefix string, maxAge int) *dailyWriter {
+	return &dailyWriter{dir: dir, prefix: prefix, maxAge: maxAge}
+}
+
+func (w *dailyWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	today := time.Now().Format("2006-01-02")
+	if w.curDate != today {
+		// 切换日期：关旧文件、开新文件
+		if w.curFile != nil {
+			w.curFile.Close()
+		}
+		os.MkdirAll(w.dir, 0755)
+		f, err := os.OpenFile(
+			filepath.Join(w.dir, fmt.Sprintf("%s-%s.log", w.prefix, today)),
+			os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644,
+		)
+		if err != nil {
+			return 0, err
+		}
+		w.curFile = f
+		w.curDate = today
+
+		// 清理过期日志
+		w.cleanOld()
+	}
+	return w.curFile.Write(p)
+}
+
+func (w *dailyWriter) cleanOld() {
+	cutoff := time.Now().Add(-time.Duration(w.maxAge) * 24 * time.Hour)
+	entries, err := os.ReadDir(w.dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		// 匹配 prefix-YYYY-MM-DD.log 格式
+		name := e.Name()
+		if len(name) != len(w.prefix)+1+10+4 || name[:len(w.prefix)] != w.prefix {
+			continue
+		}
+		datePart := name[len(w.prefix)+1 : len(w.prefix)+1+10]
+		t, err := time.Parse("2006-01-02", datePart)
+		if err != nil {
+			continue
+		}
+		if t.Before(cutoff) {
+			os.Remove(filepath.Join(w.dir, name))
+		}
+	}
+}
+
+// InitLogger 初始化结构化日志（控制台 + 按天滚动文件）
 func InitLogger() {
-	// 确保 logs 目录存在
 	logDir := "logs"
 	os.MkdirAll(logDir, 0755)
 
-	// 文件滚动配置
-	fileWriter := &lumberjack.Logger{
-		Filename:   filepath.Join(logDir, "app.log"),
-		MaxSize:    10,   // 10MB 切分
-		MaxBackups: 30,   // 保留 30 个旧文件
-		MaxAge:     7,    // 保留 7 天
-		Compress:   true, // gzip 压缩旧日志
-	}
+	// 按天滚动的文件 writer（保留 7 天）
+	fileWriter := newDailyWriter(logDir, "app", 7)
 
-	// 开发模式：控制台彩色 + 文件；生产模式：JSON 写文件
+	// 开发模式：控制台 + 文件；生产模式：JSON 只写文件
 	var handler slog.Handler
 	if config.App.Server.Mode == "release" {
-		// 生产：JSON 格式只写文件
 		handler = slog.NewJSONHandler(fileWriter, &slog.HandlerOptions{
 			Level:     slog.LevelInfo,
 			AddSource: true,
 		})
 	} else {
-		// 开发：文本格式同时输出到控制台和文件
 		multi := io.MultiWriter(os.Stdout, fileWriter)
 		handler = slog.NewTextHandler(multi, &slog.HandlerOptions{
 			Level:     slog.LevelDebug,
@@ -48,7 +107,7 @@ func InitLogger() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	// 把标准库 log 也重定向到文件（兼容旧代码的 log.Printf）
+	// 标准库 log 也重定向到文件
 	log.SetOutput(io.MultiWriter(os.Stdout, fileWriter))
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 

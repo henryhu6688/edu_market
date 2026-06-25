@@ -5,6 +5,7 @@ import (
 
 	"edu_market/database"
 	"edu_market/model"
+	"edu_market/service/agent"
 )
 
 // DocumentService 在线文档服务
@@ -105,7 +106,7 @@ func (s *DocumentService) Delete(docID, userID uint) error {
 func reindexDocument(doc *model.Document) {
 	text := extractTextFromMarkdown(doc.Content)
 	database.DB.Where("course_id = ?", doc.MaterialID).Delete(&model.DocumentChunk{})
-	if rag := GetRAG(); rag != nil {
+	if rag := agent.GetRAG(); rag != nil {
 		rag.IndexCourse(doc.MaterialID, text)
 	}
 }

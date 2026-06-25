@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"edu_market/dto/request"
-	"edu_market/service"
+	"edu_market/service/agent"
 	"edu_market/utils"
 	"log/slog"
 
@@ -14,11 +14,11 @@ import (
 
 // AgentController Agent 控制器
 type AgentController struct {
-	svc *service.AgentService
+	svc *agent.AgentService
 }
 
 // NewAgentController 创建 AgentController
-func NewAgentController(svc *service.AgentService) *AgentController {
+func NewAgentController(svc *agent.AgentService) *AgentController {
 	return &AgentController{svc: svc}
 }
 
@@ -51,8 +51,8 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 	}
 
 	// 获取 RAG 检索函数
-	var searchFunc service.SearchFunc
-	rag := service.GetRAG()
+	var searchFunc agent.SearchFunc
+	rag := agent.GetRAG()
 	if rag != nil {
 		searchFunc = func(courseID uint, query string, topK int) (string, error) {
 			results, err := rag.Search(courseID, query, topK)
@@ -106,7 +106,7 @@ func (ctr *AgentController) GetSessions(c *gin.Context) {
 		return
 	}
 
-	req.Page, req.PageSize = service.GetPagination(req.Page, req.PageSize)
+	req.Page, req.PageSize = agent.GetPagination(req.Page, req.PageSize)
 	utils.PageSuccess(c, sessions, total, req.Page, req.PageSize)
 }
 
@@ -148,7 +148,7 @@ func (ctr *AgentController) GetMessages(c *gin.Context) {
 		return
 	}
 
-	req.Page, req.PageSize = service.GetPagination(req.Page, req.PageSize)
+	req.Page, req.PageSize = agent.GetPagination(req.Page, req.PageSize)
 	utils.PageSuccess(c, messages, total, req.Page, req.PageSize)
 }
 

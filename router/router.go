@@ -3,7 +3,7 @@ package router
 import (
 	"edu_market/controller"
 	"edu_market/middleware"
-	"edu_market/service"
+	"edu_market/service/agent"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,8 +29,8 @@ func Setup() *gin.Engine {
 	categoryCtrl := &controller.CategoryController{}
 
 	// Agent 系统初始化
-	agentEngine := service.NewAgentEngine()
-	agentSvc := service.NewAgentService(agentEngine)
+	agentEngine := agent.NewAgentEngine()
+	agentSvc := agent.NewAgentService(agentEngine)
 	agentCtrl := controller.NewAgentController(agentSvc)
 	materialCtrl := controller.NewMaterialController()
 	documentCtrl := controller.NewDocumentController()

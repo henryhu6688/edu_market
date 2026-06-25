@@ -15,13 +15,16 @@ import (
 // DB 全局数据库实例
 var DB *gorm.DB
 
+// InitLogLevel 初始化时的 GORM 日志级别（REPL/调测可设为 logger.Silent）
+var InitLogLevel = logger.Info
+
 // Init 初始化数据库连接并自动迁移
 func Init() {
 	dsn := config.App.Database.DSN()
 
 	var err error
 	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(InitLogLevel),
 	})
 	if err != nil {
 		log.Fatalf("数据库连接失败: %v", err)
@@ -45,6 +48,11 @@ func Init() {
 	log.Println("数据库初始化成功")
 }
 
+// SilenceLog 关闭 GORM SQL 日志（REPL/调测用）
+func SilenceLog() {
+	DB.Logger = logger.Default.LogMode(logger.Silent)
+}
+
 // autoMigrate 自动迁移所有模型
 func autoMigrate() error {
 	return DB.AutoMigrate(
@@ -59,5 +67,6 @@ func autoMigrate() error {
 		&model.Material{},
 		&model.Document{},
 		&model.FAQ{},
+		&model.UserMemory{},
 	)
 }

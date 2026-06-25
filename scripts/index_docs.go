@@ -9,7 +9,7 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/model"
-	"edu_market/service"
+	"edu_market/service/agent"
 
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
@@ -21,7 +21,7 @@ func main() {
 	config.App = &config.Config{
 		Server: config.ServerConfig{Port: 8080, Mode: "debug"},
 		AI:     config.AIConfig{Provider: "deepseek", APIURL: "https://api.deepseek.com/v1/chat/completions", Model: "deepseek-chat"},
-		Agent:  config.AgentConfig{EmbeddingModel: "deepseek-text-embedding", EmbeddingAPIURL: "https://api.deepseek.com/v1/embeddings", ChunkSize: 500, ChunkOverlap: 50},
+		Agent:  config.AgentConfig{EmbeddingModel: "BAAI/bge-large-zh-v1.5", EmbeddingAPIURL: "https://api.siliconflow.cn/v1/embeddings", ChunkSize: 500, ChunkOverlap: 50},
 	}
 	// 读 API key from app.yml
 	viper.SetConfigName("app")
@@ -39,10 +39,10 @@ func main() {
 		config.App.Agent.EmbeddingAPIURL = u
 	}
 	if config.App.Agent.EmbeddingModel == "" {
-		config.App.Agent.EmbeddingModel = "deepseek-text-embedding"
+		config.App.Agent.EmbeddingModel = "BAAI/bge-large-zh-v1.5"
 	}
 	if config.App.Agent.EmbeddingAPIURL == "" {
-		config.App.Agent.EmbeddingAPIURL = "https://api.deepseek.com/v1/embeddings"
+		config.App.Agent.EmbeddingAPIURL = "https://api.siliconflow.cn/v1/embeddings"
 	}
 
 	// 连数据库
@@ -57,8 +57,8 @@ func main() {
 	database.InitRedis()
 
 	// 初始化 RAG
-	service.InitRAG()
-	rag := service.GetRAG()
+	agent.InitRAG()
+	rag := agent.GetRAG()
 	if rag == nil {
 		log.Fatal("RAG 初始化失败")
 	}

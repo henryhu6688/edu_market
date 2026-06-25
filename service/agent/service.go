@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"errors"
@@ -35,21 +35,18 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 	} else {
 		session = &model.Session{
 			UserID: userID, AgentType: "agent", Status: model.SessionActive,
-			Title: truncateRunes(question, 30),
+			Title: TruncateRunes(question, 30),
 		}
 		if err := database.DB.Create(session).Error; err != nil {
 			return nil, fmt.Errorf("创建会话失败: %w", err)
 		}
 	}
 
-	// 2. 统一 Prompt，LLM 自己判断意图
-	systemPrompt := SystemPromptV3
-
-	// 3. 全量 Tool 注册
+	// 2. 全量 Tool 注册
 	tools := buildToolSet(searchFunc)
 
-	// 4. 运行引擎
-	if err := s.engine.Run(session, question, tools, systemPrompt, sseHandler, requestID); err != nil {
+	// 3. 运行引擎（空字符串 → 引擎内部调用 buildPrompt 动态拼装 6 模块 Prompt）
+	if err := s.engine.Run(session, question, tools, "", sseHandler, requestID); err != nil {
 		return session, err
 	}
 
@@ -102,31 +99,4 @@ func (s *AgentService) GetMessages(sessionID, userID uint, page, pageSize int) (
 		return nil, 0, err
 	}
 	return messages, total, nil
-}
-
-// checkTransfer 检测最后一条 assistant 回答是否有切换标记
-func (s *AgentService) checkTransfer(session *model.Session) {
-	var msg model.Message
-	if err := database.DB.Where("session_id = ? AND role = ?", session.ID, model.RoleAssistant).
-		Order("id DESC").First(&msg).Error; err != nil {
-		return
-	}
-	if should, targetAgent := DetectTransfer(msg.Content); should {
-		// 清理回答中的切换标记
-		cleaned := CleanTransferMarkers(msg.Content)
-		database.DB.Model(&msg).Update("content", cleaned)
-		// 更新 session 的 agent_type
-		database.DB.Model(session).Update("agent_type", targetAgent)
-	}
-}
-
-// truncateRunes 截取字符串前 n 个字符（Unicode 安全）
-func truncateRunes(s string, maxLen int) string {
-	// 去掉切换标记再截取
-	s = CleanTransferMarkers(s)
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	return string(runes[:maxLen]) + "..."
 }

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_everything-claude-code_exa__web_search_exa",
+      "Bash(taskkill //F //IM edu_market.exe)",
+      "Bash(taskkill //F //IM main.exe)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/categories)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/materials)"
+    ]
+  }
+}

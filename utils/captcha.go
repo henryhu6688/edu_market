@@ -101,10 +101,15 @@ var imgCaptchaStore = base64Captcha.DefaultMemStore
 // GenerateImageCaptcha 生成图形验证码，返回 base64 图片 + captcha_id
 func GenerateImageCaptcha() (captchaID string, b64s string, err error) {
 	imgCaptchaStore = base64Captcha.NewMemoryStore(100, imgCaptchaTTL)
-	driver := base64Captcha.NewDriverString(36, 120, 0,
-		base64Captcha.OptionShowSlimeLine|base64Captcha.OptionShowSineLine,
-		4, "123456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ",
-		nil, nil, nil)
+	driver := base64Captcha.NewDriverString(
+		64,    // 高度：36→64，字符更大更清晰
+		240,   // 宽度：120→240，间距更宽
+		4,     // 干扰点：0→4，用散点代替粗线
+		0,     // 干扰线：去掉 SineLine+SlimeLine（粗线压字是看不清的元凶）
+		4,     // 4 位字符
+		"23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ",
+		nil, nil, nil,
+	)
 	c := base64Captcha.NewCaptcha(driver, imgCaptchaStore)
 	id, b64s, _, err := c.Generate()
 	if err != nil {

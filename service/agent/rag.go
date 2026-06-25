@@ -1,4 +1,4 @@
-package service
+package agent
 
 import (
 	"bytes"
@@ -179,15 +179,15 @@ var globalRAG *RAGService
 // InitRAG 初始化全局 RAG 服务
 // ============ Embedding 服务 ============
 
-// embedTexts 批量调 DeepSeek Embedding API，返回多个文本的向量
+// embedTexts 批量调 Embedding API，返回多个文本的向量
 func embedTexts(texts []string) ([][]float32, error) {
 	apiURL := config.App.Agent.EmbeddingAPIURL
 	if apiURL == "" {
-		apiURL = "https://api.deepseek.com/v1/embeddings"
+		apiURL = "https://api.siliconflow.cn/v1/embeddings"
 	}
 	model := config.App.Agent.EmbeddingModel
 	if model == "" {
-		model = "deepseek-text-embedding"
+		model = "BAAI/bge-large-zh-v1.5"
 	}
 
 	input := texts[0]
@@ -215,11 +215,11 @@ func embedTexts(texts []string) ([][]float32, error) {
 			continue
 		}
 		req.Header.Set("Content-Type", "application/json")
-apiKey := config.App.Agent.EmbeddingAPIKey
-	if apiKey == "" {
-		apiKey = config.App.AI.APIKey
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	apiKey := config.App.Agent.EmbeddingAPIKey
+		if apiKey == "" {
+			apiKey = config.App.AI.APIKey
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 
 		client := &http.Client{Timeout: 60 * time.Second}
 		resp, err := client.Do(req)
@@ -431,6 +431,7 @@ func (vs *RedisStackVectorStore) Delete(courseID uint) error {
 
 // ============ 初始化 ============
 
+// InitRAG 初始化全局 RAG 服务
 func InitRAG() {
 	vs := NewRedisStackVectorStore()
 	globalRAG = NewRAGService(vs)

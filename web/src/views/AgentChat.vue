@@ -85,13 +85,30 @@ async function loadSessions() {
   }
 }
 
+function parseHistoryMsg(m) {
+  // 检测 action 消息：尝试 JSON.parse，检查是否包含 purchase_offer
+  // 注意：不能用 startsWith('{"type":"') 因为 Go map 序列化 key 顺序不确定，
+  // payload 可能在 type 前面
+  if (m.role === 'assistant' && m.content) {
+    try {
+      const parsed = JSON.parse(m.content)
+      if (parsed.type === 'purchase_offer' && parsed.payload) {
+        return {
+          role: 'action',
+          action: { type: 'purchase', ...parsed.payload }
+        }
+      }
+    } catch {}
+  }
+  return { role: m.role, content: m.content }
+}
+
 async function loadMessages(sessionId) {
   try {
     const res = await getMessages(sessionId, { page: 1, page_size: 100 })
-    messages.value = (res.data.list || []).filter(m => m.role !== 'tool').map(m => ({
-      role: m.role,
-      content: m.content
-    }))
+    messages.value = (res.data.list || [])
+      .filter(m => m.role !== 'tool')
+      .map(parseHistoryMsg)
     scrollToBottom()
   } catch (e) {
     console.error('加载消息失败', e)
