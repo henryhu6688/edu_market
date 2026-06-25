@@ -115,7 +115,7 @@ func (e *AgentEngine) Run(
 	sseHandler SSEHandler,
 	requestID string,
 ) error {
-	slog.Info("Agent 开始", "request_id", requestID, "session_id", session.ID, "question_preview", TruncateRunes(userMsg, 50))
+	slog.Info("Agent 开始", "request_id", requestID, "session_id", session.ID, "mode", session.Mode, "question", TruncateRunes(userMsg, 80))
 
 	// ========== 0. 初始化安全组件 ==========
 	breaker := &CircuitBreaker{}
@@ -156,7 +156,7 @@ func (e *AgentEngine) Run(
 			"system_prompt":  prompt,
 		},
 	})
-	slog.Debug("Agent 上下文加载", "request_id", requestID, "session_id", session.ID, "history_count", len(history))
+	slog.Info("Agent 上下文就绪", "request_id", requestID, "session_id", session.ID, "history_msgs", len(history), "tools_count", len(tools))
 
 	// ========== 4. Tool Calling 循环 ==========
 	openAITools := toolDefsToOpenAI(tools)
@@ -171,7 +171,7 @@ func (e *AgentEngine) Run(
 				Role:    "system",
 				Content: "已达到最大对话步数限制。你必须立即基于已有信息回答用户问题，不要再尝试调用任何工具。如果现有信息不足以回答，请诚实告知用户。",
 			})
-			return e.streamFinalAnswer(session, history, sseHandler, corrector)
+			return e.streamFinalAnswer(session, history, sseHandler, corrector, requestID)
 		}
 
 		// ----- 调 LLM（非流式，带 tools）-----
@@ -185,8 +185,9 @@ func (e *AgentEngine) Run(
 				"stream":      false,
 			},
 		})
-		slog.Debug("Agent LLM 请求", "request_id", requestID, "round", round+1, "history_count", len(history))
+		slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "tools_available", len(openAITools))
 
+		llmStart := time.Now()
 		resp, err := e.callLLMWithRetry(history, openAITools)
 		if err != nil {
 			sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后重试"}`)
@@ -211,14 +212,14 @@ func (e *AgentEngine) Run(
 				"tokens":         resp.Usage.TotalTokens,
 			},
 		})
-		slog.Debug("Agent LLM 响应", "request_id", requestID, "round", round+1, "finish", choice.FinishReason, "tool_calls_count", len(choice.Message.ToolCalls), "content_len", len([]rune(choice.Message.Content)))
+		slog.Info("LLM 响应", "request_id", requestID, "round", round+1, "finish", choice.FinishReason, "tool_calls", len(choice.Message.ToolCalls), "content_len", len([]rune(choice.Message.Content)), "tokens", resp.Usage.TotalTokens, "llm_ms", time.Since(llmStart).Milliseconds())
 
 		// ----- 没有 Tool Call → 最终回答 -----
 		if len(choice.Message.ToolCalls) == 0 {
 			if choice.Message.Content != "" {
-				return e.finalizeAnswer(session, choice.Message.Content, sseHandler, corrector, resp.Usage.TotalTokens)
+				return e.finalizeAnswer(session, choice.Message.Content, sseHandler, corrector, resp.Usage.TotalTokens, requestID)
 			}
-			return e.streamFinalAnswer(session, history, sseHandler, corrector)
+			return e.streamFinalAnswer(session, history, sseHandler, corrector, requestID)
 		}
 
 		// ----- 有 Tool Calls → 执行工具 -----
@@ -316,15 +317,29 @@ func (e *AgentEngine) Run(
 			}
 
 			// 执行 Tool
+			toolIdx := len(executedTools) + 1
+			toolTotal := len(choice.Message.ToolCalls)
 			sseHandler("thinking", fmt.Sprintf(`{"tool":"%s","status":"executing"}`, toolName))
-			slog.Debug("Agent Tool 调用", "request_id", requestID, "tool", toolName, "args", argsJSON)
+			toolStart := time.Now()
 			result := tool.Execute(session.UserID, argsJSON)
+			toolMs := time.Since(toolStart).Milliseconds()
 
 			// 存 DB
 			e.storeToolMessagesDB(session.ID, tc, toolName, result)
 
 			resultPreview := TruncateRunes(result.Content, 200)
-			slog.Info("Agent Tool 执行", "request_id", requestID, "session_id", session.ID, "tool", toolName, "round", round+1, "result", resultPreview)
+			logAttrs := []any{
+			"request_id", requestID,
+			"tool", fmt.Sprintf("[%d/%d] %s", toolIdx, toolTotal, toolName),
+			"ok", result.Success,
+			"len", len(result.Content),
+			"ms", toolMs,
+			"preview", resultPreview,
+		}
+		if !result.Success {
+			logAttrs = append(logAttrs, "error_code", result.ErrorCode, "recoverable", result.Recoverable)
+		}
+		slog.Info("Tool ✓", logAttrs...)
 
 			// Level 2: 语义回路
 			if blocked, reason := loopDetector.Feed(result.Content); blocked {
@@ -363,6 +378,7 @@ func (e *AgentEngine) Run(
 		e.saveSession(session)
 
 		history = append(history, roundMsgs...)
+		slog.Info("Round 结束", "request_id", requestID, "round", round+1, "tools_executed", len(executedTools), "new_mode", session.Mode, "next_round", round+2)
 	}
 
 	// 超过最大轮数
@@ -371,7 +387,7 @@ func (e *AgentEngine) Run(
 }
 
 // streamFinalAnswer 最终兜底：LLM 返回空 content 时才额外调一次拿回答。
-func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentChatMsg, sseHandler SSEHandler, corrector *HardFieldCorrector) error {
+func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentChatMsg, sseHandler SSEHandler, corrector *HardFieldCorrector, requestID string) error {
 	history = append(history, agentChatMsg{
 		Role:    "system",
 		Content: "请基于以上信息简洁回答用户。只输出回答内容。",
@@ -382,11 +398,11 @@ func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentC
 		sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后重试"}`)
 		return err
 	}
-	return e.finalizeAnswer(session, finalResp.Choices[0].Message.Content, sseHandler, corrector, finalResp.Usage.TotalTokens)
+	return e.finalizeAnswer(session, finalResp.Choices[0].Message.Content, sseHandler, corrector, finalResp.Usage.TotalTokens, requestID)
 }
 
 // finalizeAnswer quality 修正 → 流式输出 → 存 DB → done 事件。
-func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, sseHandler SSEHandler, corrector *HardFieldCorrector, tokens int) error {
+func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, sseHandler SSEHandler, corrector *HardFieldCorrector, tokens int, requestID string) error {
 	facts := e.getFacts(session.State)
 	fullAnswer = corrector.Correct(fullAnswer, facts)
 
@@ -395,7 +411,7 @@ func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, 
 	})
 
 	displayAnswer := CleanTransferMarkers(fullAnswer)
-	slog.Info("Agent 回复", "session_id", session.ID, "answer_len", len([]rune(displayAnswer)), "answer_preview", TruncateRunes(displayAnswer, 200))
+	slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID, "len", len([]rune(displayAnswer)), "preview", TruncateRunes(displayAnswer, 200))
 
 	e.storeAssistantMessageDB(session.ID, fullAnswer, tokens)
 	sseHandler("done", fmt.Sprintf(`{"session_id":%d,"agent_type":"%s"}`, session.ID, session.AgentType))
