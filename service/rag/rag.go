@@ -4,14 +4,13 @@
 // 通过 Embedding API 将文档切片向量化，实现语义搜索。
 //
 // 文件职责：
-//   - rag.go         核心服务 + 向量存储接口 + 文本切片 + 初始化
-//   - embedding.go    Embedding API 调用 + 向量工具函数
-//   - redis_store.go  Redis Stack KNN 向量存储
-//   - simple_store.go MySQL LIKE 关键词搜索（降级）
+//   - rag.go          核心服务 + 向量存储接口 + 文本切片 + 初始化
+//   - embedding.go     Embedding API 调用 + 向量工具函数
+//   - qdrant_store.go  Qdrant 向量存储（HTTP REST API）
+//   - simple_store.go  MySQL LIKE 关键词搜索（降级）
 package rag
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -125,23 +124,11 @@ func (r *RAGService) chunkText(text string) []string {
 
 var globalRAG *RAGService
 
-// Init 初始化全局 RAG 服务（Redis Stack 向量存储）
+// Init 初始化全局 RAG 服务（Qdrant 向量存储）
 func Init() {
-	vs := NewRedisStackVectorStore()
+	vs := NewQdrantVectorStore()
+	vs.checkOrCreateCollection(1024) // bge-m3 = 1024 维
 	globalRAG = NewRAGService(vs)
-
-	// Redis Stack 索引初始化
-	if database.RDB != nil {
-		database.RDB.Do(context.Background(),
-			"FT.CREATE", "idx:chunks", "IF", "NOT", "EXISTS",
-			"ON", "HASH", "PREFIX", "1", "doc:",
-			"SCHEMA",
-			"content", "AS", "content", "TEXT",
-			"course_id", "AS", "course_id", "NUMERIC", "SORTABLE",
-			"embedding", "AS", "embedding", "VECTOR", "HNSW", "6",
-			"TYPE", "FLOAT32", "DIM", "1024", "DISTANCE_METRIC", "COSINE",
-		)
-	}
 }
 
 // Get 获取全局 RAG 服务实例
