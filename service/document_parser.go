@@ -1,11 +1,12 @@
 package service
 
 import (
-	"archive/zip"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"edu_market/config"
@@ -30,7 +31,7 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 		ext = ext[dot:]
 	}
 	if !p.isAllowed(ext) {
-		return "", fmt.Errorf("不支持: %s（支持 .txt .md .docx .pdf .pptx）", ext)
+		return "", fmt.Errorf("不支持: %s（支持 .txt .md .docx .pdf）", ext)
 	}
 
 	var text string
@@ -41,11 +42,12 @@ func (p *DocumentParser) Parse(filename string, reader io.Reader) (string, error
 		err = e
 		text = string(bytes)
 	case ".docx":
-		text, err = parseDocx(reader)
+		text, err = parseDocxReader(reader)
+		if err == nil {
+			text = cleanDOCX(text)
+		}
 	case ".pdf":
-		text, err = parsePDF(reader)
-	case ".pptx":
-		text, err = parsePPTX(reader)
+		text, err = parsePDFReader(reader)
 	default:
 		return "", fmt.Errorf("暂不支持: %s", ext)
 	}
@@ -88,8 +90,8 @@ func textToMarkdown(text string) string {
 	return strings.TrimSpace(result.String())
 }
 
-// parseDOCX 解析 DOCX 文件
-func parseDocx(reader io.Reader) (string, error) {
+// parseDocxReader 解析 DOCX 文件
+func parseDocxReader(reader io.Reader) (string, error) {
 	tmp, err := os.CreateTemp("", "upload-*.docx")
 	if err != nil {
 		return "", fmt.Errorf("创建临时文件失败: %w", err)
@@ -110,8 +112,8 @@ func parseDocx(reader io.Reader) (string, error) {
 	return strings.TrimSpace(doc.Editable().GetContent()), nil
 }
 
-// parsePDF 解析 PDF 文件
-func parsePDF(reader io.Reader) (string, error) {
+// parsePDFReader 解析 PDF 文件（含 OCR 降级）
+func parsePDFReader(reader io.Reader) (string, error) {
 	tmp, err := os.CreateTemp("", "upload-*.pdf")
 	if err != nil {
 		return "", fmt.Errorf("创建临时文件失败: %w", err)
@@ -125,12 +127,23 @@ func parsePDF(reader io.Reader) (string, error) {
 
 	text, err := parsePDFWithPdfToText(tmp.Name())
 	if err != nil {
-		return "", fmt.Errorf("PDF 提取失败: %w", err)
+		return "", err
 	}
-	if text == "" {
-		return "", fmt.Errorf("PDF 无文字（可能是扫描图片）")
+
+	// 可读性检查
+	if isReadable(text) {
+		return cleanPDF(text), nil
 	}
-	return text, nil
+
+	// OCR 降级
+	ocrText, err := tesseractOCR(tmp.Name())
+	if err != nil {
+		return "", fmt.Errorf("PDF OCR 失败: %w", err)
+	}
+	if !isReadable(ocrText) {
+		return "", fmt.Errorf("PDF 质量过低，OCR 后仍无法识别，建议上传文字版 PDF")
+	}
+	return cleanPDF(ocrText), nil
 }
 
 func parsePDFWithPdfToText(path string) (string, error) {
@@ -149,121 +162,160 @@ func parsePDFWithPdfToText(path string) (string, error) {
 	return string(data), nil
 }
 
-// parsePPTX 解析 PPTX 文件
-func parsePPTX(reader io.Reader) (string, error) {
-	tmp, err := os.CreateTemp("", "upload-*.pptx")
+// ============ OCR ============
+
+// tesseractOCR 对 PDF 逐页做 OCR 识别。
+func tesseractOCR(filePath string) (string, error) {
+	tmpDir, err := os.MkdirTemp("", "ocr_*")
 	if err != nil {
-		return "", fmt.Errorf("创建临时文件失败: %w", err)
+		return "", fmt.Errorf("创建 OCR 临时目录失败: %w", err)
 	}
-	defer os.Remove(tmp.Name())
+	defer os.RemoveAll(tmpDir)
 
-	if _, err := io.Copy(tmp, reader); err != nil {
-		return "", fmt.Errorf("写入临时文件失败: %w", err)
-	}
-	tmp.Close()
-
-	z, err := zip.OpenReader(tmp.Name())
-	if err != nil {
-		return "", fmt.Errorf("解析 PPTX 失败: %w", err)
-	}
-	defer z.Close()
-
-	var slides []string
-	for _, f := range z.File {
-		if !strings.HasPrefix(f.Name, "ppt/slides/slide") || !strings.HasSuffix(f.Name, ".xml") {
-			continue
-		}
-		rc, err := f.Open()
-		if err != nil {
-			continue
-		}
-		data, _ := io.ReadAll(rc)
-		rc.Close()
-		slides = append(slides, string(data))
+	cmd := exec.Command("pdftoppm", "-png", "-r", "300", filePath,
+		filepath.Join(tmpDir, "page"))
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("pdftoppm 失败: %w", err)
 	}
 
+	files, _ := filepath.Glob(filepath.Join(tmpDir, "page-*.png"))
 	var result strings.Builder
-	for i, slideXML := range slides {
-		result.WriteString(extractTextFromPPTXXML(slideXML))
-		if i < len(slides)-1 {
-			result.WriteString("\n\n---\n\n")
-		}
+	for _, f := range files {
+		cmd := exec.Command("tesseract", f, "stdout", "-l", "chi_sim+eng")
+		out, _ := cmd.Output()
+		result.Write(out)
+		result.WriteString("\n")
 	}
-	return strings.TrimSpace(result.String()), nil
+	return result.String(), nil
 }
 
-// extractTextFromDocxXML 从 DOCX XML 提取 <w:t> 标签文字
-func extractTextFromDocxXML(xml string) string {
-	var result strings.Builder
-	var current strings.Builder
-	inTag := false
-	inWT := false
+// ============ 可读性检查 ============
 
-	for i := 0; i < len(xml); i++ {
-		ch := xml[i]
-		if ch == '<' {
-			inTag = true
-			current.Reset()
+// isReadable 检查文本是否可读（非扫描件/乱码）。
+// 正常字符率 > 70% 且乱码率 < 10% 视为可读。
+func isReadable(text string) bool {
+	runes := []rune(text)
+	if len(runes) < 50 {
+		return false
+	}
+	var normal, garbled int
+	for _, r := range runes {
+		if (r >= 0x4E00 && r <= 0x9FFF) ||
+			(r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == ' ' || r == '\n' || r == '\t' ||
+			(r >= 0x20 && r <= 0x7E) {
+			normal++
+		}
+		if r == 0xFFFD || r == 0xFFFF || (r < 0x20 && r != '\n' && r != '\t' && r != '\r') {
+			garbled++
+		}
+	}
+	total := len(runes)
+	return float64(normal)/float64(total) > 0.70 &&
+		float64(garbled)/float64(total) < 0.10
+}
+
+// ============ PDF 清洗 ============
+
+// cleanPDF PDF 格式专用清洗。
+func cleanPDF(text string) string {
+	text = removeRepeatingLines(text) // 页眉页脚 + 水印
+	text = removePageNumbers(text)    // 页码
+	text = mergeHardLineBreaks(text)  // 硬换行合并
+	text = removeTOClines(text)       // 目录残留
+	return text
+}
+
+// ============ DOCX 清洗 ============
+
+// cleanDOCX DOCX 格式专用清洗。
+func cleanDOCX(text string) string {
+	re := regexp.MustCompile(`[│├─┼┤┬┴└┘┌┐╭╮╰╯]+`)
+	text = re.ReplaceAllString(text, "")
+	text = removeRepeatingLines(text)
+	text = removePageNumbers(text)
+	return text
+}
+
+// ============ 共用辅助函数 ============
+
+// removeRepeatingLines 删除出现 ≥3 次的同文行（页眉页脚/水印）。
+func removeRepeatingLines(text string) string {
+	lines := strings.Split(text, "\n")
+	count := make(map[string]int)
+	for _, l := range lines {
+		count[strings.TrimSpace(l)]++
+	}
+	var cleaned []string
+	for _, l := range lines {
+		t := strings.TrimSpace(l)
+		if len([]rune(t)) < 50 && count[t] >= 3 {
 			continue
 		}
-		if ch == '>' {
-			inTag = false
-			tag := current.String()
-			if strings.HasPrefix(tag, "w:t ") || tag == "w:t" {
-				inWT = true
-			} else if tag == "/w:t" {
-				inWT = false
-				result.WriteString(" ")
-			} else if strings.HasPrefix(tag, "/w:p") || tag == "/w:p" {
-				result.WriteString("\n")
+		// 水印：同一短文本（<20字）出现 ≥5 次
+		if len([]rune(t)) < 20 && count[t] >= 5 {
+			continue
+		}
+		cleaned = append(cleaned, l)
+	}
+	return strings.Join(cleaned, "\n")
+}
+
+// removePageNumbers 删除纯数字短行（页码）。
+func removePageNumbers(text string) string {
+	lines := strings.Split(text, "\n")
+	re := regexp.MustCompile(`^[\s-]*\d{1,5}[\s-]*$`)
+	var cleaned []string
+	for _, l := range lines {
+		if !re.MatchString(strings.TrimSpace(l)) {
+			cleaned = append(cleaned, l)
+		}
+	}
+	return strings.Join(cleaned, "\n")
+}
+
+// mergeHardLineBreaks 合并 PDF 宽度截断造成的硬换行。
+func mergeHardLineBreaks(text string) string {
+	lines := strings.Split(text, "\n")
+	var merged []string
+	for i := 0; i < len(lines); i++ {
+		if i+1 < len(lines) && isMidSentenceBreak(lines[i], lines[i+1]) {
+			if len(merged) > 0 {
+				merged[len(merged)-1] += lines[i+1]
 			}
-			current.Reset()
-			continue
-		}
-		if !inTag && inWT {
-			result.WriteByte(ch)
-		} else if inTag {
-			current.WriteByte(ch)
+			i++
+		} else {
+			merged = append(merged, lines[i])
 		}
 	}
-	return strings.TrimSpace(result.String())
+	return strings.Join(merged, "\n")
 }
 
-// extractTextFromPPTXXML 从 PPTX slide XML 提取 <a:t> 标签文字
-func extractTextFromPPTXXML(xml string) string {
-	var result strings.Builder
-	var current strings.Builder
-	inTag := false
-	inAT := false
+func isMidSentenceBreak(cur, next string) bool {
+	if len(cur) == 0 || len(next) == 0 {
+		return false
+	}
+	last := []rune(cur)[len([]rune(cur))-1]
+	// 中文非句号结尾 或 小写字母结尾 → 句子中间被截断
+	return (last >= 0x4E00 && last <= 0x9FFF && last != '。' && last != '；' && last != '！') ||
+		(last >= 'a' && last <= 'z')
+}
 
-	for i := 0; i < len(xml); i++ {
-		ch := xml[i]
-		if ch == '<' {
-			inTag = true
-			current.Reset()
-			continue
-		}
-		if ch == '>' {
-			inTag = false
-			tag := current.String()
-			if strings.HasPrefix(tag, "a:t ") || tag == "a:t" {
-				inAT = true
-			} else if tag == "/a:t" {
-				inAT = false
-			} else if tag == "/a:p" {
-				result.WriteString("\n")
-			}
-			current.Reset()
-			continue
-		}
-		if !inTag && inAT {
-			result.WriteByte(ch)
-		} else if inTag {
-			current.WriteByte(ch)
+// removeTOClines 删除含连续 ... 的目录行。
+func removeTOClines(text string) string {
+	lines := strings.Split(text, "\n")
+	var cleaned []string
+	for _, l := range lines {
+		if !strings.Contains(l, ".....") && !strings.Contains(l, "……") {
+			cleaned = append(cleaned, l)
 		}
 	}
-	return strings.TrimSpace(result.String())
+	return strings.Join(cleaned, "\n")
 }
+
+// ============ Markdown 提取（RAG 用）============
 
 // extractTextFromMarkdown 从 Markdown 提取纯文本（用于 RAG）
 func extractTextFromMarkdown(md string) string {
