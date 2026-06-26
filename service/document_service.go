@@ -107,6 +107,6 @@ func reindexDocument(doc *model.Document) {
 	text := extractTextFromMarkdown(doc.Content)
 	database.DB.Where("course_id = ?", doc.MaterialID).Delete(&model.DocumentChunk{})
 	if r := rag.Get(); r != nil {
-		r.IndexCourse(doc.MaterialID, text)
+		r.IndexCourse(doc.MaterialID, doc.ID, text)
 	}
 }
