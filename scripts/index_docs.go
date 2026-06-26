@@ -77,7 +77,7 @@ func main() {
 			fullText += d.Content + "\n\n"
 		}
 		fmt.Printf("Indexing material %d: %s (%d docs, %d chars)\n", m.ID, m.Title, len(m.Documents), len(fullText))
-		if err := ragSvc.IndexCourse(m.ID, fullText); err != nil {
+		if err := ragSvc.IndexCourse(m.ID, m.ID, fullText); err != nil {
 			fmt.Printf("  ERROR: %v\n", err)
 		} else {
 			fmt.Printf("  OK\n")
