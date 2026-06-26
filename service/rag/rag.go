@@ -23,9 +23,11 @@ import (
 
 // SearchResult 检索结果
 type SearchResult struct {
-	ChunkID uint    `json:"chunk_id"`
-	Content string  `json:"content"`
-	Score   float32 `json:"score"`
+	ChunkID     uint    `json:"chunk_id"`
+	Content     string  `json:"content"`
+	Score       float32 `json:"score"`
+	DocumentID  uint    `json:"document_id"`  // 来源文档 ID
+	SectionPath string  `json:"section_path"` // 章节路径
 }
 
 // VectorStore 向量存储接口（预留切换 Pinecone/Qdrant）
