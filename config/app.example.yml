@@ -37,18 +37,34 @@ captcha:
 agent:
   max_tool_rounds: 10
   context_max_messages: 20
-  embedding_model: "BAAI/bge-large-zh-v1.5"
+  embedding_model: "BAAI/bge-m3"
   embedding_api_url: "https://api.siliconflow.cn/v1/embeddings"
   embedding_api_key: ""
   chunk_size: 500
   chunk_overlap: 50
 
+rag:
+  qdrant_url: "http://localhost:6333"
+  qdrant_collection: "chunks"
+  hybrid_search: true
+  rerank: true
+  rerank_topk: 3
+  cleaner_enabled: true
+  structural_chunk: true
+  chunk_size: 500
+  chunk_min: 300
+  chunk_max: 800
+  cache_enabled: true
+  cache_ttl: 3600
+  cache_sim_threshold: 0.85
+  cache_max_entries: 10
+
 document:
   auto_save_delay: 2
   rag_sync: true
   max_upload_size: 20971520
-  allowed_formats: [".pdf", ".pptx", ".docx", ".md", ".txt"]
+  allowed_formats: [".pdf", ".docx", ".md", ".txt"]
 
 upload:
   max_size: 10485760  # 10MB
-  allowed_exts: [".jpg", ".jpeg", ".png", ".pdf", ".docx", ".pptx", ".zip"]
+  allowed_exts: [".jpg", ".jpeg", ".png", ".pdf", ".docx", ".zip"]

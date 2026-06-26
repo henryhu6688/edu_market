@@ -18,6 +18,7 @@ type Config struct {
 	Upload   UploadConfig   `mapstructure:"upload"`
 	Captcha  CaptchaConfig  `mapstructure:"captcha"`
 	Agent    AgentConfig    `mapstructure:"agent"`
+	RAG      RAGConfig      `mapstructure:"rag"`
 	Document DocumentConfig `mapstructure:"document"`
 }
 
@@ -85,6 +86,24 @@ type AgentConfig struct {
 EmbeddingAPIKey       string `mapstructure:"embedding_api_key"`
 	ChunkSize             int    `mapstructure:"chunk_size"`
 	ChunkOverlap          int    `mapstructure:"chunk_overlap"`
+}
+
+// RAGConfig RAG 检索配置（方案 C 独立开关）
+type RAGConfig struct {
+	QdrantURL         string  `mapstructure:"qdrant_url"`
+	QdrantCollection  string  `mapstructure:"qdrant_collection"`
+	HybridSearch      bool    `mapstructure:"hybrid_search"`
+	Rerank            bool    `mapstructure:"rerank"`
+	RerankTopK        int     `mapstructure:"rerank_topk"`
+	CleanerEnabled    bool    `mapstructure:"cleaner_enabled"`
+	StructuralChunk   bool    `mapstructure:"structural_chunk"`
+	ChunkSize         int     `mapstructure:"chunk_size"`
+	ChunkMin          int     `mapstructure:"chunk_min"`
+	ChunkMax          int     `mapstructure:"chunk_max"`
+	CacheEnabled      bool    `mapstructure:"cache_enabled"`
+	CacheTTL          int     `mapstructure:"cache_ttl"`
+	CacheSimThreshold float64 `mapstructure:"cache_sim_threshold"`
+	CacheMaxEntries   int     `mapstructure:"cache_max_entries"`
 }
 
 // CaptchaConfig 验证码配置
