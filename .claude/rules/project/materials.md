@@ -49,13 +49,36 @@ ByteMD (Vue3)，所见即所得 Markdown 编辑，类似 Typora。
 
 ## RAG 集成
 
-文档保存 → `extractTextFromMarkdown()` 提取纯文本 → 切片(500字/块) → Embedding → 存 `document_chunks` 表。Agent 通过 `search_documents` tool 检索。
+文档保存后完整链路（`service/rag/` 独立包）：
+
+```
+上传 → document_parser（PDF/DOCX/TXT，不支持PPTX）
+  → 解析层清洗（cleanPDF/DOCX — 页眉页脚/页码/硬换行/水印/目录）
+  → OCR 降级（PDF 不可读时 tesseract）
+  → Markdown 清洗（cleaner.go — 图片/链接/格式符号/全角半角）
+  → 结构切片（chunker.go — MD按#标题 / DOCX按pStyle / PDF按段落）
+  → batch Embedding (bge-m3, 并发3)
+  → Qdrant (向量 + payload) + MySQL document_chunks (备份)
+```
+
+检索链路：
+
+```
+search_documents(query, material_id)
+  → L1 精确缓存(Redis) / L2 语义缓存(余弦≥0.85)
+  → Qdrant 向量检索 + text 全文过滤(混合检索 RRF)
+  → Rerank (bge-reranker-v2-m3, 10→3)
+  → 元数据拼装（DocumentID→批量查标题 + SectionPath → 来源引用）
+```
+
+DocumentChunk 新增 `document_id`（来源文档）+ `section_path`（章节路径），检索结果直接带来源标注。
 
 ## 相关文件
 
-- `model/material.go` `model/document.go` — 数据模型
+- `model/material.go` `model/document.go` `model/document_chunk.go` — 数据模型
 - `service/material_service.go` `service/document_service.go` — Service
-- `service/document_parser.go` — 文件解析
+- `service/document_parser.go` — 文件解析（清洗 + OCR 降级）
+- `service/rag/` — RAG 检索服务（Qdrant + Embedding + Rerank + 切片 + 缓存 + 清洗）
 - `controller/material_controller.go` `controller/document_controller.go` — Controller
 - `web/src/views/DocumentEditor.vue` — 编辑器
 - `web/src/views/DocumentView.vue` — 阅读器

@@ -4,6 +4,7 @@
 
 ```
 请求 → router (Gin) → middleware (CORS/Logger/JWT) → controller → service → model (GORM) → MySQL
+                                                                          ↘ service/rag → Qdrant (向量库)
                                                                           ↘ utils/captcha → Redis
 ```
 
@@ -13,6 +14,8 @@
 | Middleware | `middleware/` | CORS、请求日志、JWT（注入 user_id/username/role） |
 | Controller | `controller/` | 绑定参数 + 调 service + `utils` 统一响应 |
 | Service | `service/` | 业务逻辑，操作 `database.DB`，不碰 `gin.Context` |
+| Service/RAG | `service/rag/` | RAG 向量检索（Qdrant + Embedding + Rerank + 切片 + 缓存） |
+| Service/Agent | `service/agent/` | Agent 引擎（Tool Calling 循环 + System Prompt + 熔断器） |
 | Model | `model/` | GORM 模型 + `TableName()` |
 | DTO | `dto/request/` `dto/response/` | 请求 binding 校验 + 响应结构 |
 | Config | `config/` | Viper 读 `app.yml`，环境变量覆盖敏感字段 |
@@ -30,10 +33,11 @@
 | Order | orders | order_no, user_id, course_id, status(pending/paid/cancelled)，软删除 |
 | Review | reviews | user_id, course_id, rating(1-5) |
 | Category | categories | name, parent_id |
-| Session | sessions | user_id, agent_type, title, status |
-| Message | messages | session_id, role, content, tool_calls(JSON), tokens_used |
-| DocumentChunk | document_chunks | course_id, content, chunk_index |
+| Session | sessions | user_id, agent_type, title, status, mode(shopping/tutoring/support), state(JSON) |
+| Message | messages | session_id, role, content, tool_calls(JSON), tokens_used, reasoning_content |
+| DocumentChunk | document_chunks | course_id, content, embedding, chunk_index, document_id, section_path |
 | FAQ | faqs | question, answer, category |
+| UserMemory | user_memories | user_id, mem_key, mem_value, source, confidence, status |
 
 ## 路由表
 
