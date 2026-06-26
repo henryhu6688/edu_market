@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getProfile } from '@/api/auth'
 
 export const useUserStore = defineStore('user', () => {
   const accessToken = ref(localStorage.getItem('access_token') || '')
@@ -44,13 +43,21 @@ export const useUserStore = defineStore('user', () => {
   }
 
   // verifyAuth 向后端验证 token 是否仍然有效
+  // 直接调 API 不走 axios 拦截器，避免 401 触发 redirect 死循环
   async function verifyAuth() {
     if (!accessToken.value) {
       isVerified.value = false
       return false
     }
     try {
-      const data = await getProfile()
+      const res = await fetch('/api/user/profile', {
+        headers: { Authorization: `Bearer ${accessToken.value}` },
+      })
+      if (!res.ok) {
+        logout()
+        return false
+      }
+      const data = await res.json()
       user.value = data.data
       isVerified.value = true
       return true
