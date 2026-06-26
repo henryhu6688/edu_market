@@ -88,6 +88,17 @@ Agent 回复              → len, preview(截200字), has_citation, has_refusal
 - reasoning_content 存 DB 并回传（DeepSeek v4 要求）
 - System Prompt 在最前面
 
+## 模型约束
+
+- DeepSeek v4 系列要求 `reasoning_content` 必须存 DB 并在下一轮拼回上下文，否则 400
+- `stream: true` 和 `tools` 参数不能同时用：tool call 轮次非流式，最终回复轮次流式
+- Model 用 `deepseek-chat`（v4-flash 别名），非 `deepseek-v3`（已废弃）
+
+## 前端注意事项
+
+- 加载历史消息时必须过滤 `role=tool`，否则 raw JSON 会显示在聊天区
+- SSE `done` 事件到达后不能 `reader.cancel()`，用 `break` 让 while 自然退出，否则缓冲区丢数据
+
 ## 配置
 
 ```yaml

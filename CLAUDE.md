@@ -52,4 +52,3 @@ Go + Gin + GORM + MySQL + Redis 后端，Vue3 + Vite 前端。在线学习资料
 - `.claude/rules/project/architecture.md` — 分层架构(含service/rag)、数据模型、路由表、前端
 - `.claude/rules/project/agent.md` — Agent架构、9个Tool、安全组件、结构化错误码、日志链路、Prompt模块
 - `.claude/rules/project/materials.md` — 资料/文档模型、编辑器、解析器(含OCR)、权限、RAG集成
-- `.claude/rules/lessons/2026-06-13.md` — 历史踩坑：SSE流式、DeepSeek兼容、Tool死循环、日志系统
