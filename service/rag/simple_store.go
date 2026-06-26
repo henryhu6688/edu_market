@@ -41,9 +41,11 @@ func (vs *SimpleSearchVectorStore) Search(courseID uint, query string, topK int)
 	var results []SearchResult
 	for _, c := range chunks {
 		results = append(results, SearchResult{
-			ChunkID: c.ID,
-			Content: c.Content,
-			Score:   0.5,
+			ChunkID:     c.ID,
+			Content:     c.Content,
+			Score:       0.5,
+			DocumentID:  c.DocumentID,
+			SectionPath: c.SectionPath,
 		})
 	}
 	return results, nil
