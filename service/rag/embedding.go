@@ -3,62 +3,112 @@ package rag
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"edu_market/config"
+	"edu_market/database"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
 
 // embedRate Embedding API 令牌桶限流（8次/秒，突发2次）
 var embedRate = rate.NewLimiter(8, 2)
 
-// embedTexts 批量调 Embedding API，返回多个文本的向量
+// embedTexts 批量 Embedding，并发 3 请求，令牌桶限流。
 func embedTexts(texts []string) ([][]float32, error) {
+	results := make([][]float32, len(texts))
+	var mu sync.Mutex
+	g := new(errgroup.Group)
+	g.SetLimit(3)
+
+	for i, t := range texts {
+		i, t := i, t
+		g.Go(func() error {
+			embedRate.Wait(context.Background())
+			vec, err := embedCached(t)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			results[i] = vec
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// embedCached 单文本 Embedding，带 Redis 缓存。
+func embedCached(text string) ([]float32, error) {
+	key := "emb:" + fmt.Sprintf("%x", md5.Sum([]byte(text)))
+
+	// 1. 查缓存
+	if database.RDB != nil {
+		if b, err := database.RDB.Get(context.Background(), key).Bytes(); err == nil && len(b) > 0 {
+			return bytesToFloats(b), nil
+		}
+	}
+
+	// 2. 调 API
+	vec, err := callEmbeddingAPI(text)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 写缓存（TTL 24h）
+	if database.RDB != nil {
+		database.RDB.SetEx(context.Background(), key, floatsToBytes(vec), 24*time.Hour)
+	}
+	return vec, nil
+}
+
+// callEmbeddingAPI 调 SiliconFlow Embedding API，3 次指数退避重试。
+func callEmbeddingAPI(text string) ([]float32, error) {
 	apiURL := config.App.Agent.EmbeddingAPIURL
 	if apiURL == "" {
 		apiURL = "https://api.siliconflow.cn/v1/embeddings"
 	}
 	model := config.App.Agent.EmbeddingModel
 	if model == "" {
-		model = "BAAI/bge-large-zh-v1.5"
+		model = "BAAI/bge-m3"
 	}
 
-	input := texts[0]
-	if len(texts) > 1 {
-		input = joinStrings(texts, "\n")
-	}
 	reqBody := map[string]interface{}{
 		"model":           model,
-		"input":           input,
+		"input":           text,
 		"encoding_format": "float",
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	// 3 次指数退避重试
+	apiKey := config.App.Agent.EmbeddingAPIKey
+	if apiKey == "" {
+		apiKey = config.App.AI.APIKey
+	}
+
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		if attempt > 0 {
 			time.Sleep(time.Duration(1<<uint(attempt-1)) * time.Second)
 		}
 
-		embedRate.Wait(context.Background())
 		req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonBytes))
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		req.Header.Set("Content-Type", "application/json")
-		apiKey := config.App.Agent.EmbeddingAPIKey
-		if apiKey == "" {
-			apiKey = config.App.AI.APIKey
-		}
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 
 		client := &http.Client{Timeout: 60 * time.Second}
@@ -90,31 +140,9 @@ func embedTexts(texts []string) ([][]float32, error) {
 		if len(result.Data) == 0 {
 			return nil, fmt.Errorf("embedding 返回空")
 		}
-
-		embeddings := make([][]float32, len(result.Data))
-		for i, d := range result.Data {
-			embeddings[i] = d.Embedding
-		}
-		return embeddings, nil
+		return result.Data[0].Embedding, nil
 	}
 	return nil, fmt.Errorf("embedding 重试 3 次后仍失败: %w", lastErr)
-}
-
-// joinStrings 字符串连接（等同于 strings.Join）
-func joinStrings(elems []string, sep string) string {
-	if len(elems) == 0 {
-		return ""
-	}
-	if len(elems) == 1 {
-		return elems[0]
-	}
-	var b bytes.Buffer
-	b.WriteString(elems[0])
-	for _, s := range elems[1:] {
-		b.WriteString(sep)
-		b.WriteString(s)
-	}
-	return b.String()
 }
 
 // cosineSimilarity 余弦相似度（两个等长向量）
