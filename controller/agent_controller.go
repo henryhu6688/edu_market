@@ -3,8 +3,11 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"edu_market/database"
 	"edu_market/dto/request"
+	"edu_market/model"
 	"edu_market/service/agent"
 	"edu_market/service/rag"
 	"edu_market/utils"
@@ -56,33 +59,100 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 	ragSvc := rag.Get()
 	if ragSvc != nil {
 		searchFunc = func(courseID uint, query string, topK int) (string, error) {
+			start := time.Now()
 			results, err := ragSvc.Search(courseID, query, topK)
 			if err != nil {
 				return "", err
 			}
+			searchMs := time.Since(start).Milliseconds()
+
 			if len(results) == 0 {
-				return "", nil
+				return `{"found":false,"chunks":[],"hint":"资料中未找到相关内容"}`, nil
 			}
-			// 结构化返回：每条结果带内容和可信度标签，方便 Agent 判断引用优先级
+
+			// 收集 DocumentID → 批量查标题
+			docIDSet := make(map[uint]bool)
+			for _, r := range results {
+				if r.DocumentID > 0 {
+					docIDSet[r.DocumentID] = true
+				}
+			}
+			var docIDs []uint
+			for id := range docIDSet {
+				docIDs = append(docIDs, id)
+			}
+			titleMap := make(map[uint]string)
+			if len(docIDs) > 0 {
+				var docs []model.Document
+				database.DB.Where("id IN ?", docIDs).Find(&docs)
+				for _, d := range docs {
+					titleMap[d.ID] = d.Title
+				}
+			}
+
 			type chunkResult struct {
-				Content string  `json:"content"`
-				Score   float32 `json:"score"`
-				Label   string  `json:"label"`
+				Content     string  `json:"content"`
+				Score       float32 `json:"score"`
+				Label       string  `json:"label"`
+				Source      string  `json:"source,omitempty"`
+				DocumentID  uint    `json:"document_id,omitempty"`
+				SectionPath string  `json:"section_path,omitempty"`
 			}
 			var parts []chunkResult
+			var topScore float32
 			for _, r := range results {
+				if r.Score > topScore {
+					topScore = r.Score
+				}
 				label := "低"
 				if r.Score >= 0.7 {
 					label = "高"
 				} else if r.Score >= 0.4 {
 					label = "中"
 				}
+				source := ""
+				if title, ok := titleMap[r.DocumentID]; ok {
+					source = fmt.Sprintf("《%s》> %s", title, r.SectionPath)
+				}
 				parts = append(parts, chunkResult{
-					Content: r.Content,
-					Score:   r.Score,
-					Label:   label,
+					Content:     r.Content,
+					Score:       r.Score,
+					Label:       label,
+					Source:      source,
+					DocumentID:  r.DocumentID,
+					SectionPath: r.SectionPath,
 				})
 			}
+
+			recallQuality := "空"
+			if len(results) > 0 {
+				if topScore >= 0.7 {
+					recallQuality = "高(≥0.7)"
+				} else if topScore >= 0.4 {
+					recallQuality = "中(≥0.4)"
+				} else {
+					recallQuality = "低(<0.4)"
+				}
+			}
+			cq := "OK"
+			for _, r := range results {
+				if len([]rune(r.Content)) < 50 {
+					cq = "短碎片(<50字)"
+					break
+				}
+			}
+
+			slog.Info("RAG检索",
+				"request_id", rid,
+				"query", query,
+				"material_id", courseID,
+				"recall_quality", recallQuality,
+				"recall_top_scores", topScores(results, 5),
+				"returned_sources", formatSources(results),
+				"chunk_quality", cq,
+				"search_ms", searchMs,
+			)
+
 			bytes, _ := json.Marshal(parts)
 			return string(bytes), nil
 		}
@@ -166,6 +236,27 @@ func (ctr *AgentController) GetMessages(c *gin.Context) {
 
 	req.Page, req.PageSize = agent.GetPagination(req.Page, req.PageSize)
 	utils.PageSuccess(c, messages, total, req.Page, req.PageSize)
+}
+
+// topScores 提取前 n 条结果的分数
+func topScores(results []rag.SearchResult, n int) []float32 {
+	var scores []float32
+	for i, r := range results {
+		if i >= n {
+			break
+		}
+		scores = append(scores, r.Score)
+	}
+	return scores
+}
+
+// formatSources 格式化来源列表（传给日志用）
+func formatSources(results []rag.SearchResult) []string {
+	var src []string
+	for _, r := range results {
+		src = append(src, fmt.Sprintf("doc_%d(%.2f)", r.DocumentID, r.Score))
+	}
+	return src
 }
 
 // parseUintParam 解析路由中的 uint 参数

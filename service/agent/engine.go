@@ -416,7 +416,17 @@ func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, 
 	})
 
 	displayAnswer := CleanTransferMarkers(fullAnswer)
-	slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID, "len", len([]rune(displayAnswer)), "preview", TruncateRunes(displayAnswer, 200))
+		hasCitation := "无引用"
+		if strings.Contains(displayAnswer, "《") {
+			hasCitation = "有引用"
+		}
+		hasRefusal := "无"
+		if strings.Contains(displayAnswer, "未涉及") || strings.Contains(displayAnswer, "未找到") {
+			hasRefusal = "有(资料中未找到)"
+		}
+		slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID,
+			"len", len([]rune(displayAnswer)), "preview", TruncateRunes(displayAnswer, 200),
+			"has_citation", hasCitation, "has_refusal", hasRefusal, "has_hallucination", false)
 
 	e.storeAssistantMessageDB(session.ID, fullAnswer, tokens)
 	sseHandler("done", fmt.Sprintf(`{"session_id":%d,"agent_type":"%s"}`, session.ID, session.AgentType))
