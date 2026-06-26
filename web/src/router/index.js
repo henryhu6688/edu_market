@@ -99,17 +99,25 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title || 'EduMarket'
   const userStore = useUserStore()
 
-  if (to.meta.auth && !userStore.accessToken) {
+  // 首次访问且本地有 token — 先验证有效性
+  if (!userStore.isVerified && userStore.accessToken) {
+    const valid = await userStore.verifyAuth()
+    if (!valid && to.meta.auth) {
+      return next('/login')
+    }
+  }
+
+  if (to.meta.auth && !userStore.isLoggedIn) {
     return next('/login')
   }
   if (to.meta.admin && userStore.user?.role !== 'admin') {
     return next('/')
   }
-  if (to.meta.guest && userStore.accessToken) {
+  if (to.meta.guest && userStore.isLoggedIn) {
     return next('/')
   }
   next()

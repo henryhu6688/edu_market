@@ -15,6 +15,11 @@ export function loginByCode(data) {
   return api.post('/login', data)
 }
 
+// 获取当前用户信息（验证 token 是否有效）
+export function getProfile() {
+  return api.get('/user/profile')
+}
+
 // 刷新 Token
 export function refreshToken(refreshToken) {
   return api.post('/refresh', { refresh_token: refreshToken })
