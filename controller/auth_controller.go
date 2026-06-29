@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"log"
+
 	"edu_market/dto/request"
 	"edu_market/service"
 	"edu_market/utils"
@@ -17,6 +19,7 @@ type AuthController struct {
 func (ctr *AuthController) GenerateCaptcha(c *gin.Context) {
 	id, b64s, err := utils.GenerateImageCaptcha()
 	if err != nil {
+		log.Printf("[图形验证码] 控制器层获取失败: %v", err)
 		utils.InternalError(c, "图形验证码生成失败")
 		return
 	}

@@ -48,7 +48,7 @@ func main() {
 	case "runoob":
 		scrapers = append(scrapers, scrape.NewRunoobScraper())
 	case "all":
-		scrapers = append(scrapers, scrape.NewGitHubScraper(), scrape.NewRunoobScraper())
+		scrapers = append(scrapers, scrape.NewRunoobScraper())
 	default:
 		fmt.Fprintf(os.Stderr, "未知数据源: %s (可用: github, runoob, all)\n", *source)
 		os.Exit(1)

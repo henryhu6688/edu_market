@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"edu_market/database"
 	"edu_market/model"
@@ -24,6 +25,7 @@ func NewAgentService(engine *AgentEngine) *AgentService {
 func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searchFunc SearchFunc, sseHandler SSEHandler, requestID string) (*model.Session, error) {
 	// 1. 获取或创建 Session
 	var session *model.Session
+	var sessionAction string
 	if sessionID != nil {
 		session = &model.Session{}
 		if err := database.DB.Where("id = ? AND user_id = ?", *sessionID, userID).First(session).Error; err != nil {
@@ -32,6 +34,7 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 			}
 			return nil, err
 		}
+		sessionAction = "复用"
 	} else {
 		session = &model.Session{
 			UserID: userID, AgentType: "agent", Status: model.SessionActive,
@@ -40,16 +43,28 @@ func (s *AgentService) Chat(userID uint, sessionID *uint, question string, searc
 		if err := database.DB.Create(session).Error; err != nil {
 			return nil, fmt.Errorf("创建会话失败: %w", err)
 		}
+		sessionAction = "新建"
 	}
 
 	// 2. 全量 Tool 注册
 	tools := buildToolSet(searchFunc)
 
+	slog.Info("agent 会话就绪",
+		"request_id", requestID,
+		"session_id", session.ID,
+		"action", sessionAction,
+		"mode", session.Mode,
+		"tools", len(tools),
+		"question", TruncateRunes(question, 60),
+	)
+
 	// 3. 运行引擎（空字符串 → 引擎内部调用 buildPrompt 动态拼装 6 模块 Prompt）
 	if err := s.engine.Run(session, question, tools, "", sseHandler, requestID); err != nil {
+		slog.Warn("agent 引擎失败", "request_id", requestID, "session_id", session.ID, "error", err)
 		return session, err
 	}
 
+	slog.Info("agent 引擎完成", "request_id", requestID, "session_id", session.ID, "mode", session.Mode)
 	return session, nil
 }
 

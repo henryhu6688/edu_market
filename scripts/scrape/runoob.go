@@ -37,11 +37,22 @@ func NewRunoobScraper() *RunoobScraper {
 		tutorials: []tutorial{
 			{Name: "Python3 教程", URL: "https://www.runoob.com/python3/python3-tutorial.html", Cat: "编程开发"},
 			{Name: "Go 语言教程", URL: "https://www.runoob.com/go/go-tutorial.html", Cat: "编程开发"},
+			{Name: "Java 教程", URL: "https://www.runoob.com/java/java-tutorial.html", Cat: "编程开发"},
+			{Name: "C 语言教程", URL: "https://www.runoob.com/cprogramming/c-tutorial.html", Cat: "编程开发"},
+			{Name: "C++ 教程", URL: "https://www.runoob.com/cplusplus/cpp-tutorial.html", Cat: "编程开发"},
+			{Name: "JavaScript 教程", URL: "https://www.runoob.com/js/js-tutorial.html", Cat: "编程开发"},
+			{Name: "HTML 教程", URL: "https://www.runoob.com/html/html-tutorial.html", Cat: "编程开发"},
+			{Name: "CSS 教程", URL: "https://www.runoob.com/css/css-tutorial.html", Cat: "编程开发"},
 			{Name: "Linux 教程", URL: "https://www.runoob.com/linux/linux-tutorial.html", Cat: "编程开发"},
 			{Name: "Docker 教程", URL: "https://www.runoob.com/docker/docker-tutorial.html", Cat: "编程开发"},
 			{Name: "Git 教程", URL: "https://www.runoob.com/git/git-tutorial.html", Cat: "编程开发"},
 			{Name: "MySQL 教程", URL: "https://www.runoob.com/mysql/mysql-tutorial.html", Cat: "编程开发"},
 			{Name: "Redis 教程", URL: "https://www.runoob.com/redis/redis-tutorial.html", Cat: "编程开发"},
+			{Name: "Node.js 教程", URL: "https://www.runoob.com/nodejs/nodejs-tutorial.html", Cat: "编程开发"},
+			{Name: "Vue3 教程", URL: "https://www.runoob.com/vue3/vue3-tutorial.html", Cat: "编程开发"},
+			{Name: "React 教程", URL: "https://www.runoob.com/react/react-tutorial.html", Cat: "编程开发"},
+			{Name: "TypeScript 教程", URL: "https://www.runoob.com/typescript/ts-tutorial.html", Cat: "编程开发"},
+			{Name: "Rust 教程", URL: "https://www.runoob.com/rust/rust-tutorial.html", Cat: "编程开发"},
 		},
 	}
 }

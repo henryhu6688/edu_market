@@ -138,13 +138,18 @@ type cachedEntry struct {
 }
 
 // Search 检索课程资料（带两级缓存 + Rerank）。
+// 日志链路：L1命中 → L2命中 → 完整管线(Qdrant→Rerank→写缓存)，每步带耗时和条数。
 func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResult, error) {
+	queryPreview := truncateStr(query, 60)
+	pipeStart := time.Now()
+
 	// ====== L1 精确匹配 ======
 	if config.App.RAG.CacheEnabled && database.RDB != nil {
 		exactKey := fmt.Sprintf("rag:exact:%x", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))))
 		if b, err := database.RDB.Get(context.Background(), exactKey).Bytes(); err == nil && len(b) > 0 {
 			var results []SearchResult
 			if json.Unmarshal(b, &results) == nil {
+				slog.Info("rag L1精确缓存命中，query+courseID MD5匹配", "course_id", courseID, "results", len(results), "query", queryPreview)
 				return results, nil
 			}
 		}
@@ -153,43 +158,53 @@ func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResu
 	// ====== L2 语义匹配 ======
 	var queryVec []float32
 	if config.App.RAG.CacheEnabled && database.RDB != nil {
+		embStart := time.Now()
 		vecs, _ := embedTexts([]string{query})
 		if len(vecs) > 0 {
 			queryVec = vecs[0]
+			slog.Debug("rag L2语义缓存-查询向量化完成，准备余弦相似度比对", "course_id", courseID, "emb_ms", time.Since(embStart).Milliseconds())
 			semKey := fmt.Sprintf("rag:sem:%d", courseID)
 			if b, err := database.RDB.Get(context.Background(), semKey).Bytes(); err == nil {
 				var recent []cachedEntry
 				if json.Unmarshal(b, &recent) == nil {
 					for _, entry := range recent {
-						if float64(cosineSimilarity(queryVec, entry.Vector)) >= config.App.RAG.CacheSimThreshold {
+						sim := float64(cosineSimilarity(queryVec, entry.Vector))
+						if sim >= config.App.RAG.CacheSimThreshold {
+							slog.Info("rag L2语义缓存命中，余弦相似度≥阈值，复用历史结果", "course_id", courseID, "similarity", fmt.Sprintf("%.3f", sim), "results", len(entry.Results), "query", queryPreview)
 							return entry.Results, nil
 						}
 					}
+					slog.Debug("rag L2语义缓存未命中，已比对所有历史向量均低于阈值", "course_id", courseID, "checked", len(recent), "threshold", config.App.RAG.CacheSimThreshold)
 				}
 			}
 		}
 	}
 
 	// ====== 完整管线 ======
+	slog.Info("rag L1+L2缓存均未命中，进入Qdrant向量检索+Rerank管线", "course_id", courseID, "query", queryPreview)
 	if r.vectorStore == nil {
 		return nil, errors.New("向量存储未初始化")
 	}
 
+	qdrantStart := time.Now()
 	results, err := r.vectorStore.Search(courseID, query, topK)
 	if err != nil {
 		return nil, err
 	}
+	slog.Info("rag Qdrant向量检索完成", "course_id", courseID, "results", len(results), "hybrid", config.App.RAG.HybridSearch, "qdrant_ms", time.Since(qdrantStart).Milliseconds())
 
 	// Rerank [开关: rerank]
 	if config.App.RAG.Rerank && len(results) > 1 {
+		rerankStart := time.Now()
 		reranker := NewReranker()
 		ranked, err := reranker.Rerank(query, results, config.App.RAG.RerankTopK)
 		if err != nil {
-			slog.Warn("Rerank 失败，降级到原始结果", "err", err)
+			slog.Warn("rag Rerank精排失败，降级使用原始排序", "err", err, "course_id", courseID)
 			if len(results) > config.App.RAG.RerankTopK {
 				results = results[:config.App.RAG.RerankTopK]
 			}
 		} else {
+			slog.Info("rag Rerank精排完成", "course_id", courseID, "before", len(results), "after", len(ranked), "rerank_ms", time.Since(rerankStart).Milliseconds())
 			results = ranked
 		}
 	} else if len(results) > topK {
@@ -205,9 +220,11 @@ func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResu
 
 		// L2: 如果还没拿到 query vector，再调一次
 		if len(queryVec) == 0 {
+			embStart := time.Now()
 			vecs, _ := embedTexts([]string{query})
 			if len(vecs) > 0 {
 				queryVec = vecs[0]
+				slog.Debug("rag L2语义缓存-写回时查询向量化完成", "course_id", courseID, "emb_ms", time.Since(embStart).Milliseconds())
 			}
 		}
 		if len(queryVec) > 0 {
@@ -224,8 +241,10 @@ func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResu
 			b, _ := json.Marshal(recent)
 			database.RDB.SetEx(context.Background(), semKey, b, 0)
 		}
+		slog.Debug("rag L1+L2缓存写入完成", "course_id", courseID, "results", len(results), "query", queryPreview)
 	}
 
+	slog.Info("rag 检索管线结束", "course_id", courseID, "results", len(results), "total_ms", time.Since(pipeStart).Milliseconds())
 	return results, nil
 }
 
@@ -243,4 +262,13 @@ func Init() {
 // Get 获取全局 RAG 服务实例
 func Get() *RAGService {
 	return globalRAG
+}
+
+// truncateStr 截取字符串前 n 个字符（Unicode 安全），用于日志。
+func truncateStr(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "…"
 }

@@ -44,7 +44,7 @@ agent:
   chunk_overlap: 50
 
 rag:
-  qdrant_url: "http://localhost:6333"
+  qdrant_url: "http://localhost:6335"
   qdrant_collection: "chunks"
   hybrid_search: true
   rerank: true

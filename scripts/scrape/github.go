@@ -29,15 +29,13 @@ type GitHubScraper struct {
 // NewGitHubScraper 创建 GitHub 源适配器。
 func NewGitHubScraper() *GitHubScraper {
 	return &GitHubScraper{
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: &http.Client{Timeout: 60 * time.Second},
 		repos: []repo{
 			{Owner: "gin-gonic", Name: "gin", Branch: "master", Cat: "编程开发"},
 			{Owner: "go-gorm", Name: "gorm", Branch: "master", Cat: "编程开发"},
 			{Owner: "golang", Name: "go", Branch: "master", Cat: "编程开发"},
 			{Owner: "vuejs", Name: "core", Branch: "main", Cat: "编程开发"},
-			{Owner: "kubernetes", Name: "website", Branch: "main", Cat: "编程开发"},
 			{Owner: "rust-lang", Name: "book", Branch: "main", Cat: "编程开发"},
-			{Owner: "python", Name: "cpython", Branch: "main", Cat: "编程开发"},
 			{Owner: "gohugoio", Name: "hugo", Branch: "master", Cat: "编程开发"},
 			{Owner: "avelino", Name: "awesome-go", Branch: "main", Cat: "编程开发"},
 		},
@@ -153,6 +151,21 @@ func (g *GitHubScraper) fetchRepo(ctx context.Context, r repo) ([]*Article, erro
 }
 
 func (g *GitHubScraper) download(ctx context.Context, url string) (string, error) {
+	var lastErr error
+	for retry := 0; retry < 3; retry++ {
+		if retry > 0 {
+			time.Sleep(time.Duration(retry) * time.Second)
+		}
+		content, err := g.downloadOnce(ctx, url)
+		if err == nil {
+			return content, nil
+		}
+		lastErr = err
+	}
+	return "", fmt.Errorf("下载失败（3次重试后）: %w", lastErr)
+}
+
+func (g *GitHubScraper) downloadOnce(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err

@@ -13,7 +13,7 @@ func TestHardFieldCorrector_Correct(t *testing.T) {
 	}
 
 	answer := "推荐《Python入门》，只要 ¥9.90，很划算"
-	corrected := c.Correct(answer, facts)
+	corrected := c.Correct(answer, facts, "test")
 
 	if !strings.Contains(corrected, "《Python 从入门到实战》") {
 		t.Errorf("资料名应被修正为事实值, got: %s", corrected)
@@ -31,7 +31,7 @@ func TestHardFieldCorrector_NoCorrection(t *testing.T) {
 	}
 
 	answer := "推荐《Python 从入门到实战》，只要 ¥19.90"
-	corrected := c.Correct(answer, facts)
+	corrected := c.Correct(answer, facts, "test")
 
 	if corrected != answer {
 		t.Errorf("正确内容不应被修改, got: %s", corrected)
@@ -42,7 +42,7 @@ func TestHardFieldCorrector_NoCorrection(t *testing.T) {
 func TestHardFieldCorrector_EmptyFacts(t *testing.T) {
 	c := &HardFieldCorrector{}
 	answer := "推荐《Python入门》，只要 ¥9.90"
-	corrected := c.Correct(answer, nil)
+	corrected := c.Correct(answer, nil, "test")
 
 	if corrected != answer {
 		t.Errorf("无 facts 时不应修改, got: %s", corrected)
@@ -57,7 +57,7 @@ func TestHardFieldCorrector_NoPrice(t *testing.T) {
 	}
 
 	answer := "推荐《Python入门》，只要 ¥9.90"
-	corrected := c.Correct(answer, facts)
+	corrected := c.Correct(answer, facts, "test")
 
 	// facts 中没有价格/资料名，不应修改
 	if corrected != answer {

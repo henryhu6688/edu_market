@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"edu_market/database"
@@ -20,6 +21,9 @@ var allowedKeys = map[string]bool{
 func loadUserMemories(userID uint) []model.UserMemory {
 	var memories []model.UserMemory
 	database.DB.Where("user_id = ? AND status = 'active'", userID).Find(&memories)
+	if len(memories) > 0 {
+		slog.Debug("agent memory 加载", "user_id", userID, "count", len(memories))
+	}
 	return memories
 }
 
@@ -28,11 +32,13 @@ func loadUserMemories(userID uint) []model.UserMemory {
 func SaveUserMemory(userID uint, key, value, source string, confidence float64) error {
 	// 1. Key 白名单
 	if !allowedKeys[key] {
+		slog.Debug("agent memory 跳过（白名单不匹配）", "user_id", userID, "key", key)
 		return nil
 	}
 
 	// 2. Value 校验
 	if err := validateMemoryValue(key, value); err != nil {
+		slog.Warn("agent memory 校验失败", "user_id", userID, "key", key, "error", err)
 		return err
 	}
 
@@ -42,19 +48,31 @@ func SaveUserMemory(userID uint, key, value, source string, confidence float64) 
 	if result.Error == nil {
 		// 旧值 confidence 更高 → 不覆盖
 		if existing.Confidence > confidence {
+			slog.Debug("agent memory 跳过（旧值置信度更高）",
+				"user_id", userID, "key", key,
+				"existing_conf", existing.Confidence, "new_conf", confidence,
+			)
 			return nil
 		}
 		// 更新
-		return database.DB.Model(&existing).Updates(map[string]interface{}{
+		err := database.DB.Model(&existing).Updates(map[string]interface{}{
 			"mem_value": value, "source": source, "confidence": confidence, "status": "active",
 		}).Error
+		if err == nil {
+			slog.Info("agent memory 更新", "user_id", userID, "key", key, "value", value, "confidence", fmt.Sprintf("%.0f%%", confidence*100))
+		}
+		return err
 	}
 
 	// 4. 新写入
-	return database.DB.Create(&model.UserMemory{
+	err := database.DB.Create(&model.UserMemory{
 		UserID: userID, MemKey: key, MemValue: value,
 		Source: source, Confidence: confidence, Status: "active",
 	}).Error
+	if err == nil {
+		slog.Info("agent memory 写入", "user_id", userID, "key", key, "value", value, "confidence", fmt.Sprintf("%.0f%%", confidence*100))
+	}
+	return err
 }
 
 // validateMemoryValue 校验记忆值的格式合法性。

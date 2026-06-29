@@ -13,7 +13,6 @@ import (
 	"edu_market/config"
 	"edu_market/database"
 	"edu_market/model"
-	"log"
 	"log/slog"
 )
 
@@ -115,7 +114,7 @@ func (e *AgentEngine) Run(
 	sseHandler SSEHandler,
 	requestID string,
 ) error {
-	slog.Info("Agent 开始", "request_id", requestID, "session_id", session.ID, "mode", session.Mode, "question", TruncateRunes(userMsg, 80))
+	slog.Info("agent 开始", "request_id", requestID, "session_id", session.ID, "mode", session.Mode, "question", TruncateRunes(userMsg, 80))
 
 	// ========== 0. 初始化安全组件 ==========
 	breaker := &CircuitBreaker{}
@@ -160,7 +159,7 @@ func (e *AgentEngine) Run(
 	for name := range tools {
 		toolNames = append(toolNames, name)
 	}
-	slog.Info("Agent 上下文就绪", "request_id", requestID, "session_id", session.ID, "history_msgs", len(history), "tools", toolNames)
+	slog.Info("agent 上下文就绪", "request_id", requestID, "session_id", session.ID, "history_msgs", len(history), "tools", toolNames)
 
 	// ========== 4. Tool Calling 循环 ==========
 	openAITools := toolDefsToOpenAI(tools)
@@ -193,7 +192,7 @@ func (e *AgentEngine) Run(
 		slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "mode", session.Mode, "tools_usable", modeTools, "tools_total", len(openAITools))
 
 		llmStart := time.Now()
-		resp, err := e.callLLMWithRetry(history, openAITools)
+		resp, err := e.callLLMWithRetry(history, openAITools, requestID)
 		if err != nil {
 			sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后重试"}`)
 			return err
@@ -217,7 +216,7 @@ func (e *AgentEngine) Run(
 				"tokens":         resp.Usage.TotalTokens,
 			},
 		})
-		slog.Info("LLM 响应", "request_id", requestID, "round", round+1, "finish", choice.FinishReason, "tool_calls", len(choice.Message.ToolCalls), "content_len", len([]rune(choice.Message.Content)), "tokens", resp.Usage.TotalTokens, "llm_ms", time.Since(llmStart).Milliseconds())
+		slog.Info("LLM 响应", "request_id", requestID, "round", round+1, "finish", choice.FinishReason, "tool_calls", len(choice.Message.ToolCalls), "tool_names", toolCallNames(choice.Message.ToolCalls), "content_len", len([]rune(choice.Message.Content)), "tokens", resp.Usage.TotalTokens, "llm_ms", time.Since(llmStart).Milliseconds())
 
 		// ----- 没有 Tool Call → 最终回答 -----
 		if len(choice.Message.ToolCalls) == 0 {
@@ -256,6 +255,7 @@ func (e *AgentEngine) Run(
 
 			// 工具不存在
 			if !toolExists {
+				slog.Warn("agent round.未知工具", "request_id", requestID, "tool", toolName, "round", round+1)
 				result := ToolResult{Success: false, Content: fmt.Sprintf("未知工具: %s，请换用其他可用工具", toolName), Source: "error", ErrorCode: "UNKNOWN_TOOL", Recoverable: true, RecommendedAction: "try_alternative_tool"}
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,
@@ -361,7 +361,7 @@ func (e *AgentEngine) Run(
 
 			// action 检测（用原始 result，__action 标记还在）
 			if strings.Contains(result.Content, `"__action"`) {
-				e.handleAction(sseHandler, session, tc, result)
+				e.handleAction(sseHandler, session, tc, result, requestID)
 			}
 
 			// 本轮消息：清理 __action 内部标记，避免泄漏到 LLM 上下文让它误判
@@ -379,7 +379,11 @@ func (e *AgentEngine) Run(
 		}
 
 		// 更新模式 + 保存 Session
+		oldMode := session.Mode
 		session.Mode = ResolveMode(session, executedTools)
+		if session.Mode != oldMode {
+			slog.Info("agent 模式切换", "request_id", requestID, "from", oldMode, "to", session.Mode, "round", round+1)
+		}
 		e.saveSession(session)
 
 		history = append(history, roundMsgs...)
@@ -398,7 +402,7 @@ func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentC
 		Content: "请基于以上信息简洁回答用户。只输出回答内容。",
 	})
 
-	finalResp, err := e.callLLMWithRetry(history, nil)
+	finalResp, err := e.callLLMWithRetry(history, nil, requestID)
 	if err != nil {
 		sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后重试"}`)
 		return err
@@ -409,7 +413,7 @@ func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentC
 // finalizeAnswer quality 修正 → 流式输出 → 存 DB → done 事件。
 func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, sseHandler SSEHandler, corrector *HardFieldCorrector, tokens int, requestID string) error {
 	facts := e.getFacts(session.State)
-	fullAnswer = corrector.Correct(fullAnswer, facts)
+	fullAnswer = corrector.Correct(fullAnswer, facts, requestID)
 
 	e.streamAnswer(fullAnswer, func(delta string) {
 		sseHandler("delta", formatDelta(delta))
@@ -424,7 +428,7 @@ func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, 
 		if strings.Contains(displayAnswer, "未涉及") || strings.Contains(displayAnswer, "未找到") {
 			hasRefusal = "有(资料中未找到)"
 		}
-		slog.Info("Agent 回复", "request_id", requestID, "session_id", session.ID,
+		slog.Info("agent 回复", "request_id", requestID, "session_id", session.ID,
 			"len", len([]rune(displayAnswer)), "preview", TruncateRunes(displayAnswer, 200),
 			"has_citation", hasCitation, "has_refusal", hasRefusal, "has_hallucination", false)
 
@@ -436,14 +440,14 @@ func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, 
 // ============ LLM 调用 ============
 
 // callLLMWithRetry 调用 LLM API（非流式），带 1 次重试。
-func (e *AgentEngine) callLLMWithRetry(history []agentChatMsg, tools []map[string]interface{}) (*llmResponse, error) {
+func (e *AgentEngine) callLLMWithRetry(history []agentChatMsg, tools []map[string]interface{}, requestID string) (*llmResponse, error) {
 	resp, err := e.callLLM(history, tools)
 	if err != nil {
-		slog.Warn("LLM 调用失败，3秒后重试", "error", err)
+		slog.Warn("agent LLM 调用失败，3秒后重试", "request_id", requestID, "error", err)
 		time.Sleep(3 * time.Second)
 		resp, err = e.callLLM(history, tools)
 		if err != nil {
-			slog.Error("LLM 调用失败（已重试）", "error", err)
+			slog.Error("agent LLM 调用失败（已重试）", "request_id", requestID, "error", err)
 			return nil, err
 		}
 	}
@@ -487,13 +491,13 @@ func (e *AgentEngine) callLLM(history []agentChatMsg, tools []map[string]interfa
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Agent LLM API 错误: status=%d body=%s", resp.StatusCode, string(body))
+		slog.Error("agent LLM API 错误", "status", resp.StatusCode, "body", TruncateRunes(string(body), 200))
 		return nil, fmt.Errorf("AI API 返回状态 %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result llmResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		log.Printf("Agent LLM 解析失败: body=%s err=%v", string(body), err)
+		slog.Error("agent LLM 解析失败", "body", TruncateRunes(string(body), 200), "error", err)
 		return nil, fmt.Errorf("解析AI响应失败: %w", err)
 	}
 	return &result, nil
@@ -703,7 +707,7 @@ func (e *AgentEngine) storeAssistantMessageDB(sessionID uint, content string, to
 // ============ 动作处理 ============
 
 // handleAction 处理 tool 返回的购买卡片动作。
-func (e *AgentEngine) handleAction(sseHandler SSEHandler, session *model.Session, tc toolCallItem, result ToolResult) {
+func (e *AgentEngine) handleAction(sseHandler SSEHandler, session *model.Session, tc toolCallItem, result ToolResult, requestID string) {
 	var actionData map[string]interface{}
 	if json.Unmarshal([]byte(result.Content), &actionData) != nil {
 		return
@@ -725,7 +729,7 @@ func (e *AgentEngine) handleAction(sseHandler SSEHandler, session *model.Session
 		ToolCalls: model.ToolCalls{{CallID: tc.ID, Name: tc.Function.Name, Arguments: tc.Function.Arguments, Result: result.Content}},
 	}
 	database.DB.Create(&dbActionMsg)
-	slog.Info("Agent 发送 action", "action_type", actionType)
+	slog.Info("agent action 发送", "request_id", requestID, "action_type", actionType)
 }
 
 // ============ 流式输出 ============
@@ -822,6 +826,15 @@ func messagesToTrace(msgs []agentChatMsg) []interface{} {
 		result[i] = item
 	}
 	return result
+}
+
+// toolCallNames 提取 tool_calls 中的名称列表，用于日志。
+func toolCallNames(tcs []toolCallItem) []string {
+	names := make([]string, len(tcs))
+	for i, tc := range tcs {
+		names[i] = tc.Function.Name
+	}
+	return names
 }
 
 // toolCallsToTrace 将 toolCallItem 切片转为可序列化的切片

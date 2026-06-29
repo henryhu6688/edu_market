@@ -12,7 +12,7 @@ type HardFieldCorrector struct{}
 
 // Correct 修正 LLM 回答中的硬字段偏差。
 // 所有 LLM 回答均为非流式获取，修正后再发往前端。
-func (c *HardFieldCorrector) Correct(answer string, facts []FactItem) string {
+func (c *HardFieldCorrector) Correct(answer string, facts []FactItem, requestID string) string {
 	correctValues := extractHardFields(facts)
 	claimedValues := extractHardFieldsFromText(answer)
 
@@ -20,7 +20,8 @@ func (c *HardFieldCorrector) Correct(answer string, facts []FactItem) string {
 	for _, claimed := range claimedValues {
 		if correct, ok := correctValues[claimed.field]; ok && correct != claimed.value {
 			result = strings.Replace(result, claimed.raw, correct, 1)
-			slog.Warn("quality: 硬字段修正",
+			slog.Warn("agent quality 硬字段修正",
+				"request_id", requestID,
 				"field", claimed.field,
 				"claimed", claimed.value,
 				"corrected", correct,

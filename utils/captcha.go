@@ -96,11 +96,11 @@ func pow10(n int) int {
 const imgCaptchaPrefix = "captcha:img:"
 const imgCaptchaTTL = 2 * time.Minute // 图形码 2 分钟过期
 
-var imgCaptchaStore = base64Captcha.DefaultMemStore
+// imgCaptchaStore 图形验证码答案存储器，InitCaptcha 中初始化
+var imgCaptchaStore base64Captcha.Store
 
 // GenerateImageCaptcha 生成图形验证码，返回 base64 图片 + captcha_id
 func GenerateImageCaptcha() (captchaID string, b64s string, err error) {
-	imgCaptchaStore = base64Captcha.NewMemoryStore(100, imgCaptchaTTL)
 	driver := base64Captcha.NewDriverString(
 		64,    // 高度：36→64，字符更大更清晰
 		240,   // 宽度：120→240，间距更宽
@@ -113,8 +113,10 @@ func GenerateImageCaptcha() (captchaID string, b64s string, err error) {
 	c := base64Captcha.NewCaptcha(driver, imgCaptchaStore)
 	id, b64s, _, err := c.Generate()
 	if err != nil {
+		log.Printf("[图形验证码] 生成失败: %v", err)
 		return "", "", err
 	}
+	log.Printf("[图形验证码] 生成成功 captcha_id=%s", id)
 	return id, b64s, nil
 }
 
@@ -143,5 +145,6 @@ func InitCaptcha() {
 		cfg.ResendSeconds = 60
 	}
 	CaptchaStore = NewCodeStore(cfg.Length, cfg.ExpireSeconds, cfg.ResendSeconds)
-	log.Printf("验证码存储器初始化完成 (长度:%d 有效期:%ds 间隔:%ds)", cfg.Length, cfg.ExpireSeconds, cfg.ResendSeconds)
+	imgCaptchaStore = base64Captcha.NewMemoryStore(100, imgCaptchaTTL)
+	log.Printf("验证码存储器初始化完成 (长度:%d 有效期:%ds 间隔:%ds 图形码:%d个/%v)", cfg.Length, cfg.ExpireSeconds, cfg.ResendSeconds, 100, imgCaptchaTTL)
 }
