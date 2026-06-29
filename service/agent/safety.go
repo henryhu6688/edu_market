@@ -174,24 +174,30 @@ func ResolveMode(session *model.Session, executedTools []string) string {
 		switch {
 		case t == "query_orders" || t == "get_order_detail":
 			return "support"
-		case t == "search_documents":
-			if checkPurchased(session.UserID, getFocusMaterialID(session)) {
+		case t == "search_documents" || t == "get_material_detail" || t == "get_reviews":
+			if checkHasAccess(session.UserID, getFocusMaterialID(session)) {
 				return "tutoring"
 			}
 			return "shopping"
-		case t == "query_materials" || t == "get_categories" || t == "get_reviews" ||
-			t == "get_material_detail" || t == "trigger_purchase_offer":
+		case t == "query_materials" || t == "get_categories" || t == "trigger_purchase_offer":
 			return "shopping"
 		}
 	}
 	return session.Mode
 }
 
-// checkPurchased 检查用户是否已购买指定资料。
-func checkPurchased(userID, materialID uint) bool {
+// checkHasAccess 检查用户是否有权访问指定资料的全文内容。
+// 两种情形视为有权限：(1) 已购买且支付成功 (2) 用户即资料发布者。
+func checkHasAccess(userID, materialID uint) bool {
 	if materialID == 0 {
 		return false
 	}
+	// 发布者本人 → 天然有权限
+	var mat model.Material
+	if database.DB.Select("user_id").First(&mat, materialID).Error == nil && mat.UserID == userID {
+		return true
+	}
+	// 已购买 → 有权限
 	var count int64
 	database.DB.Model(&model.Order{}).
 		Where("user_id = ? AND course_id = ? AND status = ?", userID, materialID, "paid").
