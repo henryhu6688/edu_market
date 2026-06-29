@@ -118,7 +118,7 @@ Article
 ## 配置约定
 
 - UserID：通过手机号 `13620996835` 查 `users` 表获取
-- 定价：Material.Price = 0（免费）
+- 定价：按内容长度自适应，短篇（<5000字）¥9.90，中篇（5000-15000字）¥19.90，长篇（>15000字）¥29.90。价格在 Material 创建时自动计算，所有 Document 内容拼接后计字数
 - 状态：Material.Status = "published"
 - 分类：Article.Category 映射到 `categories.name`
 
