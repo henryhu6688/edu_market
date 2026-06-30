@@ -172,8 +172,8 @@ func buildSearchFunc() agent.SearchFunc {
 	if ragSvc == nil {
 		return nil
 	}
-	return func(courseID uint, query string, topK int) (string, error) {
-		results, err := ragSvc.Search(courseID, query, topK)
+	return func(courseID uint, query string, topK int, hasAccess bool) (string, error) {
+		results, err := ragSvc.Search(courseID, query, topK, hasAccess)
 		if err != nil {
 			return "", err
 		}
