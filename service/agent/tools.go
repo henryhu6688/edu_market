@@ -55,9 +55,15 @@ type SearchFunc func(materialID uint, query string, topK int) (string, error)
 // ============ 工具常量 ============
 
 const (
-	ToolQueryOrders     = "query_orders"
-	ToolQueryMaterials  = "query_materials"
-	ToolSearchMaterials = "search_course_materials"
+	ToolQueryOrders          = "query_orders"
+	ToolQueryMaterials       = "query_materials"
+	ToolSearchDocuments      = "search_documents"
+	ToolGetMaterialDetail    = "get_material_detail"
+	ToolGetReviews           = "get_reviews"
+	ToolGetCategories        = "get_categories"
+	ToolSearchFAQ            = "search_faq"
+	ToolGetOrderDetail       = "get_order_detail"
+	ToolTriggerPurchaseOffer = "trigger_purchase_offer"
 )
 
 // ============ 客服 Agent Tools ============
@@ -198,7 +204,7 @@ func newSearchMaterialsTool(fn SearchFunc) searchMaterialsTool {
 
 func (t searchMaterialsTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        ToolSearchMaterials,
+		Name:        ToolSearchDocuments,
 		Description: "在指定资料的文档内容中进行语义检索，返回与查询相关的文本片段，用于回答资料内容的具体知识点问题。" +
 			"不能搜资料的基本信息如价格、目录，需用 get_material_detail；不能搜全平台资料，需用 query_materials；不能搜FAQ，需用 search_faq。" +
 			"用户已指向某份资料并询问具体章节或知识点（如「第三章讲了什么」）时优先使用；搜不到时诚实告知，不要反复调用。",
@@ -264,7 +270,7 @@ type getMaterialDetailTool struct{}
 
 func (t getMaterialDetailTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        "get_material_detail",
+		Name:        ToolGetMaterialDetail,
 		Description: "获取单份资料的完整信息，包括标题、价格、描述、浏览量、购买数、所属分类、文档目录（含试读标记）。" +
 			"不能搜索文档具体内容，需用 search_documents；不能获取用户评价，需用 get_reviews；不能搜索多份资料，需用 query_materials。" +
 			"用户提到具体资料名或问「这个资料多少钱」「有哪些章节」时优先使用。",
@@ -332,7 +338,7 @@ type getReviewsTool struct{}
 
 func (t getReviewsTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        "get_reviews",
+		Name:        ToolGetReviews,
 		Description: "获取某份资料的用户评价列表，包含评分（1-5分）和评价内容，最多返回10条。" +
 			"不能获取资料详情，需用 get_material_detail；不能回复、删除或修改评价；不能查某个用户的评价历史。" +
 			"用户问「评价怎么样」「口碑如何」时使用，配合 get_material_detail 效果更好。",
@@ -380,7 +386,7 @@ type getCategoriesTool struct{}
 
 func (t getCategoriesTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        "get_categories",
+		Name:        ToolGetCategories,
 		Description: "获取平台所有资料分类列表，返回分类ID和名称。" +
 			"不能返回分类下的资料列表，需用 query_materials 带 category_id 参数；不能创建或修改分类。" +
 			"用户问「有哪些分类」「什么类型」时使用；帮用户缩小搜索范围时配合 query_materials 使用。",
@@ -417,7 +423,7 @@ type searchFAQTool struct{}
 
 func (t searchFAQTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        "search_faq",
+		Name:        ToolSearchFAQ,
 		Description: "在平台FAQ知识库中搜索相关问题，返回匹配的问答对，适用于退款政策、支付方式、使用指南等平台规则类问题。" +
 			"不能搜资料内容，需用 search_documents；不能查订单信息，需用 query_orders 或 get_order_detail；FAQ 没覆盖的问题直接引导人工客服，不要编造答案。" +
 			"用户问平台规则、退款、支付、售后等政策性问题时优先使用；搜不到时直接说「需要联系客服确认」，不要反复调用。",
@@ -474,7 +480,7 @@ type getOrderDetailTool struct{}
 
 func (t getOrderDetailTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        "get_order_detail",
+		Name:        ToolGetOrderDetail,
 		Description: "根据订单号查询单笔订单的完整信息，包括订单状态、支付状态、金额、关联资料、创建时间。" +
 			"不能用手机号或描述查订单，需先用 query_orders 获取订单号；不能修改订单、发起退款或取消订单；不能查其他用户的订单。" +
 			"用户提供了具体订单号时使用；用户问「这笔订单怎么样了」时先确认是否有订单号，没有则先用 query_orders。",
@@ -512,7 +518,7 @@ type triggerPurchaseOfferTool struct{}
 
 func (t triggerPurchaseOfferTool) Definition() ToolDef {
 	return ToolDef{
-		Name:        "trigger_purchase_offer",
+		Name:        ToolTriggerPurchaseOffer,
 		Description: "向用户弹出购买引导卡片，显示资料标题、价格和封面。这是让用户看到购买入口的唯一方式——不调用本工具，用户就无法下单。" +
 			"不能替代文字回复，调用后仍需简要引导用户点击卡片；不能用于非购买场景；不能替用户做购买决定。" +
 			"用户表达购买意向（「买」「下单」「就这个」「来一份」「怎么买」）时必须调用；即使用户之前看过卡片，再次表达意向也必须重新调用。不要只说「已发送卡片」而不调用本工具。",
@@ -577,17 +583,17 @@ func (t triggerPurchaseOfferTool) Describe(argsJSON string, result ToolResult) s
 
 func buildToolSet(searchFunc SearchFunc) map[string]Tool {
 	tools := map[string]Tool{
-		"query_materials":        queryCoursesTool{},
-		"get_material_detail":    getMaterialDetailTool{},
-		"get_reviews":            getReviewsTool{},
-		"get_categories":         getCategoriesTool{},
-		"query_orders":           queryOrdersTool{},
-		"get_order_detail":       getOrderDetailTool{},
-		"search_faq":             searchFAQTool{},
-		"trigger_purchase_offer": triggerPurchaseOfferTool{},
+		ToolQueryMaterials:       queryCoursesTool{},
+		ToolGetMaterialDetail:    getMaterialDetailTool{},
+		ToolGetReviews:           getReviewsTool{},
+		ToolGetCategories:        getCategoriesTool{},
+		ToolQueryOrders:          queryOrdersTool{},
+		ToolGetOrderDetail:       getOrderDetailTool{},
+		ToolSearchFAQ:            searchFAQTool{},
+		ToolTriggerPurchaseOffer: triggerPurchaseOfferTool{},
 	}
 	if searchFunc != nil {
-		tools["search_documents"] = newSearchMaterialsTool(searchFunc)
+		tools[ToolSearchDocuments] = newSearchMaterialsTool(searchFunc)
 	}
 	return tools
 }

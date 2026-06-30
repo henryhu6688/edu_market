@@ -105,15 +105,15 @@ type ToolBudget struct {
 func NewToolBudget() *ToolBudget {
 	return &ToolBudget{
 		limits: map[string]int{
-			"trigger_purchase_offer": 3,
-			"search_documents":       10,
-			"query_materials":        5,
-			"get_material_detail":    10,
-			"get_reviews":            5,
-			"get_categories":         3,
-			"query_orders":           3,
-			"get_order_detail":       5,
-			"search_faq":             5,
+			ToolTriggerPurchaseOffer: 3,
+			ToolSearchDocuments:      10,
+			ToolQueryMaterials:       5,
+			ToolGetMaterialDetail:    10,
+			ToolGetReviews:           5,
+			ToolGetCategories:        3,
+			ToolQueryOrders:          3,
+			ToolGetOrderDetail:       5,
+			ToolSearchFAQ:            5,
 		},
 		counts: make(map[string]int),
 	}
@@ -172,14 +172,14 @@ func ResolveMode(session *model.Session, executedTools []string) string {
 	}
 	for _, t := range executedTools {
 		switch {
-		case t == "query_orders" || t == "get_order_detail":
+		case t == ToolQueryOrders || t == ToolGetOrderDetail:
 			return "support"
-		case t == "search_documents" || t == "get_material_detail" || t == "get_reviews":
+		case t == ToolSearchDocuments || t == ToolGetMaterialDetail || t == ToolGetReviews:
 			if checkHasAccess(session.UserID, getFocusMaterialID(session)) {
 				return "tutoring"
 			}
 			return "shopping"
-		case t == "query_materials" || t == "get_categories" || t == "trigger_purchase_offer":
+		case t == ToolQueryMaterials || t == ToolGetCategories || t == ToolTriggerPurchaseOffer:
 			return "shopping"
 		}
 	}
