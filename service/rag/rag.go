@@ -68,7 +68,10 @@ func (r *RAGService) IndexCourse(courseID uint, documentID uint, fullText string
 
 	// 清空该资料的语义缓存
 	if database.RDB != nil {
-		database.RDB.Del(context.Background(), fmt.Sprintf("rag:sem:%d", courseID))
+		database.RDB.Del(context.Background(),
+			fmt.Sprintf("rag:sem:%d:full", courseID),
+			fmt.Sprintf("rag:sem:%d:preview", courseID),
+		)
 	}
 
 	// 清洗 [开关: cleaner_enabled]
@@ -139,13 +142,18 @@ type cachedEntry struct {
 
 // Search 检索课程资料（带两级缓存 + Rerank）。
 // 日志链路：L1命中 → L2命中 → 完整管线(Qdrant→Rerank→写缓存)，每步带耗时和条数。
-func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResult, error) {
+func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess bool) ([]SearchResult, error) {
 	queryPreview := truncateStr(query, 60)
 	pipeStart := time.Now()
 
+	accessLevel := "preview"
+	if hasAccess {
+		accessLevel = "full"
+	}
+
 	// ====== L1 精确匹配 ======
 	if config.App.RAG.CacheEnabled && database.RDB != nil {
-		exactKey := fmt.Sprintf("rag:exact:%x", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))))
+		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))), accessLevel)
 		if b, err := database.RDB.Get(context.Background(), exactKey).Bytes(); err == nil && len(b) > 0 {
 			var results []SearchResult
 			if json.Unmarshal(b, &results) == nil {
@@ -163,7 +171,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResu
 		if len(vecs) > 0 {
 			queryVec = vecs[0]
 			slog.Debug("rag L2语义缓存-查询向量化完成，准备余弦相似度比对", "course_id", courseID, "emb_ms", time.Since(embStart).Milliseconds())
-			semKey := fmt.Sprintf("rag:sem:%d", courseID)
+			semKey := fmt.Sprintf("rag:sem:%d:%s", courseID, accessLevel)
 			if b, err := database.RDB.Get(context.Background(), semKey).Bytes(); err == nil {
 				var recent []cachedEntry
 				if json.Unmarshal(b, &recent) == nil {
@@ -214,7 +222,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResu
 	// ====== 写入缓存 ======
 	if config.App.RAG.CacheEnabled && database.RDB != nil && len(results) > 0 {
 		// L1
-		exactKey := fmt.Sprintf("rag:exact:%x", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))))
+		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))), accessLevel)
 		b, _ := json.Marshal(results)
 		database.RDB.SetEx(context.Background(), exactKey, b, time.Duration(config.App.RAG.CacheTTL)*time.Second)
 
@@ -228,7 +236,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int) ([]SearchResu
 			}
 		}
 		if len(queryVec) > 0 {
-			semKey := fmt.Sprintf("rag:sem:%d", courseID)
+			semKey := fmt.Sprintf("rag:sem:%d:%s", courseID, accessLevel)
 			entry := cachedEntry{Query: query, Vector: queryVec, Results: results}
 			var recent []cachedEntry
 			if old, err := database.RDB.Get(context.Background(), semKey).Bytes(); err == nil {
