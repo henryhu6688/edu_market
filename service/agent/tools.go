@@ -50,7 +50,7 @@ func (t ToolDef) ToOpenAITool() map[string]interface{} {
 }
 
 // SearchFunc RAG 检索函数类型（由 RAGService 注入，避免循环依赖）
-type SearchFunc func(materialID uint, query string, topK int) (string, error)
+type SearchFunc func(materialID uint, query string, topK int, hasAccess bool) (string, error)
 
 // ============ 工具常量 ============
 
@@ -219,7 +219,7 @@ func (t searchMaterialsTool) Definition() ToolDef {
 	}
 }
 
-func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
+func (t searchMaterialsTool) Execute(userID uint, argsJSON string) ToolResult {
 	var args struct {
 		MaterialID uint   `json:"material_id"`
 		Query      string `json:"query"`
@@ -229,7 +229,8 @@ func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
 	if t.searchFunc == nil {
 		return ToolResult{Success: false, Content: "资料检索服务暂不可用，请稍后重试", ErrorCode: "SERVICE_UNAVAILABLE", Recoverable: false, RecommendedAction: "tell_user_service_unavailable"}
 	}
-	content, err := t.searchFunc(args.MaterialID, args.Query, 5)
+	hasAccess := checkHasAccess(userID, args.MaterialID)
+	content, err := t.searchFunc(args.MaterialID, args.Query, 5, hasAccess)
 	if err != nil {
 		return ToolResult{Success: false, Content: "文档检索失败，建议换个问法或关键词重试", ErrorCode: "SEARCH_ERROR", Recoverable: true, RecommendedAction: "retry_or_narrow_query"}
 	}
