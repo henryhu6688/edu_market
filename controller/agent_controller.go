@@ -58,9 +58,9 @@ func (ctr *AgentController) Chat(c *gin.Context) {
 	var searchFunc agent.SearchFunc
 	ragSvc := rag.Get()
 	if ragSvc != nil {
-		searchFunc = func(courseID uint, query string, topK int) (string, error) {
+		searchFunc = func(courseID uint, query string, topK int, hasAccess bool) (string, error) {
 			start := time.Now()
-			results, err := ragSvc.Search(courseID, query, topK)
+			results, err := ragSvc.Search(courseID, query, topK, hasAccess)
 			if err != nil {
 				return "", err
 			}
