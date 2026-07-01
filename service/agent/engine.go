@@ -613,17 +613,26 @@ func (e *AgentEngine) updateTaskState(session *model.Session, tool Tool, toolNam
 		if args.MaterialID > 0 {
 			state.Context.FocusID = args.MaterialID
 		}
+		if strings.Contains(result.Content, "full") {
+			state.Context.UserHasAccess = true
+		}
 	case ToolGetMaterialDetail:
 		var args struct{ MaterialID uint `json:"material_id"` }
 		json.Unmarshal([]byte(argsJSON), &args)
 		state.Context.FocusID = args.MaterialID
 		state.Context.MaterialsViewed = appendUnique(state.Context.MaterialsViewed, args.MaterialID)
+		if strings.Contains(result.Content, "has_purchased") || strings.Contains(result.Content, "is_owner") {
+			state.Context.UserHasAccess = true
+		}
 	case ToolSearchMaterials:
 		state.Context.Candidates = extractCandidates(result.Content)
 	case ToolPurchase:
 		state.Context.CardSent = true
 	case ToolMyMaterials:
 		state.Context.Candidates = extractCandidatesFromMyMaterials(result.Content)
+		if strings.Contains(result.Content, "published") || strings.Contains(result.Content, "purchased") {
+			state.Context.UserHasAccess = true
+		}
 	}
 
 	mode := session.Mode
