@@ -188,8 +188,7 @@ func (e *AgentEngine) Run(
 				"stream":      false,
 			},
 		})
-		modeTools := countModeTools(tools, session.Mode)
-		slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "mode", session.Mode, "tools_usable", modeTools, "tools_total", len(openAITools))
+		slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "mode", session.Mode, "tools_total", len(openAITools))
 
 		llmStart := time.Now()
 		resp, err := e.callLLMWithRetry(history, openAITools, requestID)
@@ -257,23 +256,6 @@ func (e *AgentEngine) Run(
 			if !toolExists {
 				slog.Warn("agent round.未知工具", "request_id", requestID, "tool", toolName, "round", round+1)
 				result := ToolResult{Success: false, Content: fmt.Sprintf("未知工具: %s，请换用其他可用工具", toolName), Source: "error", ErrorCode: "UNKNOWN_TOOL", Recoverable: true, RecommendedAction: "try_alternative_tool"}
-				e.storeToolMessagesDB(session.ID, tc, toolName, result)
-				roundMsgs = append(roundMsgs,
-					agentChatMsg{
-						Role:             "assistant",
-						ReasoningContent: choice.Message.ReasoningContent,
-						Content:          choice.Message.Content,
-						ToolCalls:        []toolCallItem{{ID: tc.ID, Type: "function", Function: toolCallFunc{Name: toolName, Arguments: argsJSON}}},
-					},
-					agentChatMsg{Role: "tool", Content: result.Content, ToolCallID: tc.ID},
-				)
-				continue
-			}
-
-			// 模式白名单（第一轮 mode="" 跳过）
-			if err := e.checkToolMode(tool, session.Mode); err != nil {
-				result := ToolResult{Success: false, Content: err.Error(), Source: "blocked", ErrorCode: "ACCESS_DENIED", Recoverable: false, RecommendedAction: "tell_user_boundary"}
-				slog.Warn("模式白名单拦截", "request_id", requestID, "tool", toolName, "mode", session.Mode, "error", err)
 				e.storeToolMessagesDB(session.ID, tc, toolName, result)
 				roundMsgs = append(roundMsgs,
 					agentChatMsg{
@@ -603,38 +585,54 @@ func (e *AgentEngine) expireOldFacts(state *SessionState, source string) {
 
 // updateTaskState 更新进度状态：completed / context / to_do。
 func (e *AgentEngine) updateTaskState(session *model.Session, tool Tool, toolName, argsJSON string, result ToolResult) {
-	if !result.Success {
-		return
-	}
-
 	var state SessionState
 	if err := json.Unmarshal([]byte(session.State), &state); err != nil {
 		return
 	}
 
-	// 追加 completed
 	desc := tool.Describe(argsJSON, result)
-	state.Completed = append(state.Completed, desc)
+	step := StepRecord{
+		Action:  desc,
+		Tool:    toolName,
+		Args:    argsJSON,
+		Success: result.Success,
+	}
+
+	if result.Success {
+		state.Completed = append(state.Completed, step)
+	} else {
+		step.Error = result.Content
+		state.Failed = append(state.Failed, step)
+	}
 
 	// 更新业务上下文
 	switch toolName {
-	case "get_material_detail":
-		var args struct{ MaterialID uint }
+	case ToolSearchDocuments:
+		var args struct{ MaterialID uint `json:"material_id"` }
+		json.Unmarshal([]byte(argsJSON), &args)
+		if args.MaterialID > 0 {
+			state.Context.FocusID = args.MaterialID
+		}
+	case ToolGetMaterialDetail:
+		var args struct{ MaterialID uint `json:"material_id"` }
 		json.Unmarshal([]byte(argsJSON), &args)
 		state.Context.FocusID = args.MaterialID
 		state.Context.MaterialsViewed = appendUnique(state.Context.MaterialsViewed, args.MaterialID)
-	case "trigger_purchase_offer":
-		state.Context.CardSent = true
-	case "query_materials":
+	case ToolSearchMaterials:
 		state.Context.Candidates = extractCandidates(result.Content)
+	case ToolPurchase:
+		state.Context.CardSent = true
+	case ToolMyMaterials:
+		state.Context.Candidates = extractCandidatesFromMyMaterials(result.Content)
 	}
 
-	// 重新计算 to_do
 	mode := session.Mode
 	if mode == "" {
 		mode = ResolveMode(session, []string{toolName})
 	}
 	state.ToDo = computeToDo(mode, state.Completed, state.Context)
+
+	e.assessState(&state)
 
 	b, _ := json.Marshal(state)
 	session.State = string(b)
@@ -778,6 +776,35 @@ func extractCandidates(content string) []Candidate {
 	}
 	var candidates []Candidate
 	for _, m := range materials {
+		candidates = append(candidates, Candidate{ID: m.ID, Title: m.Title, Price: m.Price})
+	}
+	return candidates
+}
+
+// extractCandidatesFromMyMaterials 从 my_materials 返回的 JSON 中提取候选资料。
+func extractCandidatesFromMyMaterials(content string) []Candidate {
+	var raw struct {
+		Materials struct {
+			Published []struct {
+				ID    uint    `json:"id"`
+				Title string  `json:"title"`
+				Price float64 `json:"price"`
+			} `json:"published"`
+			Purchased []struct {
+				ID    uint    `json:"id"`
+				Title string  `json:"title"`
+				Price float64 `json:"price"`
+			} `json:"purchased"`
+		} `json:"materials"`
+	}
+	if err := json.Unmarshal([]byte(content), &raw); err != nil {
+		return nil
+	}
+	var candidates []Candidate
+	for _, m := range raw.Materials.Published {
+		candidates = append(candidates, Candidate{ID: m.ID, Title: m.Title, Price: m.Price})
+	}
+	for _, m := range raw.Materials.Purchased {
 		candidates = append(candidates, Candidate{ID: m.ID, Title: m.Title, Price: m.Price})
 	}
 	return candidates

@@ -14,13 +14,16 @@ import (
 // SessionState 会话任务状态快照。
 // 由引擎在每轮 Tool 执行后自动更新，注入 Prompt State Block 中通知 LLM 当前进度。
 type SessionState struct {
-	Task       string       `json:"task"`       // 当前任务描述
-	Completed  []string     `json:"completed"`  // 已完成步骤
-	ToDo       []string     `json:"to_do"`      // 待完成步骤
-	Facts      []FactItem   `json:"facts"`      // 事实层（Tool 返回、RAG 精确匹配）
-	Hypotheses []FactItem   `json:"hypotheses"` // 假设层（RAG 模糊匹配、LLM 推测）
-	Discarded  []FactItem   `json:"discarded"`  // 废弃层（被覆盖的旧数据）
-	Context    ContextData  `json:"context"`    // 业务上下文
+	Task        string       `json:"task"`        // 当前任务描述
+	Completed   []StepRecord `json:"completed"`   // 已完成步骤
+	Failed      []StepRecord `json:"failed"`      // 失败步骤
+	Gaps        []string     `json:"gaps"`        // 当前信息缺口
+	Deliverable bool         `json:"deliverable"` // 是否可以交付
+	ToDo        []string     `json:"to_do"`       // 待完成步骤
+	Facts       []FactItem   `json:"facts"`       // 事实层
+	Hypotheses  []FactItem   `json:"hypotheses"`  // 假设层
+	Discarded   []FactItem   `json:"discarded"`   // 废弃层
+	Context     ContextData  `json:"context"`     // 业务上下文
 }
 
 // ContextData 业务上下文数据。
@@ -60,16 +63,16 @@ const SystemPromptV3 = `你是 edu_market 的学习导购 + 课程助教 + 客�
 用户："第三章公式怎么推导" → 先 get_material_detail 确认资料 → 再 search_documents 搜内容 → 用文档原文回答
 
 【工具速查】
-找资料/推荐 → query_materials, get_categories, get_reviews
-问资料内容/大纲/价格 → get_material_detail（不用再搜），想买就 trigger_purchase_offer
+找资料/推荐 → search_materials, get_categories, get_material_detail
+问资料内容/大纲/价格 → get_material_detail（不用再搜），想买就 purchase
 问文档具体章节/知识点 → 先用 get_material_detail 确认资料，再用 search_documents 搜内容
-订单/售后 → query_orders, get_order_detail, search_faq
+订单/售后 → get_orders, get_order_detail, search_faq
 
 【重要规则】
-- 用户表达任何购买意向（"买""下单""就这个""来一份""重新发送""卡片""推荐这个"等），唯一正确的回应是调用 trigger_purchase_offer 工具，严禁只用文字回复
-- trigger_purchase_offer 是弹出购买卡片的唯一方式，不调用 = 用户看不到卡片 = 你没有完成用户请求
-- 即使之前调过 trigger_purchase_offer，用户再次表达购买意向也必须重新调用
-- 【最重要】如果你发现自己想说"已发送卡片"或"点击即可下单"，停下——这说明你没调 trigger_purchase_offer，用户根本看不到卡片，立即补调
+- 用户表达任何购买意向（"买""下单""就这个""来一份""重新发送""卡片""推荐这个"等），唯一正确的回应是调用 purchase 工具，严禁只用文字回复
+- purchase 是弹出购买卡片的唯一方式，不调用 = 用户看不到卡片 = 你没有完成用户请求
+- 即使之前调过 purchase，用户再次表达购买意向也必须重新调用
+- 【最重要】如果你发现自己想说"已发送卡片"或"点击即可下单"，停下——这说明你没调 purchase，用户根本看不到卡片，立即补调
 
 【风格】
 回复简洁，不用emoji，不中途停止，不编造平台没有的资料`
@@ -90,46 +93,44 @@ const shoppingModeBlock = `【导购模式】
 
 策略：
   1. 用户没说方向 → 先问需求（方向/水平/预算），别直接搜
-  2. 用户说了方向 → query_materials 搜索 → 挑 1-2 个最匹配的推荐
-  3. 用户对某资料感兴趣 → get_material_detail + get_reviews
-  4. 用户表达购买意向 → trigger_purchase_offer
+  2. 用户说了方向 → search_materials 搜索 → 挑 1-2 个最匹配的推荐
+  3. 用户对某资料感兴趣 → get_material_detail（含目录、评价、访问权限）
+  4. 用户表达购买意向 → purchase
   5. 发了卡片后 → 等用户决策，不强推其他资料
-  6. 用户想了解内容但没买 → search_documents（系统会自动限制返回内容），基于介绍引导购买
+  6. 用户想了解内容但没买 → search_documents（系统自动限制返回preview），基于介绍引导购买
 
 禁止：
   - 一上来就甩资料列表
   - 用户拒绝后继续推销同一资料
   - 深入讲解文档内容（告知买后可详细讲解即可）
-  - trigger_purchase_offer 是发卡唯一方式，不调 = 用户看不到卡片
-  - 说了"已发送卡片"但没调 trigger_purchase_offer → 立即补调`
+  - purchase 是发卡唯一方式，不调 = 用户看不到卡片
+  - 说了"已发送卡片"但没调 purchase → 立即补调`
 
 // tutoringModeBlock 助教模式策略
 const tutoringModeBlock = `【助教模式】
-你是课程助教，用已购资料的文档内容回答问题。
+用户已拥有当前资料的完整访问权（已购买或为发布者）。你是课程助教，用资料全文内容详细回答问题。
 
 策略：
   1. 用户提到资料名/章节 → get_material_detail 确认
   2. 用户问知识点 → search_documents 检索
-  3. 文档原文回答，注明章节来源
-  4. 搜不到 → 诚实说"资料中没有涉及"
-  5. 试读章节 → 正常回答
-  6. 没买但想了解 → search_documents（系统限制输出），基于介绍引导购买
+  3. 用文档原文详细回答，注明章节来源，不用有所保留
+  4. 搜不到 → 诚实地告知"资料中没有涉及该内容"
+  5. 禁止提及"购买""付费""试读"等概念——用户已有完整访问权
 
 禁止：
+  - 建议用户购买或提示未购买
   - 答疑时推荐其他资料（除非用户主动问）
   - 编造文档中没有的内容
-  - 管订单和退款
-  - 引用内容时注意可信度标记：精确匹配 > 语义匹配 > 模糊匹配`
+  - 管订单和退款`
 
 // supportModeBlock 客服模式策略
 const supportModeBlock = `【客服模式】
 你是平台客服，用订单数据和 FAQ 处理售后。
 
 策略：
-  1. 订单相关问题 → query_orders
-  2. 有具体订单号 → get_order_detail
-  3. 查 FAQ → search_faq
-  4. FAQ 没有 → "这个问题需要转接人工客服处理"
+  1. 订单相关问题 → get_orders（不传 order_no=列表，传了=详情）
+  2. 查 FAQ → search_faq
+  3. FAQ 没有 → "这个问题需要转接人工客服处理"
 
 禁止：
   - 推荐资料
@@ -237,44 +238,76 @@ func (e *AgentEngine) appendModeBlock(parts *[]string, mode string) string {
 	}
 }
 
-// buildStateBlock 从 SessionState 生成 State Block 文本。
+// buildStateBlock 从 SessionState 生成 State Block 文本，含治理信号。
 func buildStateBlock(state *SessionState) string {
 	var sb strings.Builder
 
-	sb.WriteString("【当前任务】\n")
-	sb.WriteString(fmt.Sprintf("  %s\n", state.Task))
+	sb.WriteString("/* ── 任务状态 ── */\n")
+	sb.WriteString(fmt.Sprintf("当前目标: %s\n", state.Task))
 
 	if len(state.Completed) > 0 {
-		sb.WriteString("【已完成】\n")
-		for _, s := range state.Completed {
-			sb.WriteString(fmt.Sprintf("  ✅ %s\n", s))
+		sb.WriteString("已完成:\n")
+		for _, r := range state.Completed {
+			sb.WriteString(fmt.Sprintf("  ✅ %s\n", r.Action))
 		}
 	}
+	if len(state.Failed) > 0 {
+		sb.WriteString("已失败:\n")
+		for _, r := range state.Failed {
+			sb.WriteString(fmt.Sprintf("  ❌ %s → %s\n", r.Action, r.Error))
+		}
+	}
+	if len(state.Gaps) > 0 {
+		sb.WriteString("缺口:\n")
+		for _, g := range state.Gaps {
+			sb.WriteString(fmt.Sprintf("  ⚠️ %s\n", g))
+		}
+	}
+	label := "否 → 继续获取信息"
+	if state.Deliverable {
+		label = "是 → 立即回答用户"
+	}
+	sb.WriteString(fmt.Sprintf("可以交付: %s\n", label))
+
 	if len(state.ToDo) > 0 {
-		sb.WriteString("【还需完成】\n")
+		sb.WriteString("待办:\n")
 		for _, s := range state.ToDo {
 			sb.WriteString(fmt.Sprintf("  ⬜ %s\n", s))
 		}
 	}
 	if len(state.Facts) > 0 {
-		sb.WriteString("【事实层 - 请以此为准】\n")
+		sb.WriteString("\n/* ── 事实层 ── */\n")
 		for _, f := range state.Facts {
 			sb.WriteString(fmt.Sprintf("  📖 %s | 来源：%s\n", f.Content, f.Source))
 		}
 	}
 	if len(state.Hypotheses) > 0 {
-		sb.WriteString("【假设层 - 仅供参考】\n")
+		sb.WriteString("/* ── 假设层 ── */\n")
 		for _, h := range state.Hypotheses {
 			sb.WriteString(fmt.Sprintf("  💡 %s | 来源：%s\n", h.Content, h.Source))
 		}
 	}
 	if len(state.Discarded) > 0 {
-		sb.WriteString("【废弃层 - 不要使用】\n")
+		sb.WriteString("/* ── 废弃层 ── */\n")
 		for _, d := range state.Discarded {
 			sb.WriteString(fmt.Sprintf("  🗑️ %s | 原因：%s\n", d.Content, d.Basis))
 		}
 	}
 	return sb.String()
+}
+
+// assessState 每轮 Tool 执行后校验任务状态，标注缺口和交付条件。
+// 引擎不替代 LLM 做决策——只标注位置信息，LLM 据此自主规划。
+func (e *AgentEngine) assessState(state *SessionState) {
+	hasCompleted := len(state.Completed) > 0
+	hasOpenFailures := false
+	for _, f := range state.Failed {
+		if f.Error != "" {
+			hasOpenFailures = true
+			break
+		}
+	}
+	state.Deliverable = hasCompleted && len(state.Gaps) == 0 && !hasOpenFailures
 }
 
 // buildUserContextBlock 从 user_memories 表加载用户画像，按 mode 筛选注入字段。

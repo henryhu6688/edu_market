@@ -87,28 +87,28 @@ func validateMemoryValue(key, value string) error {
 }
 
 // computeToDo 根据模式、已完成步骤、业务上下文计算待办事项列表。
-func computeToDo(mode string, completed []string, ctx ContextData) []string {
+func computeToDo(mode string, completed []StepRecord, ctx ContextData) []string {
 	var todos []string
 	switch mode {
 	case "shopping":
-		if !containsStr(completed, "发购买卡片") && ctx.FocusID > 0 {
-			todos = append(todos, "询问用户是否购买 → 调 trigger_purchase_offer")
+		if !hasAction(completed, "发送购买卡片") && ctx.FocusID > 0 {
+			todos = append(todos, "询问用户是否购买 → 调 purchase")
 		}
-		if !containsStr(completed, "查看详情") && ctx.FocusID == 0 && len(ctx.Candidates) > 0 {
+		if !hasAction(completed, "查看详情") && ctx.FocusID == 0 && len(ctx.Candidates) > 0 {
 			todos = append(todos, "引导用户查看具体资料详情")
 		}
 	case "support":
-		if !containsStr(completed, "查FAQ") {
+		if !hasAction(completed, "搜索FAQ") {
 			todos = append(todos, "如当前信息无法解决，查 search_faq")
 		}
 	}
 	return todos
 }
 
-// containsStr 检查字符串切片中是否有字符串包含指定子串。
-func containsStr(slice []string, substr string) bool {
-	for _, s := range slice {
-		if strings.Contains(s, substr) {
+// hasAction 检查已完成步骤中是否包含指定动作描述。
+func hasAction(records []StepRecord, action string) bool {
+	for _, r := range records {
+		if strings.Contains(r.Action, action) {
 			return true
 		}
 	}

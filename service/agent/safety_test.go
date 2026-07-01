@@ -11,14 +11,14 @@ func TestCircuitBreaker_Check(t *testing.T) {
 	cb := &CircuitBreaker{}
 
 	// 第一轮：正常
-	blocked, _ := cb.Check(nil, "query_materials", `{"keyword":"Python"}`)
+	blocked, _ := cb.Check(nil, "search_materials", `{"keyword":"Python"}`)
 	if blocked {
 		t.Error("第一次调用不应该被拦截")
 	}
-	cb.Record("query_materials", `{"keyword":"Python"}`)
+	cb.Record("search_materials", `{"keyword":"Python"}`)
 
 	// 第二轮：完全相同 → 拦截
-	blocked, reason := cb.Check(nil, "query_materials", `{"keyword":"Python"}`)
+	blocked, reason := cb.Check(nil, "search_materials", `{"keyword":"Python"}`)
 	if !blocked {
 		t.Error("第二次完全相同的调用应该被拦截")
 	}
@@ -27,8 +27,8 @@ func TestCircuitBreaker_Check(t *testing.T) {
 	}
 
 	// 第三轮：不同参数 → 不拦截
-	cb.Record("query_materials", `{"keyword":"Java"}`)
-	blocked, _ = cb.Check(nil, "query_materials", `{"keyword":"Java"}`)
+	cb.Record("search_materials", `{"keyword":"Java"}`)
+	blocked, _ = cb.Check(nil, "search_materials", `{"keyword":"Java"}`)
 	if !blocked {
 		t.Error("Java → Java 相同调用应被拦截")
 	}
@@ -39,9 +39,9 @@ func TestCircuitBreaker_AllowRepeat(t *testing.T) {
 	cb := &CircuitBreaker{}
 
 	// trigger_purchase_offer AllowRepeat()==true
-	offerTool := triggerPurchaseOfferTool{}
-	cb.Record("trigger_purchase_offer", `{"material_id":2}`)
-	blocked, _ := cb.Check(offerTool, "trigger_purchase_offer", `{"material_id":2}`)
+	offerTool := purchaseTool{}
+	cb.Record("purchase", `{"material_id":2}`)
+	blocked, _ := cb.Check(offerTool, "purchase", `{"material_id":2}`)
 	if blocked {
 		t.Error("AllowRepeat 的 tool 不应该被 L1 拦截")
 	}
@@ -51,7 +51,7 @@ func TestCircuitBreaker_AllowRepeat(t *testing.T) {
 func TestCircuitBreaker_DifferentTool(t *testing.T) {
 	cb := &CircuitBreaker{}
 
-	cb.Record("query_materials", `{"keyword":"Python"}`)
+	cb.Record("search_materials", `{"keyword":"Python"}`)
 	blocked, _ := cb.Check(nil, "get_material_detail", `{"keyword":"Python"}`)
 	if blocked {
 		t.Error("不同 tool 不应该被拦截")
@@ -100,12 +100,12 @@ func TestSemanticLoopDetector_OnlyTwo(t *testing.T) {
 func TestResolveMode(t *testing.T) {
 	session := &model.Session{Mode: "", UserID: 1, State: `{"context":{"focus_id":0}}`}
 
-	mode := ResolveMode(session, []string{"query_materials"})
-	if mode != "shopping" {
-		t.Errorf("query_materials → shopping, got %s", mode)
+	mode := ResolveMode(session, []string{"search_materials"})
+	if mode != "" {
+		t.Errorf("search_materials 不改变模式, got %s", mode)
 	}
 
-	mode = ResolveMode(session, []string{"query_orders"})
+	mode = ResolveMode(session, []string{"get_orders"})
 	if mode != "support" {
 		t.Errorf("query_orders → support, got %s", mode)
 	}
@@ -120,7 +120,7 @@ func TestResolveMode(t *testing.T) {
 		t.Errorf("get_material_detail → shopping, got %s", mode)
 	}
 
-	mode = ResolveMode(session, []string{"trigger_purchase_offer"})
+	mode = ResolveMode(session, []string{"purchase"})
 	if mode != "shopping" {
 		t.Errorf("trigger_purchase_offer → shopping, got %s", mode)
 	}
@@ -137,11 +137,11 @@ func TestResolveMode(t *testing.T) {
 func TestToolBudget_Spend(t *testing.T) {
 	b := NewToolBudget()
 	for i := 0; i < 3; i++ {
-		if err := b.Spend("trigger_purchase_offer"); err != nil {
+		if err := b.Spend("purchase"); err != nil {
 			t.Errorf("第%d次调用不应超限: %v", i+1, err)
 		}
 	}
-	if err := b.Spend("trigger_purchase_offer"); err == nil {
+	if err := b.Spend("purchase"); err == nil {
 		t.Error("第4次调用应该超限")
 	}
 }
@@ -150,11 +150,11 @@ func TestToolBudget_Spend(t *testing.T) {
 func TestToolBudget_DifferentTools(t *testing.T) {
 	b := NewToolBudget()
 	for i := 0; i < 5; i++ {
-		if err := b.Spend("query_materials"); err != nil {
+		if err := b.Spend("search_materials"); err != nil {
 			t.Errorf("第%d次 query_materials 不应超限", i+1)
 		}
 	}
-	if err := b.Spend("query_materials"); err == nil {
+	if err := b.Spend("search_materials"); err == nil {
 		t.Error("第6次 query_materials 应该超限")
 	}
 	// get_material_detail 不受影响

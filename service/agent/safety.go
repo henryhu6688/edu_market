@@ -105,15 +105,13 @@ type ToolBudget struct {
 func NewToolBudget() *ToolBudget {
 	return &ToolBudget{
 		limits: map[string]int{
-			ToolTriggerPurchaseOffer: 3,
-			ToolSearchDocuments:      10,
-			ToolQueryMaterials:       5,
-			ToolGetMaterialDetail:    10,
-			ToolGetReviews:           5,
-			ToolGetCategories:        3,
-			ToolQueryOrders:          3,
-			ToolGetOrderDetail:       5,
-			ToolSearchFAQ:            5,
+			ToolPurchase:          3,
+			ToolSearchDocuments:   10,
+			ToolSearchMaterials:   5,
+			ToolGetMaterialDetail: 10,
+				ToolMyMaterials:       5,
+			ToolGetOrders:         5,
+			ToolSearchFAQ:         5,
 		},
 		counts: make(map[string]int),
 	}
@@ -128,39 +126,6 @@ func (b *ToolBudget) Spend(toolName string) error {
 	return nil
 }
 
-// ============ 工具边界：模式白名单 ============
-
-// checkToolMode 检查 Tool 是否允许在当前模式下调用。
-// 第一轮 mode="" 时不检查（全开放）。
-func (e *AgentEngine) checkToolMode(tool Tool, sessionMode string) error {
-	if sessionMode == "" {
-		return nil
-	}
-	for _, m := range tool.AllowedModes() {
-		if m == sessionMode {
-			return nil
-		}
-	}
-	return fmt.Errorf("当前模式（%s）不允许使用此工具", sessionMode)
-}
-
-// countModeTools 统计当前模式下可用工具数（mode="" 时返回全部）
-func countModeTools(tools map[string]Tool, mode string) int {
-	if mode == "" {
-		return len(tools)
-	}
-	count := 0
-	for _, t := range tools {
-		for _, m := range t.AllowedModes() {
-			if m == mode {
-				count++
-				break
-			}
-		}
-	}
-	return count
-}
-
 // ============ 状态机：模式判定 ============
 
 // ResolveMode 根据本轮实际执行的 Tool 类型判定当前模式。
@@ -172,15 +137,16 @@ func ResolveMode(session *model.Session, executedTools []string) string {
 	}
 	for _, t := range executedTools {
 		switch {
-		case t == ToolQueryOrders || t == ToolGetOrderDetail:
+		case t == ToolGetOrders:
 			return "support"
-		case t == ToolSearchDocuments || t == ToolGetMaterialDetail || t == ToolGetReviews:
+		case t == ToolSearchDocuments || t == ToolGetMaterialDetail:
 			if checkHasAccess(session.UserID, getFocusMaterialID(session)) {
 				return "tutoring"
 			}
 			return "shopping"
-		case t == ToolQueryMaterials || t == ToolGetCategories || t == ToolTriggerPurchaseOffer:
+		case t == ToolPurchase:
 			return "shopping"
+		// search_materials / my_materials / search_faq 是中立的，不改变模式
 		}
 	}
 	return session.Mode
