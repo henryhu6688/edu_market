@@ -28,10 +28,11 @@ type SessionState struct {
 
 // ContextData 业务上下文数据。
 type ContextData struct {
-	Candidates      []Candidate `json:"candidates,omitempty"`   // 候选资料列表
-	FocusID         uint        `json:"focus_id"`               // 当前焦点资料ID
-	CardSent        bool        `json:"card_sent"`             // 是否已发送购买卡片
-	MaterialsViewed []uint      `json:"materials_viewed"`      // 浏览过的资料ID
+	UserHasAccess  bool        `json:"user_has_access"`        // 用户是否有资料访问权（由 Tool 结果写入，非 focus_id 推测）
+	Candidates     []Candidate `json:"candidates,omitempty"`   // 候选资料列表
+	FocusID        uint        `json:"focus_id"`               // 当前焦点资料ID
+	CardSent       bool        `json:"card_sent"`              // 是否已发送购买卡片
+	MaterialsViewed []uint     `json:"materials_viewed"`       // 浏览过的资料ID
 }
 
 // Candidate 候选资料。

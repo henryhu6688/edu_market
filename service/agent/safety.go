@@ -140,7 +140,7 @@ func ResolveMode(session *model.Session, executedTools []string) string {
 		case t == ToolGetOrders:
 			return "support"
 		case t == ToolSearchDocuments || t == ToolGetMaterialDetail:
-			if checkHasAccess(session.UserID, getFocusMaterialID(session)) {
+			if getUserHasAccess(session) {
 				return "tutoring"
 			}
 			return "shopping"
@@ -187,3 +187,20 @@ func getFocusMaterialID(session *model.Session) uint {
 	}
 	return 0
 }
+// getUserHasAccess 从 Session.State 中读取 UserHasAccess 标志。
+// 由 updateTaskState 在 my_materials / get_material_detail / search_documents 返回时写入。
+func getUserHasAccess(session *model.Session) bool {
+	if session.State == "" {
+		return false
+	}
+	var raw struct {
+		Context struct {
+			UserHasAccess bool `json:"user_has_access"`
+		} `json:"context"`
+	}
+	if json.Unmarshal([]byte(session.State), &raw) == nil {
+		return raw.Context.UserHasAccess
+	}
+	return false
+}
+
