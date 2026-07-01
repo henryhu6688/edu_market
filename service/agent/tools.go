@@ -402,7 +402,7 @@ func (t searchDocumentsTool) Execute(userID uint, argsJSON string) ToolResult {
 	for _, mid := range accessibleIDs {
 		content, err := t.searchFunc(mid, args.Query, 5, true)
 		if err != nil { continue }
-		if content == "" { continue }
+		if content == "" || isSearchEmpty(content) { continue }
 		allResults = append(allResults, content)
 		searched++
 	}
@@ -661,6 +661,11 @@ func avgRating(reviews []model.Review) float64 {
 	sum := 0
 	for _, r := range reviews { sum += r.Rating }
 	return float64(sum) / float64(len(reviews))
+}
+
+// isSearchEmpty 检查 searchFunc 返回的内容是否为空结果（found:false 包装）。
+func isSearchEmpty(content string) bool {
+	return strings.Contains(content, `"found":false`) || strings.Contains(content, `"found\":false`)
 }
 
 // getUserAccessibleMaterialIDs 获取用户可访问的所有资料ID（发布的 + 购买的）。
