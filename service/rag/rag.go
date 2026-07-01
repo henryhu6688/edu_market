@@ -170,7 +170,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 		vecs, _ := embedTexts([]string{query})
 		if len(vecs) > 0 {
 			queryVec = vecs[0]
-			slog.Debug("rag L2语义缓存-查询向量化完成，准备余弦相似度比对", "course_id", courseID, "emb_ms", time.Since(embStart).Milliseconds())
+			slog.Info("rag L2查询向量化完成，准备余弦相似度比对", "course_id", courseID, "emb_ms", time.Since(embStart).Milliseconds())
 			semKey := fmt.Sprintf("rag:sem:%d:%s", courseID, accessLevel)
 			if b, err := database.RDB.Get(context.Background(), semKey).Bytes(); err == nil {
 				var recent []cachedEntry
@@ -182,7 +182,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 							return entry.Results, nil
 						}
 					}
-					slog.Debug("rag L2语义缓存未命中，已比对所有历史向量均低于阈值", "course_id", courseID, "checked", len(recent), "threshold", config.App.RAG.CacheSimThreshold)
+					slog.Info("rag L2语义缓存未命中，已比对所有历史向量均低于阈值", "course_id", courseID, "checked", len(recent), "threshold", config.App.RAG.CacheSimThreshold)
 				}
 			}
 		}
@@ -249,7 +249,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 			b, _ := json.Marshal(recent)
 			database.RDB.SetEx(context.Background(), semKey, b, 0)
 		}
-		slog.Debug("rag L1+L2缓存写入完成", "course_id", courseID, "results", len(results), "query", queryPreview)
+		slog.Info("rag L1+L2缓存写入完成", "course_id", courseID, "results", len(results), "query", queryPreview)
 	}
 
 	slog.Info("rag 检索管线结束", "course_id", courseID, "results", len(results), "total_ms", time.Since(pipeStart).Milliseconds())

@@ -5,11 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 启动与运行
 
 ```bash
-# 后端 — 确保 MySQL + Redis 运行
+# 1. 确保基础设施 — MySQL + Redis（系统服务）+ Docker + Qdrant
+docker start edu_market_qdrant    # Qdrant 向量库 :6335
+
+# 2. 后端
 taskkill //F //IM edu_market.exe 2>/dev/null; taskkill //F //IM main.exe 2>/dev/null
 go run .
 
-# 前端开发服务器 (web/)
+# 3. 前端开发服务器 (web/)
 cd web && npm run dev
 
 # 测试

@@ -1,0 +1,1295 @@
+# Agent Tools 重设计 实现计划
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 重构 Agent Tool 体系 — 9→7 Tool、去掉模式白名单、State 升级为任务板。
+
+**Architecture:** Task 1-2 定义新接口和 Tool 实现（底层），Task 3 改安全层，Task 4 改 Prompt 和 State，Task 5 改引擎编排层，Task 6-7 适配调用方和测试。
+
+**Tech Stack:** Go 1.x, GORM, Gin, slog
+
+## Global Constraints
+
+- 所有 HTTP 响应走 `utils/response.go`（controller 层不变，此计划不涉及）
+- Service 层不碰 `gin.Context`
+- 导出函数和结构体必须有中文注释
+- 测试前必须先拉分支
+
+---
+
+## 文件结构
+
+| 文件 | 职责 | 改动类型 |
+|------|------|:---:|
+| `service/agent/tools.go` | Tool 接口 + 7 个 Tool 实现 + buildToolSet | 重写 |
+| `service/agent/safety.go` | 熔断器 + 工具边界 + ResolveMode | 删除 checkToolMode/countModeTools，更新 ResolveMode |
+| `service/agent/prompts.go` | 6 模块 Prompt + SessionState + assessState | 新增 StepRecord/assessState，更新 modeBlock 引用 |
+| `service/agent/engine.go` | 引擎主循环 + updateTaskState | 删白名单检查，加 assessState 调用，更新日志 |
+| `service/agent/service.go` | Chat 入口 | 适配新 buildToolSet（签名不变） |
+| `scripts/test_agent.go` | REPL 测试 | 适配新 Tool 名称引用 |
+
+---
+
+### Task 1: 修改 Tool 接口 + 常量 + ToolResult
+
+**Files:**
+- Modify: `service/agent/tools.go:30-67`
+
+**Interfaces:**
+- Consumes: 无（第一个 task）
+- Produces:
+  - `Tool` interface（删 `AllowedModes()`）
+  - 新工具常量（`ToolSearchMaterials`, `ToolGetMaterialDetail`, `ToolMyMaterials`, `ToolSearchDocuments`, `ToolGetOrders`, `ToolSearchFAQ`, `ToolPurchase`）
+  - `ToolResult` 保持不变
+  - `StepRecord` struct（新增，供 Task 4 使用）
+
+- [ ] **Step 1: 更新工具常量**
+
+```go
+const (
+	ToolSearchMaterials    = "search_materials"
+	ToolGetMaterialDetail  = "get_material_detail"
+	ToolMyMaterials        = "my_materials"
+	ToolSearchDocuments    = "search_documents"
+	ToolGetOrders          = "get_orders"
+	ToolSearchFAQ          = "search_faq"
+	ToolPurchase           = "purchase"
+)
+```
+
+- [ ] **Step 2: 从 Tool interface 删除 AllowedModes()**
+
+```go
+type Tool interface {
+	Definition() ToolDef
+	ValidateArgs(argsJSON string) error
+	Execute(userID uint, argsJSON string) ToolResult
+	Describe(argsJSON string, result ToolResult) string
+	AllowRepeat() bool
+}
+```
+
+- [ ] **Step 3: 新增 StepRecord struct**
+
+```go
+// StepRecord 单步执行记录，用于 State 中的 completed/failed 列表。
+type StepRecord struct {
+	Action  string `json:"action"`            // 人类可读描述，如 "搜索文档「函数」"
+	Tool    string `json:"tool"`              // 工具名
+	Args    string `json:"args"`              // 参数 JSON，用于去重检测
+	Error   string `json:"error,omitempty"`   // 失败原因
+	Success bool   `json:"success"`
+}
+```
+
+- [ ] **Step 4: 运行编译确认常量不冲突**
+
+```bash
+cd d:/Vscoding/edu_market && go build ./...
+```
+Expected: 编译失败（旧代码引用了已删除的常量），确认常量和接口变更生效。
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add service/agent/tools.go
+git commit -m "refactor: 更新 Tool 接口（删 AllowedModes）+ 常量 + StepRecord"
+```
+
+---
+
+### Task 2: 重写 7 个 Tool 实现
+
+**Files:**
+- Modify: `service/agent/tools.go:69-600`（替换所有 Tool struct 和 Execute 方法）
+
+**Interfaces:**
+- Consumes: Task 1 的 Tool 接口 + 工具常量 + StepRecord
+- Produces: 7 个 Tool 的完整实现（`searchMaterialsTool`, `getMaterialDetailTool`, `myMaterialsTool`, `searchDocumentsTool`, `getOrdersTool`, `searchFAQTool`, `purchaseTool`）+ `buildToolSet()`
+
+- [ ] **Step 1: 替换整个 tools.go 为 7 Tool 版本**
+
+完整代码（替换从 line 69 到文件末尾）：
+
+```go
+// ============ search_materials — 搜全平台资料 ============
+
+type searchMaterialsTool struct{}
+
+func (t searchMaterialsTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolSearchMaterials,
+		Description: "能做什么\n  在平台已发布资料中按关键词、分类、价格范围搜索，返回匹配列表。\n\n" +
+			"不能做什么\n  不返回资料的具体章节内容或文档正文（用 search_documents）\n" +
+			"  不返回用户的已购/已发布资料（用 my_materials）\n" +
+			"  不返回评价详情（get_material_detail 已包含评价）\n" +
+			"  不搜下架或草稿状态的资料\n\n" +
+			"何时优先使用\n  - 用户问「有没有XX方向的资料」「帮我找XX相关的课程」\n" +
+			"  - 用户表达学习方向但未指定具体资料名\n" +
+			"  - 搜不到时直接告知，不要反复换关键词重试",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"keyword":     map[string]interface{}{"type": "string", "description": "1-50字，匹配标题和描述，不用完整句子"},
+				"category_id": map[string]interface{}{"type": "number", "description": "只能来自 get_material_detail 返回的 category.id，不可编造"},
+				"min_price":   map[string]interface{}{"type": "number", "description": ">=0"},
+				"max_price":   map[string]interface{}{"type": "number", "description": "<=10000"},
+				"sort_by":     map[string]interface{}{"type": "string", "enum": []string{"newest", "price_asc", "price_desc", "popular"}, "description": "排序方式，默认 newest"},
+				"page":        map[string]interface{}{"type": "number", "description": "1-100，默认 1"},
+				"page_size":   map[string]interface{}{"type": "number", "description": "1-10，默认 5"},
+			},
+		},
+	}
+}
+
+func (t searchMaterialsTool) Execute(_ uint, argsJSON string) ToolResult {
+	var args struct {
+		Keyword    string   `json:"keyword"`
+		CategoryID *uint    `json:"category_id"`
+		MinPrice   *float64 `json:"min_price"`
+		MaxPrice   *float64 `json:"max_price"`
+		SortBy     string   `json:"sort_by"`
+		Page       int      `json:"page"`
+		PageSize   int      `json:"page_size"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return ToolResult{Success: false, Content: "参数解析失败", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
+	}
+	if args.Page < 1 { args.Page = 1 }
+	if args.PageSize < 1 || args.PageSize > 10 { args.PageSize = 5 }
+
+	db := database.DB.Where("status = ?", "published").Preload("Category")
+	if args.Keyword != "" {
+		k := "%" + strings.TrimSpace(args.Keyword) + "%"
+		db = db.Where("title LIKE ? OR description LIKE ?", k, k)
+	}
+	if args.CategoryID != nil { db = db.Where("category_id = ?", *args.CategoryID) }
+	if args.MinPrice != nil { db = db.Where("price >= ?", *args.MinPrice) }
+	if args.MaxPrice != nil { db = db.Where("price <= ?", *args.MaxPrice) }
+
+	switch args.SortBy {
+	case "price_asc": db = db.Order("price ASC")
+	case "price_desc": db = db.Order("price DESC")
+	case "popular": db = db.Order("buy_count DESC")
+	default: db = db.Order("id DESC")
+	}
+
+	var materials []model.Material
+	offset := (args.Page - 1) * args.PageSize
+	if err := db.Offset(offset).Limit(args.PageSize).Find(&materials).Error; err != nil {
+		return ToolResult{Success: false, Content: "搜索失败，请稍后重试", ErrorCode: "DATABASE_ERROR", Recoverable: false, RecommendedAction: "tell_user_system_busy"}
+	}
+
+	type item struct {
+		ID           uint    `json:"id"`
+		Title        string  `json:"title"`
+		Price        float64 `json:"price"`
+		CategoryName string  `json:"category_name"`
+		BuyCount     int     `json:"buy_count"`
+		Description  string  `json:"description"`
+	}
+	items := make([]item, 0, len(materials))
+	for _, m := range materials {
+		catName := ""
+		if m.Category.ID != 0 { catName = m.Category.Name }
+		items = append(items, item{m.ID, m.Title, m.Price, catName, m.BuyCount, TruncateRunes(m.Description, 80)})
+	}
+	b, _ := json.Marshal(map[string]interface{}{"success": true, "materials": items, "total": len(items), "page": args.Page})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t searchMaterialsTool) AllowRepeat() bool { return false }
+func (t searchMaterialsTool) ValidateArgs(argsJSON string) error {
+	var args struct {
+		SortBy string `json:"sort_by"`
+		Page    int    `json:"page"`
+		PageSize int   `json:"page_size"`
+	}
+	json.Unmarshal([]byte(argsJSON), &args)
+	valid := map[string]bool{"newest": true, "price_asc": true, "price_desc": true, "popular": true, "": true}
+	if !valid[args.SortBy] { return errors.New("sort_by 只能为 newest/price_asc/price_desc/popular") }
+	if args.Page > 100 { return errors.New("page 不能超过 100") }
+	if args.PageSize > 10 { return errors.New("page_size 不能超过 10") }
+	return nil
+}
+func (t searchMaterialsTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ Keyword string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	return fmt.Sprintf("搜索「%s」→ 找到 %d 门资料", args.Keyword, countJSONItems(result.Content))
+}
+
+// ============ get_material_detail — 资料详情 + 目录 + 评价 ============
+
+type getMaterialDetailTool struct{}
+
+func (t getMaterialDetailTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolGetMaterialDetail,
+		Description: "能做什么\n  查看单份资料的完整信息：基本信息、发布者、文档目录（含试读标记）、用户评价、当前用户对该资料的访问权限。\n\n" +
+			"不能做什么\n  不返回文档正文内容（用 search_documents）\n  不搜全平台资料（用 search_materials）\n  不修改资料信息\n\n" +
+			"何时优先使用\n  - 用户提到具体资料名或资料ID\n  - 用户问「这个资料多少钱」「有哪些章节」「评价怎么样」\n" +
+			"  - 用户对 search_materials 返回的某项结果感兴趣\n  - 与 search_documents 配合：先确认资料存在，再搜内容",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"material_id": map[string]interface{}{"type": "number", "description": ">0，来自 search_materials 或 my_materials 返回的ID，不可编造"},
+			},
+			"required": []string{"material_id"},
+		},
+	}
+}
+
+func (t getMaterialDetailTool) Execute(userID uint, argsJSON string) ToolResult {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var material model.Material
+	if err := database.DB.Preload("Category").Preload("Documents").Preload("User").First(&material, args.MaterialID).Error; err != nil {
+		return ToolResult{Success: false, Content: fmt.Sprintf("资料 #%d 不存在或已下架，请确认ID或用 search_materials 重新搜索", args.MaterialID), ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "confirm_material_id_with_user"}
+	}
+
+	type outlineItem struct {
+		Title     string `json:"title"`
+		IsFree    bool   `json:"is_free_preview"`
+		DocID     uint   `json:"document_id"`
+		SortOrder int    `json:"sort_order"`
+	}
+	outline := make([]outlineItem, 0, len(material.Documents))
+	for _, d := range material.Documents {
+		outline = append(outline, outlineItem{d.Title, d.IsFreePreview, d.ID, d.SortOrder})
+	}
+
+	var reviews []model.Review
+	database.DB.Where("course_id = ?", material.ID).Order("created_at DESC").Limit(10).Find(&reviews)
+	type reviewItem struct {
+		Rating   int    `json:"rating"`
+		Content  string `json:"content"`
+		Username string `json:"username"`
+	}
+	revItems := make([]reviewItem, 0, len(reviews))
+	for _, r := range reviews {
+		revItems = append(revItems, reviewItem{r.Rating, r.Content, r.Username})
+	}
+	if revItems == nil { revItems = []reviewItem{} }
+
+	hasAccess := checkHasAccess(userID, material.ID)
+	b, _ := json.Marshal(map[string]interface{}{
+		"success": true,
+		"material": map[string]interface{}{
+			"id":          material.ID,
+			"title":       material.Title,
+			"price":       material.Price,
+			"description": material.Description,
+			"cover_image": material.CoverImage,
+			"category":    map[string]interface{}{"id": material.Category.ID, "name": material.Category.Name},
+			"publisher":   map[string]interface{}{"id": material.User.ID, "username": material.User.Username},
+			"stats":       map[string]interface{}{"view_count": material.ViewCount, "buy_count": material.BuyCount, "review_count": len(reviews), "avg_rating": avgRating(reviews)},
+			"access":      map[string]interface{}{"is_owner": material.UserID == userID, "has_purchased": hasAccess},
+			"outline":     outline,
+			"reviews":     revItems,
+		},
+	})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t getMaterialDetailTool) AllowRepeat() bool { return false }
+func (t getMaterialDetailTool) ValidateArgs(argsJSON string) error {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.MaterialID == 0 { return errors.New("material_id 不能为空") }
+	return nil
+}
+func (t getMaterialDetailTool) Describe(argsJSON string, result ToolResult) string {
+	var d struct {
+		Material struct{ Title string } `json:"material"`
+	}
+	json.Unmarshal([]byte(result.Content), &d)
+	return fmt.Sprintf("查看《%s》详情", d.Material.Title)
+}
+
+// ============ my_materials — 我的资料 ============
+
+type myMaterialsTool struct{}
+
+func (t myMaterialsTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolMyMaterials,
+		Description: "能做什么\n  列出当前登录用户可访问的全部资料：自己发布的 + 已购买并支付成功的。\n\n" +
+			"不能做什么\n  不搜全平台资料（用 search_materials）\n  不返回文档内容（用 search_documents）\n  不查订单详情如支付时间、物流状态（用 get_orders）\n\n" +
+			"何时优先使用\n  - 用户说「我的资料」「我买的资料」「我发布的资料」\n" +
+			"  - 用户想在自己拥有的资料范围内搜索具体内容时，先调此工具拿到列表，再调 search_documents\n" +
+			"  - 这是唯一能告诉 LLM「用户到底有哪些资料」的工具。遇到含「我的」的查询应优先考虑",
+		Parameters: map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+		},
+	}
+}
+
+func (t myMaterialsTool) Execute(userID uint, _ string) ToolResult {
+	type item struct {
+		ID       uint    `json:"id"`
+		Title    string  `json:"title"`
+		Price    float64 `json:"price"`
+		BuyCount int     `json:"buy_count"`
+		Status   string  `json:"status,omitempty"`
+		OrderNo  string  `json:"order_no,omitempty"`
+		PaidAt   string  `json:"paid_at,omitempty"`
+	}
+
+	var published []item
+	var mats []model.Material
+	database.DB.Where("user_id = ?", userID).Find(&mats)
+	for _, m := range mats {
+		published = append(published, item{ID: m.ID, Title: m.Title, Price: m.Price, BuyCount: m.BuyCount, Status: m.Status})
+	}
+	if published == nil { published = []item{} }
+
+	var purchased []item
+	var orders []model.Order
+	database.DB.Where("user_id = ? AND status = ?", userID, "paid").Find(&orders)
+	for _, o := range orders {
+		purchased = append(purchased, item{ID: o.CourseID, Title: o.CourseName, Price: o.Amount, OrderNo: o.OrderNo, PaidAt: o.CreatedAt.Format("2006-01-02")})
+	}
+	if purchased == nil { purchased = []item{} }
+
+	total := len(published) + len(purchased)
+	b, _ := json.Marshal(map[string]interface{}{
+		"success": true,
+		"materials": map[string]interface{}{
+			"published": published,
+			"purchased": purchased,
+		},
+		"total": total,
+		"hint":  fmt.Sprintf("共 %d 份资料可访问（发布 %d 份，购买 %d 份）", total, len(published), len(purchased)),
+	})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t myMaterialsTool) AllowRepeat() bool  { return false }
+func (t myMaterialsTool) ValidateArgs(_ string) error { return nil }
+func (t myMaterialsTool) Describe(argsJSON, result string) string {
+	total := countJSONItems(result)
+	return fmt.Sprintf("我的资料 → 共 %d 份可访问", total)
+}
+
+// ============ search_documents — 搜文档内容 ============
+
+type searchDocumentsTool struct {
+	searchFunc SearchFunc
+}
+
+func (t searchDocumentsTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolSearchDocuments,
+		Description: "能做什么\n  在资料文档中进行语义检索，返回与用户问题相关的文本片段。不传 material_id 时自动搜索用户全部可访问资料。\n\n" +
+			"不能做什么\n  不搜资料基本信息如标题、价格、目录（用 get_material_detail）\n  不搜全平台资料（用 search_materials）\n  不搜 FAQ（用 search_faq）\n" +
+			"  不保证搜到结果——语义检索可能存在召回盲区\n\n" +
+			"何时优先使用\n  - 用户指定了一份资料并问具体知识点（如「第三章讲了什么」「关于闭包的章节有哪些」）\n" +
+			"  - 用户没指定资料但可通过我的资料推断范围时，先调 my_materials 获取 material_id，再调本工具\n" +
+			"  - 搜不到时诚实告知「资料中未涉及该内容」，不要反复换 query 重试\n" +
+			"  - 来源为 preview 的片段只能用于介绍和引导购买，不能作为完整答案的依据",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query":       map[string]interface{}{"type": "string", "description": "1-200字。具体知识点或章节号，如「闭包的原理」「第三章重点」"},
+				"material_id": map[string]interface{}{"type": "number", "description": ">=1。来自 my_materials 或 get_material_detail 返回的ID。留空=搜全部可访问资料。不可编造——不知道时先调 my_materials。"},
+			},
+			"required": []string{"query"},
+		},
+	}
+}
+
+func (t searchDocumentsTool) Execute(userID uint, argsJSON string) ToolResult {
+	var args struct {
+		Query      string `json:"query"`
+		MaterialID uint   `json:"material_id"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return ToolResult{Success: false, Content: "参数解析失败，请调整参数格式后重试", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
+	}
+	if strings.TrimSpace(args.Query) == "" {
+		return ToolResult{Success: false, Content: "查询内容不能为空，请提供具体问题", ErrorCode: "MISSING_PARAMETER", Recoverable: true, RecommendedAction: "ask_user_for_query"}
+	}
+	if t.searchFunc == nil {
+		return ToolResult{Success: false, Content: "资料检索服务暂不可用，请稍后重试", ErrorCode: "SERVICE_UNAVAILABLE", Recoverable: false, RecommendedAction: "tell_user_service_unavailable"}
+	}
+
+	if args.MaterialID > 0 {
+		hasAccess := checkHasAccess(userID, args.MaterialID)
+		content, err := t.searchFunc(args.MaterialID, args.Query, 5, hasAccess)
+		if err != nil {
+			return ToolResult{Success: false, Content: "文档检索失败: " + err.Error(), ErrorCode: "SEARCH_ERROR", Recoverable: true, RecommendedAction: "retry_or_narrow_query"}
+		}
+		if content == "" {
+			return ToolResult{Success: true, Content: `{"success":true,"results":[],"total":0,"searched_materials":1,"hint":"资料中未找到相关内容，建议换个问法"}`}
+		}
+		return ToolResult{Success: true, Content: content}
+	}
+
+	// 不传 material_id → 搜全部可访问资料
+	accessibleIDs := getUserAccessibleMaterialIDs(userID)
+	if len(accessibleIDs) == 0 {
+		return ToolResult{Success: true, Content: `{"success":true,"results":[],"total":0,"searched_materials":0,"hint":"未找到可访问的资料"}`}
+	}
+
+	var allResults []string
+	searched := 0
+	for _, mid := range accessibleIDs {
+		hasAccess := true // 已从 my_materials 过滤
+		content, err := t.searchFunc(mid, args.Query, 5, hasAccess)
+		if err != nil { continue }
+		if content == "" { continue }
+		allResults = append(allResults, content)
+		searched++
+	}
+	if len(allResults) == 0 {
+		return ToolResult{Success: true, Content: `{"success":true,"results":[],"total":0,"searched_materials":0,"hint":"资料中未找到相关内容"}`}
+	}
+	combined := strings.Join(allResults, "\n")
+	return ToolResult{Success: true, Content: combined}
+}
+
+func (t searchDocumentsTool) AllowRepeat() bool { return false }
+func (t searchDocumentsTool) ValidateArgs(argsJSON string) error {
+	var args struct {
+		Query      string `json:"query"`
+		MaterialID uint   `json:"material_id"`
+	}
+	json.Unmarshal([]byte(argsJSON), &args)
+	if strings.TrimSpace(args.Query) == "" { return errors.New("query 不能为空") }
+	if len(args.Query) > 200 { return errors.New("query 不能超过 200 字") }
+	return nil
+}
+func (t searchDocumentsTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ Query string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	return fmt.Sprintf("搜索文档「%s」→ 找到 %d 条", args.Query, countJSONItems(result.Content))
+}
+
+// ============ get_orders — 订单查询 ============
+
+type getOrdersTool struct{}
+
+func (t getOrdersTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolGetOrders,
+		Description: "能做什么\n  查询当前用户的订单。不传 order_no 返回最近订单列表，传了返回该笔订单完整详情。\n\n" +
+			"不能做什么\n  不查其他用户的订单\n  不能发起退款、取消订单或修改订单——这是只读工具\n  不查已购资料的内容（用 search_documents 或 get_material_detail）\n\n" +
+			"何时优先使用\n  - 用户问「我的订单」「买了什么」「查看订单」且未提供订单号 → 不传 order_no，返回列表\n" +
+			"  - 用户提供了具体订单号 → 传入 order_no 获取详情\n" +
+			"  - 用户说「我的资料」不是问订单，用 my_materials",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"order_no":  map[string]interface{}{"type": "string", "description": "20位数字字符串。只能来自本工具列表返回的 order_no 或用户直接提供。不可编造。"},
+				"status":    map[string]interface{}{"type": "string", "enum": []string{"pending", "paid", "cancelled"}, "description": "筛选状态，仅列表模式有效"},
+				"page":      map[string]interface{}{"type": "number", "description": "1-100，默认 1"},
+				"page_size": map[string]interface{}{"type": "number", "description": "1-20，默认 10"},
+			},
+		},
+	}
+}
+
+func (t getOrdersTool) Execute(userID uint, argsJSON string) ToolResult {
+	var args struct {
+		OrderNo  string `json:"order_no"`
+		Status   string `json:"status"`
+		Page     int    `json:"page"`
+		PageSize int    `json:"page_size"`
+	}
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	db := database.DB.Where("user_id = ?", userID)
+
+	// 详情模式
+	if args.OrderNo != "" {
+		var order model.Order
+		if err := db.Where("order_no = ?", args.OrderNo).First(&order).Error; err != nil {
+			return ToolResult{Success: false, Content: fmt.Sprintf("订单 #%s 不存在，可用列表模式查看所有订单", args.OrderNo), ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "use_list_mode_or_confirm_order_no"}
+		}
+		b, _ := json.Marshal(map[string]interface{}{
+			"success": true,
+			"order": map[string]interface{}{
+				"order_no":       order.OrderNo,
+				"material_id":    order.CourseID,
+				"material_title": order.CourseName,
+				"amount":         order.Amount,
+				"status":         order.Status,
+				"paid_at":        order.PaidAt,
+				"created_at":     order.CreatedAt,
+			},
+		})
+		return ToolResult{Success: true, Content: string(b)}
+	}
+
+	// 列表模式
+	if args.Status != "" { db = db.Where("status = ?", args.Status) }
+	if args.Page < 1 { args.Page = 1 }
+	if args.PageSize < 1 || args.PageSize > 20 { args.PageSize = 10 }
+
+	var total int64
+	db.Model(&model.Order{}).Count(&total)
+	if total == 0 {
+		return ToolResult{Success: true, Content: `{"success":true,"orders":[],"total":0,"hint":"暂无订单记录"}`}
+	}
+
+	var orders []model.Order
+	offset := (args.Page - 1) * args.PageSize
+	db.Order("created_at DESC").Offset(offset).Limit(args.PageSize).Find(&orders)
+
+	type item struct {
+		OrderNo       string  `json:"order_no"`
+		MaterialTitle string  `json:"material_title"`
+		Amount        float64 `json:"amount"`
+		Status        string  `json:"status"`
+		CreatedAt     string  `json:"created_at"`
+	}
+	items := make([]item, 0, len(orders))
+	for _, o := range orders {
+		items = append(items, item{o.OrderNo, o.CourseName, o.Amount, o.Status, o.CreatedAt.Format("2006-01-02 15:04")})
+	}
+	b, _ := json.Marshal(map[string]interface{}{"success": true, "orders": items, "total": total})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t getOrdersTool) AllowRepeat() bool { return false }
+func (t getOrdersTool) ValidateArgs(argsJSON string) error {
+	var args struct {
+		OrderNo  string `json:"order_no"`
+		Status   string `json:"status"`
+		PageSize int    `json:"page_size"`
+	}
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.Status != "" {
+		valid := map[string]bool{"pending": true, "paid": true, "cancelled": true}
+		if !valid[args.Status] { return errors.New("status 只能为 pending/paid/cancelled") }
+	}
+	if args.PageSize > 20 { return errors.New("page_size 不能超过 20") }
+	return nil
+}
+func (t getOrdersTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ OrderNo string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.OrderNo != "" { return "查看订单详情" }
+	return fmt.Sprintf("查询订单列表 → 共 %d 笔", countJSONItems(result.Content))
+}
+
+// ============ search_faq — 搜索 FAQ ============
+
+type searchFAQTool struct{}
+
+func (t searchFAQTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolSearchFAQ,
+		Description: "能做什么\n  在平台 FAQ 知识库中搜索匹配的问答对，覆盖退款政策、支付方式、使用指南等平台规则。\n\n" +
+			"不能做什么\n  不能搜资料内容（用 search_documents）\n  不能查订单信息（用 get_orders）\n  不能编造 FAQ 中没有的答案——搜不到就说需要联系客服\n\n" +
+			"何时优先使用\n  - 用户问平台规则：「怎么退款」「支持哪些支付方式」「多久发货」\n" +
+			"  - 用户遇到售后问题需要政策依据\n  - 搜不到时直接告知「需要联系人工客服确认」，不要反复调用",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]interface{}{"type": "string", "description": "1-100字。简洁关键词如「退款」「支付方式」，不用完整问句。"},
+			},
+			"required": []string{"query"},
+		},
+	}
+}
+
+func (t searchFAQTool) Execute(_ uint, argsJSON string) ToolResult {
+	var args struct{ Query string `json:"query"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var faqs []model.FAQ
+	database.DB.Where("question LIKE ? OR answer LIKE ?", "%"+args.Query+"%", "%"+args.Query+"%").Limit(5).Find(&faqs)
+
+	if len(faqs) == 0 {
+		return ToolResult{Success: true, Content: `{"success":true,"faqs":[],"total":0,"hint":"FAQ 中未找到相关内容，建议联系人工客服"}`, ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "tell_user_contact_support"}
+	}
+
+	type item struct {
+		Question string `json:"question"`
+		Answer   string `json:"answer"`
+	}
+	items := make([]item, 0, len(faqs))
+	for _, f := range faqs { items = append(items, item{f.Question, f.Answer}) }
+	b, _ := json.Marshal(map[string]interface{}{"success": true, "faqs": items, "total": len(items)})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t searchFAQTool) AllowRepeat() bool  { return false }
+func (t searchFAQTool) ValidateArgs(argsJSON string) error {
+	var args struct{ Query string `json:"query"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if strings.TrimSpace(args.Query) == "" { return errors.New("query 不能为空") }
+	if len(args.Query) > 100 { return errors.New("query 不能超过 100 字") }
+	return nil
+}
+func (t searchFAQTool) Describe(argsJSON string, result ToolResult) string {
+	var args struct{ Query string }
+	json.Unmarshal([]byte(argsJSON), &args)
+	return fmt.Sprintf("搜索FAQ「%s」→ 找到 %d 条", args.Query, countJSONItems(result.Content))
+}
+
+// ============ purchase — 发起购买 ============
+
+type purchaseTool struct{}
+
+func (t purchaseTool) Definition() ToolDef {
+	return ToolDef{
+		Name: ToolPurchase,
+		Description: "能做什么\n  向用户发送购买卡片。这是让用户看到购买入口的唯一方式——不调用此工具，用户无法下单。\n\n" +
+			"不能做什么\n  不能替代文字回复——调用后仍需简要说明\n  不能替用户做购买决定\n  不能在用户未明确表达购买意向时调用\n\n" +
+			"何时优先使用\n  - 用户明确表达购买意向：「买」「下单」「就这个」「来一份」「怎么买」\n" +
+			"  - 用户已在多次对话中持续关注某份资料，最后确认想购买\n" +
+			"  - 调用前应确认用户尚未拥有该资料（通过 get_material_detail.access.has_purchased）\n" +
+			"  - 调用后等用户决策，不要再推其他资料",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"material_id": map[string]interface{}{"type": "number", "description": ">0。只能来自 search_materials 或 get_material_detail 返回的真实ID。"},
+			},
+			"required": []string{"material_id"},
+		},
+	}
+}
+
+func (t purchaseTool) Execute(userID uint, argsJSON string) ToolResult {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	var material model.Material
+	if err := database.DB.First(&material, args.MaterialID).Error; err != nil {
+		return ToolResult{Success: false, Content: fmt.Sprintf("资料 #%d 不存在或已下架，请用 search_materials 重新查找", args.MaterialID), ErrorCode: "NOT_FOUND", Recoverable: true, RecommendedAction: "confirm_material_id_with_user"}
+	}
+
+	if checkHasAccess(userID, args.MaterialID) {
+		return ToolResult{Success: false, Content: "您已拥有该资料，无需重复购买", ErrorCode: "ALREADY_OWNED", Recoverable: false, RecommendedAction: "tell_user_already_owned"}
+	}
+
+	b, _ := json.Marshal(map[string]interface{}{
+		"success": true,
+		"__action": "purchase_offer",
+		"material": map[string]interface{}{"id": material.ID, "title": material.Title, "price": material.Price, "cover_image": material.CoverImage},
+		"requires_user_action": true,
+		"hint": "购买卡片已发送，用户需点击卡片完成下单。在用户完成下单前，不要声称已购买。",
+	})
+	return ToolResult{Success: true, Content: string(b)}
+}
+
+func (t purchaseTool) AllowRepeat() bool  { return true }
+func (t purchaseTool) ValidateArgs(argsJSON string) error {
+	var args struct{ MaterialID uint `json:"material_id"` }
+	json.Unmarshal([]byte(argsJSON), &args)
+	if args.MaterialID == 0 { return errors.New("material_id 不能为空") }
+	var count int64
+	database.DB.Model(&model.Material{}).Where("id = ? AND status = ?", args.MaterialID, "published").Count(&count)
+	if count == 0 { return fmt.Errorf("资料 #%d 不存在或已下架", args.MaterialID) }
+	return nil
+}
+func (t purchaseTool) Describe(argsJSON string, result ToolResult) string { return "发送购买卡片" }
+
+// ============ 辅助函数 ============
+
+func avgRating(reviews []model.Review) float64 {
+	if len(reviews) == 0 { return 0 }
+	sum := 0
+	for _, r := range reviews { sum += r.Rating }
+	return float64(sum) / float64(len(reviews))
+}
+
+func getUserAccessibleMaterialIDs(userID uint) []uint {
+	var ids []uint
+	// 发布的
+	var published []model.Material
+	database.DB.Select("id").Where("user_id = ?", userID).Find(&published)
+	for _, m := range published { ids = append(ids, m.ID) }
+	// 购买的
+	var orders []model.Order
+	database.DB.Select("course_id").Where("user_id = ? AND status = ?", userID, "paid").Find(&orders)
+	for _, o := range orders { ids = appendUnique(ids, o.CourseID) }
+	return ids
+}
+
+// ============ buildToolSet ============
+
+func buildToolSet(searchFunc SearchFunc) map[string]Tool {
+	tools := map[string]Tool{
+		ToolSearchMaterials:   searchMaterialsTool{},
+		ToolGetMaterialDetail: getMaterialDetailTool{},
+		ToolMyMaterials:       myMaterialsTool{},
+		ToolGetOrders:         getOrdersTool{},
+		ToolSearchFAQ:         searchFAQTool{},
+		ToolPurchase:          purchaseTool{},
+	}
+	if searchFunc != nil {
+		tools[ToolSearchDocuments] = searchDocumentsTool{searchFunc: searchFunc}
+	}
+	return tools
+}
+```
+
+- [ ] **Step 2: 编译检查**
+
+```bash
+cd d:/Vscoding/edu_market && go build ./...
+```
+Expected: 编译失败 — `safety.go` 和 `engine.go` 仍在引用旧常量名（`ToolQueryOrders`/`ToolGetOrderDetail`/`ToolQueryMaterials`/`ToolGetCategories`/`ToolGetReviews`/`ToolTriggerPurchaseOffer`）。确认。
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add service/agent/tools.go
+git commit -m "feat: 重写 7 个 Tool 实现（search_materials, get_material_detail, my_materials, search_documents, get_orders, search_faq, purchase）"
+```
+
+---
+
+### Task 3: 清理 safety.go
+
+**Files:**
+- Modify: `service/agent/safety.go:132-231`
+
+**Interfaces:**
+- Consumes: Task 1 的新常量名，Task 2 的 `getUserAccessibleMaterialIDs`
+- Produces: 更新后的 `ResolveMode`（不再砍 Tool）+ `checkHasAccess`
+
+- [ ] **Step 1: 删除 checkToolMode 和 countModeTools**
+
+删除 `safety.go:132-163`（两函数）。
+
+- [ ] **Step 2: 更新 ResolveMode**
+
+替换 `safety.go:165-193`：
+
+```go
+// ResolveMode 根据本轮执行的 Tool 类型判定当前模式。
+// 不依赖用户消息语义——只看实际执行了什么 Tool。
+// 返回 "shopping" | "tutoring" | "support" | ""（保持当前）。
+func ResolveMode(session *model.Session, executedTools []string) string {
+	if len(executedTools) == 0 {
+		return session.Mode
+	}
+	focusID := getFocusMaterialID(session)
+	hasAccess := checkHasAccess(session.UserID, focusID)
+	slog.Info("ResolveMode 判定", "tools", executedTools, "user_id", session.UserID, "focus_id", focusID, "has_access", hasAccess)
+	for _, t := range executedTools {
+		switch {
+		case t == ToolGetOrders:
+			return "support"
+		case t == ToolSearchDocuments || t == ToolGetMaterialDetail:
+			if hasAccess {
+				return "tutoring"
+			}
+			return "shopping"
+		case t == ToolPurchase:
+			return "shopping"
+		// search_materials / my_materials / search_faq 是中立工具，不改变模式
+		}
+	}
+	return session.Mode
+}
+```
+
+- [ ] **Step 3: 检查未使用的 import**
+
+删除 `safety.go:7` 的 `"fmt"`（之前被 `checkToolMode` 使用，删了函数就不再需要）。
+
+- [ ] **Step 4: 编译检查**
+
+```bash
+cd d:/Vscoding/edu_market && go build ./...
+```
+Expected: 编译失败 — `engine.go` 仍在引用 `checkToolMode`/`countModeTools`。确认。
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add service/agent/safety.go
+git commit -m "refactor: 删除 checkToolMode/countModeTools，更新 ResolveMode 为新 Tool 名"
+```
+
+---
+
+### Task 4: 更新 prompts.go
+
+**Files:**
+- Modify: `service/agent/prompts.go:14-306`
+
+**Interfaces:**
+- Consumes: Task 1 的 `StepRecord`，Task 2 的新 Tool 名
+- Produces: 更新后的 `SessionState`、`buildStateBlock()`、`assessState()`、`computeToDo()`
+
+- [ ] **Step 1: 更新 SessionState 使用 StepRecord**
+
+替换 `SessionState` 的 `Completed` 字段：
+
+```go
+type SessionState struct {
+	Task        string       `json:"task"`
+	Completed   []StepRecord `json:"completed"`     // 改用 StepRecord
+	Failed      []StepRecord `json:"failed"`        // 新增：失败步骤
+	Gaps        []string     `json:"gaps"`          // 新增：信息缺口
+	Deliverable bool         `json:"deliverable"`   // 新增：是否可以交付
+	Facts       []FactItem   `json:"facts"`
+	Hypotheses  []FactItem   `json:"hypotheses"`
+	Discarded   []FactItem   `json:"discarded"`
+	Context     ContextData  `json:"context"`
+}
+```
+
+- [ ] **Step 2: 更新三个 modeBlock 中的 Tool 名引用**
+
+| 旧引用 | 新引用 |
+|--------|--------|
+| `query_materials` | `search_materials` |
+| `get_material_detail` | `get_material_detail` (不变) |
+| `get_reviews` | 删掉，已合并到 get_material_detail |
+| `get_categories` | 删掉 |
+| `trigger_purchase_offer` | `purchase` |
+| `search_documents` | `search_documents` (不变) |
+| `query_orders` | `get_orders` |
+| `get_order_detail` | 删掉，已合并到 get_orders |
+
+修改 `shoppingModeBlock`:
+```
+策略：
+  1. 用户没说方向 → 先问需求（方向/水平/预算），别直接搜
+  2. 用户说了方向 → search_materials 搜索 → 挑 1-2 个最匹配的推荐
+  3. 用户对某资料感兴趣 → get_material_detail
+  4. 用户表达购买意向 → purchase
+  5. 发了卡片后 → 等用户决策，不强推其他资料
+  6. 用户想了解内容但没买 → search_documents（系统自动限制返回preview），基于介绍引导购买
+```
+
+修改 `tutoringModeBlock`:
+```
+策略：
+  1. 用户提到资料名/章节 → get_material_detail 确认
+  2. 用户问知识点 → search_documents 检索
+  3. 用文档原文详细回答，注明章节来源，不用有所保留
+  4. 搜不到 → 诚实地告知"资料中没有涉及该内容"
+  5. 禁止提及"购买""付费""试读"等概念——用户已有完整访问权
+```
+
+修改 `supportModeBlock`:
+```
+策略：
+  1. 订单相关问题 → get_orders
+  2. 查 FAQ → search_faq
+  3. FAQ 没有 → "这个问题需要转接人工客服处理"
+```
+
+- [ ] **Step 3: 实现 assessState**
+
+在 `prompts.go` 末尾添加：
+
+```go
+// assessState 每轮 Tool 执行后校验任务状态，标注缺口和交付条件。
+// 引擎不替代 LLM 做决策——引擎只标注位置信息，LLM 据此自主规划。
+func (e *AgentEngine) assessState(state *SessionState, executedTools []string) {
+	// 1. 本轮失败步骤 → 写入 Failed
+	//    (由 updateTaskState 在失败时写入，这里做聚合)
+	
+	// 2. 检查是否可以交付
+	hasCompleted := len(state.Completed) > 0
+	hasOpenFailures := false
+	for _, f := range state.Failed {
+		if strings.Contains(f.Error, "") || f.Error != "" {
+			hasOpenFailures = true
+			break
+		}
+	}
+	state.Deliverable = hasCompleted && len(state.Gaps) == 0 && !hasOpenFailures
+	
+	// 3. 兜底：连续完成但无进展 → 仍标记可交付
+	//    （搜不到就是搜不到，不陷入死循环）
+}
+```
+
+- [ ] **Step 4: 更新 buildStateBlock 输出治理信号**
+
+```go
+func buildStateBlock(state *SessionState) string {
+	var sb strings.Builder
+
+	sb.WriteString("/* ── 任务状态 ── */\n")
+	sb.WriteString(fmt.Sprintf("当前目标: %s\n", state.Task))
+
+	if len(state.Completed) > 0 {
+		sb.WriteString("已完成:\n")
+		for _, r := range state.Completed {
+			status := "✅"
+			if !r.Success { status = "❌" }
+			sb.WriteString(fmt.Sprintf("  %s %s\n", status, r.Action))
+		}
+	}
+	if len(state.Failed) > 0 {
+		sb.WriteString("已失败:\n")
+		for _, r := range state.Failed {
+			sb.WriteString(fmt.Sprintf("  ❌ %s → %s\n", r.Action, r.Error))
+		}
+	}
+	if len(state.Gaps) > 0 {
+		sb.WriteString("缺口:\n")
+		for _, g := range state.Gaps {
+			sb.WriteString(fmt.Sprintf("  ⚠️ %s\n", g))
+		}
+	}
+	sb.WriteString(fmt.Sprintf("可以交付: %s\n", map[bool]string{true: "是 → 立即回答用户", false: "否 → 继续获取信息"}[state.Deliverable]))
+
+	if len(state.Facts) > 0 {
+		sb.WriteString("\n/* ── 事实层 ── */\n")
+		for _, f := range state.Facts {
+			sb.WriteString(fmt.Sprintf("  📖 %s | 来源：%s\n", f.Content, f.Source))
+		}
+	}
+	if len(state.Hypotheses) > 0 {
+		sb.WriteString("/* ── 假设层 ── */\n")
+		for _, h := range state.Hypotheses {
+			sb.WriteString(fmt.Sprintf("  💡 %s | 来源：%s\n", h.Content, h.Source))
+		}
+	}
+	if len(state.Discarded) > 0 {
+		sb.WriteString("/* ── 废弃层 ── */\n")
+		for _, d := range state.Discarded {
+			sb.WriteString(fmt.Sprintf("  🗑️ %s | 原因：%s\n", d.Content, d.Basis))
+		}
+	}
+	return sb.String()
+}
+```
+
+- [ ] **Step 5: 更新 computeToDo 中的工具名**
+
+```go
+func computeToDo(mode string, completed []StepRecord, ctx ContextData) []string {
+	var todos []string
+	switch mode {
+	case "shopping":
+		if !hasAction(completed, "发送购买卡片") && ctx.FocusID > 0 {
+			todos = append(todos, "询问用户是否购买 → 调 purchase")
+		}
+	case "tutoring":
+		// 没有固定的 to_do
+	case "support":
+		if !hasAction(completed, "搜索FAQ") {
+			todos = append(todos, "如当前信息无法解决，查 search_faq")
+		}
+	}
+	return todos
+}
+
+func hasAction(records []StepRecord, action string) bool {
+	for _, r := range records {
+		if strings.Contains(r.Action, action) { return true }
+	}
+	return false
+}
+```
+
+- [ ] **Step 6: 编译检查**
+
+```bash
+cd d:/Vscoding/edu_market && go build ./...
+```
+Expected: 编译失败 — `engine.go` 仍在引用旧接口。确认。
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add service/agent/prompts.go
+git commit -m "refactor: SessionState 升级为任务板（StepRecord + assessState + governance signals）"
+```
+
+---
+
+### Task 5: 更新 engine.go
+
+**Files:**
+- Modify: `service/agent/engine.go:160-649`
+
+**Interfaces:**
+- Consumes: Task 1-4 的所有产物
+- Produces: 完整的引擎循环（去白名单 + assessState + 新日志）
+
+- [ ] **Step 1: 删除白名单检查逻辑**
+
+1. 删除 `engine.go:191` — `modeTools := countModeTools(tools, session.Mode)`
+2. 更新 `engine.go:192` — 日志去掉 `tools_usable`:
+
+```go
+slog.Info("Round 开始", "request_id", requestID, "round", round+1, "history_msgs", len(history), "mode", session.Mode, "tools_total", len(openAITools))
+```
+
+3. 删除 `engine.go:273-287` — 整个模式白名单 if 块（`e.checkToolMode` 调用及对应的工具不存在块之后的白名单块）:
+
+```go
+// 删除:
+// 模式白名单（第一轮 mode="" 跳过）
+if err := e.checkToolMode(tool, session.Mode); err != nil {
+    ...
+}
+```
+
+- [ ] **Step 2: 更新 updateTaskState 使用 StepRecord**
+
+替换 `engine.go:606-651`：
+
+```go
+func (e *AgentEngine) updateTaskState(session *model.Session, tool Tool, toolName, argsJSON string, result ToolResult) {
+	var state SessionState
+	if err := json.Unmarshal([]byte(session.State), &state); err != nil {
+		return
+	}
+
+	desc := tool.Describe(argsJSON, result)
+	step := StepRecord{
+		Action:  desc,
+		Tool:    toolName,
+		Args:    argsJSON,
+		Success: result.Success,
+	}
+
+	if result.Success {
+		state.Completed = append(state.Completed, step)
+	} else {
+		step.Error = result.Content
+		state.Failed = append(state.Failed, step)
+	}
+
+	// 更新业务上下文
+	switch toolName {
+	case ToolSearchDocuments:
+		var args struct{ MaterialID uint `json:"material_id"` }
+		json.Unmarshal([]byte(argsJSON), &args)
+		if args.MaterialID > 0 {
+			state.Context.FocusID = args.MaterialID
+		}
+	case ToolGetMaterialDetail:
+		var args struct{ MaterialID uint `json:"material_id"` }
+		json.Unmarshal([]byte(argsJSON), &args)
+		state.Context.FocusID = args.MaterialID
+		state.Context.MaterialsViewed = appendUnique(state.Context.MaterialsViewed, args.MaterialID)
+	case ToolSearchMaterials:
+		state.Context.Candidates = extractCandidates(result.Content)
+	case ToolPurchase:
+		state.Context.CardSent = true
+	case ToolMyMaterials:
+		state.Context.Candidates = extractCandidatesFromMyMaterials(result.Content)
+	}
+
+	// 模式判定
+	mode := session.Mode
+	if mode == "" {
+		mode = ResolveMode(session, []string{toolName})
+	}
+	state.ToDo = computeToDo(mode, state.Completed, state.Context)
+
+	e.assessState(&state, []string{toolName})
+
+	b, _ := json.Marshal(state)
+	session.State = string(b)
+}
+```
+
+- [ ] **Step 3: 更新 initState**
+
+```go
+func (e *AgentEngine) initState(userMsg string) string {
+	state := SessionState{
+		Task:    userMsg,
+		Context: ContextData{},
+	}
+	b, _ := json.Marshal(state)
+	return string(b)
+}
+```
+
+- [ ] **Step 4: 添加 extractCandidatesFromMyMaterials 辅助函数**
+
+```go
+func extractCandidatesFromMyMaterials(content string) []Candidate {
+	var raw struct {
+		Materials struct {
+			Published []struct {
+				ID    uint    `json:"id"`
+				Title string  `json:"title"`
+				Price float64 `json:"price"`
+			} `json:"published"`
+			Purchased []struct {
+				ID    uint    `json:"id"`
+				Title string  `json:"title"`
+				Price float64 `json:"price"`
+			} `json:"purchased"`
+		} `json:"materials"`
+	}
+	if err := json.Unmarshal([]byte(content), &raw); err != nil {
+		return nil
+	}
+	var candidates []Candidate
+	for _, m := range raw.Materials.Published {
+		candidates = append(candidates, Candidate{ID: m.ID, Title: m.Title, Price: m.Price})
+	}
+	for _, m := range raw.Materials.Purchased {
+		candidates = append(candidates, Candidate{ID: m.ID, Title: m.Title, Price: m.Price})
+	}
+	return candidates
+}
+```
+
+- [ ] **Step 5: Mode 切换后重建 System Prompt（保留现有逻辑）**
+
+确认 `engine.go:381-388` 的模式切换逻辑不变 — `session.Mode` 变化时 `history[0]` 重建。
+
+- [ ] **Step 6: 编译检查**
+
+```bash
+cd d:/Vscoding/edu_market && go build ./...
+```
+Expected: 编译通过（所有文件已更新）。
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add service/agent/engine.go
+git commit -m "refactor: engine 去掉白名单 + State 任务板集成 + 日志更新"
+```
+
+---
+
+### Task 6: 更新 service.go + 全量编译
+
+**Files:**
+- Modify: `service/agent/service.go:50`
+
+**Interfaces:**
+- Consumes: Task 2 的新 `buildToolSet`
+- Produces: 无变化（`Chat()` 签名不变）
+
+- [ ] **Step 1: 确认 buildToolSet 调用兼容**
+
+`service.go:50` 调 `buildToolSet(searchFunc)`，签名未变，无需改代码。
+
+- [ ] **Step 2: 全量编译**
+
+```bash
+cd d:/Vscoding/edu_market && go build ./...
+```
+Expected: 编译通过。
+
+- [ ] **Step 3: 检查 vet**
+
+```bash
+cd d:/Vscoding/edu_market && go vet ./...
+```
+Expected: 无 warning。
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add service/agent/service.go
+git commit -m "chore: 确认 buildToolSet 兼容，全量编译通过"
+```
+
+---
+
+### Task 7: 更新 scripts/test_agent.go + 运行测试
+
+**Files:**
+- Modify: `scripts/test_agent.go`
+
+**Interfaces:**
+- Consumes: Task 1 的新 Tool 常量
+- Produces: 可用的 REPL 测试脚本
+
+- [ ] **Step 1: 更新 buildSearchFunc 中的签名引用**
+
+`test_agent.go:170-190` — `buildSearchFunc` 使用 `agent.SearchFunc` 类型，签名未变（仍然是 `func(courseID uint, query string, topK int, hasAccess bool) (string, error)`），无需修改。
+
+- [ ] **Step 2: 确认无硬编码旧 Tool 名**
+
+`test_agent.go` 使用 `agent.TraceEvent` 和 `agent.SSEHandler`，不直接引用 Tool 常量名。确认无需修改。
+
+- [ ] **Step 3: 运行单元测试**
+
+```bash
+cd d:/Vscoding/edu_market && go test ./service/agent/... -v -count=1
+```
+Expected: 现有测试可能失败（引用了旧的 Tool 名）。记录失败数。
+
+- [ ] **Step 4: 更新测试代码中的旧 Tool 名引用**
+
+搜索 `service/agent/` 下所有 `_test.go` 文件中的旧常量名，手动替换：
+- `"query_materials"` → `"search_materials"`
+- `"query_orders"` → `"get_orders"`
+- `"get_order_detail"` → `"get_orders"`
+- `"get_reviews"` → 删除相关测试代码
+- `"get_categories"` → 删除相关测试代码
+- `"trigger_purchase_offer"` → `"purchase"`
+
+```bash
+cd d:/Vscoding/edu_market
+grep -rn "query_materials\|query_orders\|get_order_detail\|get_reviews\|get_categories\|trigger_purchase_offer" service/agent/*_test.go
+```
+根据 grep 结果逐文件逐行修改。
+
+- [ ] **Step 5: 测试通过**
+
+```bash
+cd d:/Vscoding/edu_market && go test ./service/agent/... -v -count=1
+```
+Expected: 全部 PASS。
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add scripts/test_agent.go service/agent/*_test.go
+git commit -m "fix: 适配 test_agent 和测试代码到新 Tool 名"
+```
+
+---
+
+### Task 8: 端到端验证
+
+**验证内容:** 用 REPL 或实际 API 测试关键场景。
+
+- [ ] **Step 1: 启动后端服务**
+
+```bash
+docker start edu_market_qdrant
+cd d:/Vscoding/edu_market && go run .
+```
+
+- [ ] **Step 2: 场景 1 — 发布者问内容（原始 bug）**
+
+```bash
+# 用 test_agent.go REPL 或 curl
+curl -X POST http://localhost:8080/api/agent/chat \
+  -H "Authorization: Bearer <user_id=2 token>" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"我的资料里面哪些地方涉及到函数的概念"}'
+```
+
+Expected:
+- LLM 调 `my_materials`（不是 get_orders）
+- 然后调 `search_documents`
+- 模式切 tutoring（不是 support）
+- 返回文档内容
+
+- [ ] **Step 3: 场景 2 — 问"我的订单"**
+
+```bash
+curl ... -d '{"question":"我的订单"}'
+```
+Expected: LLM 调 `get_orders` → mode=support → 展示订单。
+
+- [ ] **Step 4: 场景 3 — 未购买用户逛资料**
+
+用另一个用户测试 → `search_materials` → `get_material_detail` → access.has_purchased=false → mode=shopping → 引导购买。
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit --allow-empty -m "verify: 端到端场景验证通过"
+```

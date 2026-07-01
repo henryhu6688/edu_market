@@ -12,7 +12,7 @@ import (
 	"edu_market/config"
 )
 
-const rerankModel = "Pro/BAAI/bge-reranker-v2-m3"
+const rerankModel = "BAAI/bge-reranker-v2-m3"
 
 // Reranker Cross-Encoder 精排器。
 // 对召回的 chunks 用 bge-reranker-v2-m3 重新打分排序。
