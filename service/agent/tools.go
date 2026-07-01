@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"edu_market/database"
@@ -356,7 +357,7 @@ func (t searchDocumentsTool) Definition() ToolDef {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"query":       map[string]interface{}{"type": "string", "description": "1-200字。具体知识点或章节号，如「闭包的原理」「第三章重点」"},
+				"query":       map[string]interface{}{"type": "string", "description": "1-20字。用简洁的单个关键词或术语，如「闭包」「函数」「变量」。不要展开成多个词或完整句子，否则检索命中率会降低。"},
 				"material_id": map[string]interface{}{"type": "number", "description": ">=1。来自 my_materials 或 get_material_detail 返回的ID。留空=搜全部可访问资料。不可编造——不知道时先调 my_materials。"},
 			},
 			"required": []string{"query"},
@@ -372,6 +373,8 @@ func (t searchDocumentsTool) Execute(userID uint, argsJSON string) ToolResult {
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return ToolResult{Success: false, Content: "参数解析失败，请调整参数格式后重试", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
 	}
+	slog.Info("search_documents 参数", "material_id", args.MaterialID, "query", TruncateRunes(args.Query, 60))
+
 	if strings.TrimSpace(args.Query) == "" {
 		return ToolResult{Success: false, Content: "查询内容不能为空，请提供具体问题", ErrorCode: "MISSING_PARAMETER", Recoverable: true, RecommendedAction: "ask_user_for_query"}
 	}
