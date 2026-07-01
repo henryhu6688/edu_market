@@ -157,7 +157,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 		if b, err := database.RDB.Get(context.Background(), exactKey).Bytes(); err == nil && len(b) > 0 {
 			var results []SearchResult
 			if json.Unmarshal(b, &results) == nil {
-				slog.Info("rag L1精确缓存命中，query+courseID MD5匹配", "course_id", courseID, "results", len(results), "query", queryPreview)
+				slog.Info("rag L1精确缓存命中", "course_id", courseID, "results", len(results), "query", queryPreview)
 				return results, nil
 			}
 		}
@@ -220,7 +220,7 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 	}
 
 	// ====== 写入缓存 ======
-	if config.App.RAG.CacheEnabled && database.RDB != nil && len(results) > 0 {
+	if config.App.RAG.CacheEnabled && database.RDB != nil  {
 		// L1
 		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))), accessLevel)
 		b, _ := json.Marshal(results)
