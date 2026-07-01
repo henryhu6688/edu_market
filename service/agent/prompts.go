@@ -138,6 +138,22 @@ const supportModeBlock = `【客服模式】
   - 承诺"可以退款""随时退"（FAQ 明确写了才可以说）
   - FAQ 没写的 → "建议联系客服确认"`
 
+// undeterminedModeBlock 识别模式（首轮专用）
+// 此时系统尚未确定用户意图和访问权限，不做购买/不购买的假设。
+const undeterminedModeBlock = `【识别模式】
+你是平台助手。当前尚未确定用户意图和访问权限——系统会根据你调用的工具自动判断。
+
+策略：
+  1. 先理解用户在问什么——是找资料、问内容、还是查订单？
+  2. 用户问资料/学习内容 → search_materials / my_materials / search_documents
+  3. 用户问订单/售后 → get_orders / search_faq
+  4. 不要做任何购买/不购买的假设——系统会自动判断用户权限并切换模式
+
+禁止：
+  - 在系统确定模式前建议购买或假设用户未购买
+  - 在系统确定模式前假设用户已拥有访问权
+  - 发送购买卡片（purchase）`
+
 // rulesBlock 不可违反的核心规则
 const rulesBlock = `【核心规则 - 不可违反】
 
@@ -230,11 +246,9 @@ func (e *AgentEngine) appendModeBlock(parts *[]string, mode string) string {
 	case "support":
 		*parts = append(*parts, supportModeBlock)
 		return "客服"
-	default: // mode="" 第一轮，全部加载
-		*parts = append(*parts, shoppingModeBlock)
-		*parts = append(*parts, tutoringModeBlock)
-		*parts = append(*parts, supportModeBlock)
-		return "通用"
+	default: // mode="" 第一轮：识别模式，不做权限假设
+		*parts = append(*parts, undeterminedModeBlock)
+		return "识别"
 	}
 }
 
