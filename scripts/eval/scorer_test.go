@@ -87,9 +87,11 @@ func TestScoreTask_MaxSteps(t *testing.T) {
 			MaxSteps: 3,
 		},
 	}
-	trace := &EvalTrace{
-		Steps: make([]TraceStep, 10), // 10 steps > 3
+	steps := make([]TraceStep, 10)
+	for i := range steps {
+		steps[i] = TraceStep{Step: "llm_response", ToolName: "search_materials", ToolArgs: `{"keyword":"test"}`}
 	}
+	trace := &EvalTrace{Steps: steps} // 10 steps > 3
 	results := scoreTask(task, trace)
 	for _, r := range results {
 		if r.Rule == "max_steps" {
