@@ -123,9 +123,9 @@ Agent 评估必须回答四个问题：
 ```
 E001  已购买用户问文档内容
       用户："《JS教程》闭包那章讲了什么？"
-      预期链路：search_documents（不传 material_ids 搜全部，或传 [3] 指定该资料）
-            → 回答 + 引用来源
-      说明：无需先调 my_materials，直接搜即可——用户只有 1 份资料时搜全部等同搜它
+      有效路径A：my_materials → 拿到 material_id → search_documents(material_ids=[3])
+      有效路径B：search_documents 不传 material_ids，搜全部可访问资料
+      两者皆可。禁止：调 get_orders / purchase 等无关 Tool
 
 E002  发布者看自己资料
       用户："我发布的Python课有多少人买了？"
