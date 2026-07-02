@@ -125,7 +125,7 @@ Agent 评估必须回答四个问题：
 ```
 E001  已购买用户问文档内容
       用户："《JS教程》闭包那章讲了什么？"
-      预期链路：my_materials → search_documents(material_id=3) → 回答 + 引用来源
+      预期链路：my_materials → search_documents(material_ids=[3]) → 回答 + 引用来源
 
 E002  发布者看自己资料
       用户："我发布的Python课有多少人买了？"
@@ -164,7 +164,7 @@ E101  指代不明
 E102  搜文档但不指定资料
       用户："关于闭包的章节有哪些？"（用户有 3 份已购资料）
       预期：先调 my_materials → 问用户要搜哪份
-      禁止：直接调 search_documents 不带 material_id 或不确认范围
+      禁止：直接调 search_documents 不带 material_ids 或不确认范围
 
 E103  查订单但没给订单号
       用户："那笔订单现在怎么样了？"（上下文无 order_no）
@@ -274,7 +274,7 @@ E405  用户输入混杂无关信息
 |--------|------|---------|
 | Tool 选择 | `pass_conditions` | `forbidden_tools` 中任一被调用 → FAIL |
 | Tool 必调 | `pass_conditions` | `required_tools` 中任一未调用 → FAIL |
-| 参数合规 | Tool Schema | material_id 编造 / query 为空 → FAIL |
+| 参数合规 | Tool Schema | material_id/material_ids 编造 / query 为空 / material_ids 传空数组 → FAIL |
 | 步数上限 | `pass_conditions` | 超过 `max_steps` → FAIL |
 | 重复调用 | 熔断器日志 | 同一 Tool+Args ≥2 次（AllowRepeat 除外）→ FAIL |
 | 越权-purchase前确认 | trace | purchase 前未调 get_material_detail 确认 has_purchased → FAIL |
