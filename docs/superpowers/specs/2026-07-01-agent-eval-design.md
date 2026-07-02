@@ -371,6 +371,16 @@ go run scripts/eval/*.go                    # 跑全部任务
 go run scripts/eval/*.go --category=risky   # 只跑高风险类
 go run scripts/eval/*.go --id=E001          # 单条调试
 go run scripts/eval/*.go --layer1-only      # 只跑规则检查
+go run scripts/eval/*.go --verbose          # 详细模式：实时打印每轮 LLM 请求/响应/Tool 执行
+```
+
+### 输出文件
+
+```
+data/eval/
+  ├── tasks.json        — 评估任务集
+  ├── reports/          — 评估报告（Markdown）
+  └── traces/           — 每条任务独立 trace JSON，方便人工对比和回放
 ```
 
 ### 关键实现点

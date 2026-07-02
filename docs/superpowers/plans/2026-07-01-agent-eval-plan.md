@@ -28,10 +28,11 @@
   scripts/eval/runner.go     — 执行引擎：构造测试会话 → 调 AgentService.Chat() → 通过 TraceHandler 收集完整 trace
   scripts/eval/scorer.go     — Layer 1 规则检查器（9 项硬边界判定）
   scripts/eval/judge.go      — Layer 2 LLM Judge（调 DeepSeek 打四维分）
-  scripts/eval/reporter.go   — 报告生成（Markdown + JSON）
+  scripts/eval/reporter.go   — 报告生成（Markdown + JSON）+ trace 保存
   scripts/eval/main.go       — CLI 入口 + flag 解析 + 编排循环
   data/eval/tasks.json       — 评估任务集（初版 39 条）
   data/eval/reports/         — 报告输出目录（gitignore）
+  data/eval/traces/          — 单条 trace JSON 输出目录（gitignore）
 
 不修改任何现有文件。
 ```
@@ -721,7 +722,8 @@ import (
 
 // runTask 执行单条评估任务，返回完整 trace。
 // evalUserID 是评估专用测试用户，searchFunc 复用 RAG。
-func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFunc agent.SearchFunc, requestID string) (*EvalTrace, error) {
+// verbose=true 时实时打印每轮 LLM 请求/响应/Tool 执行到 stdout。
+func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFunc agent.SearchFunc, requestID string, verbose bool) (*EvalTrace, error) {
 	trace := &EvalTrace{TaskID: task.ID}
 
 	// 1. 如任务有预设上下文（噪音类），先在 DB 中创建历史消息
@@ -788,9 +790,34 @@ func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFun
 			}
 		}
 		trace.Steps = append(trace.Steps, step)
+		// verbose: 实时打印
+		if verbose {
+			switch evt.Step {
+			case "llm_request":
+				fmt.Printf("  [第%d轮] 🤖 LLM 请求 → model=%v tools=%v\n", evt.Round, evt.Data["model"], evt.Data["tools_count"])
+			case "llm_response":
+				if tcs, ok := evt.Data["tool_calls"].([]interface{}); ok && len(tcs) > 0 {
+					for _, tc := range tcs {
+						if tcm, ok := tc.(map[string]interface{}); ok {
+							if fn, ok := tcm["function"].(map[string]interface{}); ok {
+								fmt.Printf("  [第%d轮] 🔧 调 %s(%v)\n", evt.Round, fn["name"], fn["arguments"])
+							}
+						}
+					}
+				} else if c, ok := evt.Data["content"].(string); ok && c != "" {
+					fmt.Printf("  [第%d轮] 💬 文本回复: %s\n", evt.Round, truncateStr(c, 100))
+				}
+			case "tool_result":
+				success, _ := evt.Data["success"].(bool)
+				result, _ := evt.Data["result"].(string)
+				icon := "✅"
+				if !success {
+					icon = "❌"
+				}
+				fmt.Printf("  [第%d轮] %s %s → %s\n", evt.Round, icon, evt.Data["tool"], truncateStr(result, 150))
+			}
+		}
 	})
-
-	// 3. 调 AgentService.Chat（新建会话或复用预设上下文会话）
 	var sid *uint
 	if sessionID != 0 {
 		sid = &sessionID
@@ -1527,6 +1554,15 @@ func passFail(passed bool) string {
 	return "❌ FAIL"
 }
 
+// saveTrace 保存单条 task trace 到独立 JSON 文件。
+func saveTrace(traceData string, taskID, dir string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	filename := fmt.Sprintf("%s/%s.json", dir, taskID)
+	return os.WriteFile(filename, []byte(traceData), 0644)
+}
+
 // saveReport 保存报告到文件。
 func saveReport(report *EvalReport, dir string) (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -1596,7 +1632,9 @@ func main() {
 	categoryFilter := flag.String("category", "", "只跑指定类别 (normal|missing_info|tool_failure|high_risk|noise)")
 	taskIDFilter := flag.String("id", "", "只跑指定任务 ID")
 	layer1Only := flag.Bool("layer1-only", false, "只跑规则检查，跳过 LLM Judge")
+	verbose := flag.Bool("verbose", false, "详细模式：实时打印每轮 LLM 请求/响应/Tool 执行")
 	reportDir := flag.String("report-dir", "data/eval/reports", "报告输出目录")
+	tracesDir := flag.String("traces-dir", "data/eval/traces", "单条 trace JSON 输出目录")
 	flag.Parse()
 
 	// 加载配置
@@ -1644,9 +1682,17 @@ func main() {
 		fmt.Printf("\n[%d/%d] %s [%s] %s\n", i+1, len(tasks), task.ID, task.Category, task.Description)
 
 		// 执行
-		trace, err := runTask(&task, evalUser.ID, svc, searchFunc, fmt.Sprintf("eval-%s", task.ID))
+		trace, err := runTask(&task, evalUser.ID, svc, searchFunc, fmt.Sprintf("eval-%s", task.ID), *verbose)
 		if err != nil {
 			fmt.Printf("  ⚠️ 执行异常: %v\n", err)
+		}
+
+		// 保存单条 trace JSON
+		if trace != nil {
+			traceBytes, _ := json.MarshalIndent(trace, "", "  ")
+			if err := saveTrace(string(traceBytes), task.ID, *tracesDir); err != nil {
+				fmt.Printf("  ⚠️ 保存 trace 失败: %v\n", err)
+			}
 		}
 
 		// Layer 1
@@ -1860,8 +1906,9 @@ Expected: 有 `report_*.md` 文件
 
 ```bash
 echo "data/eval/reports/" >> .gitignore
-git add .gitignore data/eval/reports/.gitkeep
-git commit -m "chore(eval): 添加报告目录到 gitignore"
+echo "data/eval/traces/" >> .gitignore
+git add .gitignore
+git commit -m "chore(eval): 添加报告和trace输出目录到 gitignore"
 ```
 
 ---
