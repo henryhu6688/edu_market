@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 // TaskCategory 任务类别
