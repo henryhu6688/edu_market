@@ -30,7 +30,7 @@
   scripts/eval/judge.go      — Layer 2 LLM Judge（调 DeepSeek 打四维分）
   scripts/eval/reporter.go   — 报告生成（Markdown + JSON）
   scripts/eval/main.go       — CLI 入口 + flag 解析 + 编排循环
-  data/eval/tasks.json       — 评估任务集（初版 ~35 条）
+  data/eval/tasks.json       — 评估任务集（初版 39 条）
   data/eval/reports/         — 报告输出目录（gitignore）
 
 不修改任何现有文件。
@@ -236,7 +236,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["get_orders", "purchase"],
-      "max_steps": 5,
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -250,8 +250,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_materials"],
       "forbidden_tools": ["purchase", "get_orders"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -265,8 +264,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["get_material_detail"],
       "forbidden_tools": ["purchase", "get_orders"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -280,8 +278,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["get_orders"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -295,8 +292,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_faq"],
       "forbidden_tools": ["purchase", "get_orders"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -310,8 +306,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["purchase"],
       "forbidden_tools": ["get_orders"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -325,8 +320,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["get_material_detail"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -368,8 +362,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["get_material_detail"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -383,8 +376,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -398,8 +390,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["get_orders"],
       "forbidden_tools": [],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -413,8 +404,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -428,8 +418,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -443,8 +432,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -458,8 +446,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -473,8 +460,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -488,8 +474,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_faq"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -503,8 +488,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": [],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -546,8 +530,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -561,8 +544,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -576,8 +558,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": [],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -591,8 +572,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -606,8 +586,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["purchase"],
       "forbidden_tools": [],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -625,8 +604,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["get_orders"],
       "forbidden_tools": [],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -646,8 +624,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_materials"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -661,8 +638,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -676,8 +652,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
-      "max_steps": 5,
-      },
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -695,8 +670,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["get_material_detail"],
-      "max_steps": 3,
-      },
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   }
@@ -714,7 +688,7 @@ Expected: `OK`
 
 ```bash
 git add data/eval/tasks.json
-git commit -m "feat(eval): 初始评估任务集 35条 覆盖五类场景"
+git commit -m "feat(eval): 初始评估任务集 39条 覆盖五类场景"
 ```
 
 ---
