@@ -33,3 +33,7 @@ uploads/*
 # --- OS ---
 Thumbs.db
 *.exe~
+
+# --- Eval ---
+data/eval/reports/
+data/eval/traces/
