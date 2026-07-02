@@ -59,29 +59,25 @@ type TaskSetup struct {
 	HasAccess     bool   `json:"has_access"`
 }
 
-// TraceStep 单步 trace 记录
-type TraceStep struct {
-	Round        int    `json:"round"`
-	Step         string `json:"step"`
-	ToolName     string `json:"tool_name,omitempty"`
-	ToolArgs     string `json:"tool_args,omitempty"`
-	ToolResult   string `json:"tool_result,omitempty"`
-	ErrorCode    string `json:"error_code,omitempty"`
-	Recoverable  bool   `json:"recoverable"`
-	Content      string `json:"content,omitempty"`
-	FinishReason string `json:"finish_reason,omitempty"`
-	TokensUsed   int    `json:"tokens_used"`
+// ToolCall 一次完整的工具调用（LLM 决定 + 执行结果）
+type ToolCall struct {
+	Round       int    `json:"round"`
+	ToolName    string `json:"tool_name"`
+	ToolArgs    string `json:"tool_args"`
+	ToolResult  string `json:"tool_result,omitempty"`
+	ErrorCode   string `json:"error_code,omitempty"`
+	Recoverable bool   `json:"recoverable"`
 }
 
 // EvalTrace 完整执行轨迹
 type EvalTrace struct {
-	TaskID       string      `json:"task_id"`
-	Steps        []TraceStep `json:"steps"`
-	FinalAnswer  string      `json:"final_answer"`
-	TotalRounds  int         `json:"total_rounds"`
-	TotalTokens  int         `json:"total_tokens"`
-	ModeSequence []string    `json:"mode_sequence"`
-	Error        string      `json:"error,omitempty"`
+	TaskID       string     `json:"task_id"`
+	ToolCalls    []ToolCall `json:"tool_calls"`
+	FinalAnswer  string     `json:"final_answer"`
+	TotalRounds  int        `json:"total_rounds"`
+	TotalTokens  int        `json:"total_tokens"`
+	ModeSequence []string   `json:"mode_sequence"`
+	Error        string     `json:"error,omitempty"`
 }
 
 // RuleResult 单条规则检查结果

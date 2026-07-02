@@ -12,17 +12,14 @@ import (
 )
 
 // runTask 执行单条评估任务，返回完整 trace。
-// evalUserID 是评估专用测试用户，searchFunc 复用 RAG。
-// verbose=true 时实时打印每轮 LLM 请求/响应/Tool 执行到 stdout。
 func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFunc agent.SearchFunc, requestID string, verbose bool) (*EvalTrace, error) {
 	trace := &EvalTrace{TaskID: task.ID}
 
-	// 1. 如任务有预设上下文（噪音类），先在 DB 中创建历史消息
+	// 1. 噪音类任务：预设上下文历史
 	var sessionID *uint
 	if len(task.ContextHistory) > 0 {
 		s := &model.Session{
-			UserID: evalUserID, AgentType: "agent", Status: model.SessionActive,
-			Title: task.ID,
+			UserID: evalUserID, AgentType: "agent", Status: model.SessionActive, Title: task.ID,
 		}
 		if err := database.DB.Create(s).Error; err != nil {
 			return nil, fmt.Errorf("创建会话失败: %w", err)
@@ -30,71 +27,80 @@ func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFun
 		sid := s.ID
 		sessionID = &sid
 		for _, cm := range task.ContextHistory {
-			msg := &model.Message{
-				SessionID: s.ID,
-				Role:      cm.Role,
-				Content:   cm.Content,
-			}
+			msg := &model.Message{SessionID: s.ID, Role: cm.Role, Content: cm.Content}
 			if err := database.DB.Create(msg).Error; err != nil {
 				return nil, fmt.Errorf("创建上下文消息失败: %w", err)
 			}
 		}
 	}
 
-	// 2. 创建新的 AgentEngine + 设置 trace 收集器
+	// 2. 创建 AgentEngine + 设置 trace 收集器
 	engine := agent.NewAgentEngine()
 	var mu sync.Mutex
+	pending := map[string]*ToolCall{} // callID → 待填充结果的 tool call
+	maxRound := 0
+
 	engine.SetTraceHandler(func(evt agent.TraceEvent) {
 		mu.Lock()
 		defer mu.Unlock()
 
-		step := TraceStep{
-			Round: evt.Round,
-			Step:  evt.Step,
+		if evt.Round > maxRound {
+			maxRound = evt.Round
 		}
 
 		switch evt.Step {
 		case "llm_response":
-			if fc, ok := evt.Data["finish_reason"].(string); ok {
-				step.FinishReason = fc
+			tok := 0
+			if t, ok := evt.Data["tokens"].(int); ok {
+				tok = t
+			} else if t, ok := evt.Data["tokens"].(float64); ok {
+				tok = int(t)
 			}
-			if tok, ok := evt.Data["tokens"].(int); ok {
-				step.TokensUsed = tok
-			} else if tok, ok := evt.Data["tokens"].(float64); ok {
-				step.TokensUsed = int(tok)
-			}
-			if content, ok := evt.Data["content"].(string); ok {
-				step.Content = content
-			}
+			trace.TotalTokens += tok
+
 			if tcs, ok := evt.Data["tool_calls"].([]interface{}); ok && len(tcs) > 0 {
+				// 有 tool_call：为每个创建 ToolCall 记录（pending 状态）
 				for _, tc := range tcs {
-					if tcm, ok := tc.(map[string]interface{}); ok {
-						if fn, ok := tcm["function"].(map[string]interface{}); ok {
-							if name, ok := fn["name"].(string); ok {
-								step.ToolName = name
-							}
-							if args, ok := fn["arguments"].(string); ok {
-								step.ToolArgs = args
-							}
-						}
+					tcm, _ := tc.(map[string]interface{})
+					fn, _ := tcm["function"].(map[string]interface{})
+					name, _ := fn["name"].(string)
+					args, _ := fn["arguments"].(string)
+
+					callID := ""
+					if id, ok := tcm["id"].(string); ok {
+						callID = id
 					}
+					tc := &ToolCall{Round: evt.Round, ToolName: name, ToolArgs: args}
+					trace.ToolCalls = append(trace.ToolCalls, *tc)
+					// 用 callID 或 name 做 key 索引最后一个同名的
+					key := callID
+					if key == "" {
+						key = name
+					}
+					pending[key] = &trace.ToolCalls[len(trace.ToolCalls)-1]
 				}
 			}
+
 		case "tool_result":
-			if tn, ok := evt.Data["tool"].(string); ok {
-				step.ToolName = tn
-			}
-			if ec, ok := evt.Data["error_code"].(string); ok {
-				step.ErrorCode = ec
-			}
-			if rc, ok := evt.Data["recoverable"].(bool); ok {
-				step.Recoverable = rc
+			tn, _ := evt.Data["tool"].(string)
+			args, _ := evt.Data["args"].(string)
+			ec, _ := evt.Data["error_code"].(string)
+			rc, _ := evt.Data["recoverable"].(bool)
+			res, _ := evt.Data["result"].(string)
+
+			// 找到匹配的 pending ToolCall 并填充结果
+			for k, tc := range pending {
+				if tc.ToolName == tn && tc.ToolArgs == args {
+					tc.ErrorCode = ec
+					tc.Recoverable = rc
+					tc.ToolResult = res
+					delete(pending, k)
+					break
+				}
 			}
 		}
 
-		trace.Steps = append(trace.Steps, step)
-
-		// verbose: 实时打印
+		// verbose
 		if verbose {
 			switch evt.Step {
 			case "llm_request":
@@ -102,12 +108,10 @@ func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFun
 			case "llm_response":
 				if tcs, ok := evt.Data["tool_calls"].([]interface{}); ok && len(tcs) > 0 {
 					for _, tc := range tcs {
-						if tcm, ok := tc.(map[string]interface{}); ok {
-							if fn, ok := tcm["function"].(map[string]interface{}); ok {
-								argStr, _ := fn["arguments"].(string)
-								fmt.Printf("  [第%d轮] 🔧 调 %s(%s)\n", evt.Round, fn["name"], truncateStr(argStr, 120))
-							}
-						}
+						tcm, _ := tc.(map[string]interface{})
+						fn, _ := tcm["function"].(map[string]interface{})
+						argStr, _ := fn["arguments"].(string)
+						fmt.Printf("  [第%d轮] 🔧 调 %s(%s)\n", evt.Round, fn["name"], truncateStr(argStr, 120))
 					}
 				} else if c, ok := evt.Data["content"].(string); ok && c != "" {
 					fmt.Printf("  [第%d轮] 💬 文本: %s\n", evt.Round, truncateStr(c, 100))
@@ -127,13 +131,11 @@ func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFun
 
 	evalSvc := agent.NewAgentService(engine)
 
-	// 3. 通过 SSEHandler 收集 final answer
+	// 3. SSEHandler 收集最终回答
 	var finalAnswer string
 	sseHandler := func(event, data string) error {
 		if event == "delta" {
-			var payload struct {
-				Content string `json:"content"`
-			}
+			var payload struct{ Content string `json:"content"` }
 			if json.Unmarshal([]byte(data), &payload) == nil {
 				finalAnswer += payload.Content
 			}
@@ -142,7 +144,6 @@ func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFun
 	}
 
 	slog.Info("eval 开始执行任务", "task_id", task.ID, "category", task.Category)
-
 	if verbose {
 		fmt.Printf("\n━━━ %s [%s] ━━━\n输入: %s\n", task.ID, task.Category, task.Input)
 	}
@@ -150,29 +151,23 @@ func runTask(task *EvalTask, evalUserID uint, svc *agent.AgentService, searchFun
 	session, err := evalSvc.Chat(evalUserID, sessionID, task.Input, searchFunc, sseHandler, requestID)
 	if err != nil {
 		trace.Error = err.Error()
-		return trace, nil // 不返回 error——部分失败也要出 trace
+		return trace, nil
 	}
 
 	trace.FinalAnswer = finalAnswer
-	trace.TotalRounds = len(trace.Steps) / 2 // 大致：每个 round 产生 2 个 trace event
+	trace.TotalRounds = maxRound
 	if session != nil {
 		trace.ModeSequence = append(trace.ModeSequence, session.Mode)
 	}
 
-	// 4. 计算总 tokens
-	for _, s := range trace.Steps {
-		trace.TotalTokens += s.TokensUsed
-	}
-
 	if verbose {
-		fmt.Printf("  📋 完成: %d steps, %d tokens, 回答 %d 字\n",
-			len(trace.Steps), trace.TotalTokens, len([]rune(finalAnswer)))
+		fmt.Printf("  📋 完成: %d 次工具调用, %d tokens, 回答 %d 字\n",
+			len(trace.ToolCalls), trace.TotalTokens, len([]rune(finalAnswer)))
 	}
 
 	return trace, nil
 }
 
-// truncateStr 截断字符串到指定长度
 func truncateStr(s string, maxLen int) string {
 	runes := []rune(s)
 	if len(runes) <= maxLen {

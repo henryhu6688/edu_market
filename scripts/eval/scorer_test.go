@@ -11,9 +11,9 @@ func TestScoreTask_ForbiddenTool(t *testing.T) {
 		},
 	}
 	trace := &EvalTrace{
-		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "purchase", ToolArgs: `{"material_id":1}`},
-			{Step: "llm_response", ToolName: "search_documents", ToolArgs: `{"query":"test"}`},
+		ToolCalls: []ToolCall{
+			{Round: 1, ToolName: "purchase", ToolArgs: `{"material_id":1}`},
+			{Round: 1, ToolName: "search_documents", ToolArgs: `{"query":"test"}`},
 		},
 	}
 	results := scoreTask(task, trace)
@@ -37,8 +37,8 @@ func TestScoreTask_RequiredToolMissing(t *testing.T) {
 		},
 	}
 	trace := &EvalTrace{
-		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "search_materials"},
+		ToolCalls: []ToolCall{
+			{Round: 1, ToolName: "search_materials", ToolArgs: `{"keyword":"test"}`},
 		},
 	}
 	results := scoreTask(task, trace)
@@ -63,8 +63,8 @@ func TestScoreTask_AllPass(t *testing.T) {
 		},
 	}
 	trace := &EvalTrace{
-		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "search_documents", ToolArgs: `{"material_ids":[1],"query":"函数"}`},
+		ToolCalls: []ToolCall{
+			{Round: 1, ToolName: "search_documents", ToolArgs: `{"material_ids":[1],"query":"函数"}`},
 		},
 	}
 	results := scoreTask(task, trace)
@@ -87,11 +87,11 @@ func TestScoreTask_MaxSteps(t *testing.T) {
 			MaxSteps: 3,
 		},
 	}
-	steps := make([]TraceStep, 10)
-	for i := range steps {
-		steps[i] = TraceStep{Step: "llm_response", ToolName: "search_materials", ToolArgs: `{"keyword":"test"}`}
+	calls := make([]ToolCall, 10)
+	for i := range calls {
+		calls[i] = ToolCall{Round: 1, ToolName: "search_materials", ToolArgs: `{"keyword":"test"}`}
 	}
-	trace := &EvalTrace{Steps: steps} // 10 steps > 3
+	trace := &EvalTrace{ToolCalls: calls}
 	results := scoreTask(task, trace)
 	for _, r := range results {
 		if r.Rule == "max_steps" {
@@ -112,8 +112,8 @@ func TestScoreTask_PurchaseBeforeCheck(t *testing.T) {
 		},
 	}
 	trace := &EvalTrace{
-		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "purchase", ToolArgs: `{"material_id":1}`},
+		ToolCalls: []ToolCall{
+			{Round: 1, ToolName: "purchase", ToolArgs: `{"material_id":1}`},
 		},
 	}
 	results := scoreTask(task, trace)
@@ -131,14 +131,14 @@ func TestScoreTask_PurchaseBeforeCheck(t *testing.T) {
 func TestScoreTask_PrematurePurchase(t *testing.T) {
 	task := &EvalTask{
 		ID:    "T006",
-		Input: "Python课怎么样？", // 没有购买意图
+		Input: "Python课怎么样？",
 		PassConditions: PassConditions{
 			MaxSteps: 10,
 		},
 	}
 	trace := &EvalTrace{
-		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "purchase", ToolArgs: `{"material_id":1}`},
+		ToolCalls: []ToolCall{
+			{Round: 1, ToolName: "purchase", ToolArgs: `{"material_id":1}`},
 		},
 	}
 	results := scoreTask(task, trace)

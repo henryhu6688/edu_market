@@ -14,7 +14,6 @@ import (
 	"edu_market/config"
 )
 
-// judgeSystemPrompt Judge 的系统提示
 const judgeSystemPrompt = `你是一个 Agent 评估专家。你会收到一个评估任务的定义和 Agent 实际执行的完整轨迹。
 你需要对四个维度分别打分（1-5分整数），并给出简短理由。
 
@@ -43,12 +42,11 @@ func judgeTask(task *EvalTask, trace *EvalTrace) (*JudgeScores, error) {
 		},
 		"stream":      false,
 		"max_tokens":  512,
-		"temperature": 0, // 保证评分一致性
+		"temperature": 0,
 	}
 
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	ctx := &http.Client{Timeout: 60 * time.Second}
 	req, err := http.NewRequest("POST", cfg.APIURL, bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return nil, fmt.Errorf("创建 Judge 请求失败: %w", err)
@@ -56,7 +54,8 @@ func judgeTask(task *EvalTask, trace *EvalTrace) (*JudgeScores, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 
-	resp, err := ctx.Do(req)
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Judge API 请求失败: %w", err)
 	}
@@ -83,9 +82,7 @@ func judgeTask(task *EvalTask, trace *EvalTrace) (*JudgeScores, error) {
 		return nil, fmt.Errorf("Judge 返回空 choices")
 	}
 
-	// 解析 Judge 输出的 JSON
 	content := result.Choices[0].Message.Content
-	// 清理 markdown code block
 	content = strings.TrimPrefix(content, "```json")
 	content = strings.TrimPrefix(content, "```")
 	content = strings.TrimSuffix(content, "```")
@@ -93,10 +90,8 @@ func judgeTask(task *EvalTask, trace *EvalTrace) (*JudgeScores, error) {
 
 	scores := &JudgeScores{}
 	if err := json.Unmarshal([]byte(content), scores); err != nil {
-		// 尝试从文本中提取数字
 		return parseJudgeFallback(content), nil
 	}
-
 	return scores, nil
 }
 
@@ -110,12 +105,10 @@ func buildJudgePrompt(task *EvalTask, trace *EvalTrace) string {
 	sb.WriteString(fmt.Sprintf("- 用户权限: has_access=%v\n\n", task.Setup.HasAccess))
 
 	sb.WriteString("## Agent 执行轨迹\n\n")
-	for i, s := range trace.Steps {
-		if s.ToolName != "" {
-			sb.WriteString(fmt.Sprintf("步骤 %d: 调用 %s(%s)\n", i+1, s.ToolName, s.ToolArgs))
-			if s.ErrorCode != "" {
-				sb.WriteString(fmt.Sprintf("  错误码: %s, 可恢复: %v\n", s.ErrorCode, s.Recoverable))
-			}
+	for i, tc := range trace.ToolCalls {
+		sb.WriteString(fmt.Sprintf("步骤 %d: 调用 %s(%s)\n", i+1, tc.ToolName, tc.ToolArgs))
+		if tc.ErrorCode != "" {
+			sb.WriteString(fmt.Sprintf("  结果: %s / 错误码: %s, 可恢复: %v\n", truncateStr(tc.ToolResult, 100), tc.ErrorCode, tc.Recoverable))
 		}
 	}
 
@@ -136,15 +129,14 @@ func buildJudgePrompt(task *EvalTask, trace *EvalTrace) string {
 	return sb.String()
 }
 
-// parseJudgeFallback 当 Judge 输出不是严格的 JSON 时，尝试从文本中提取评分。
+// parseJudgeFallback 从非 JSON 文本中尝试正则提取评分。
 func parseJudgeFallback(content string) *JudgeScores {
 	scores := &JudgeScores{Reason: content}
-	// 尝试正则提取 "task_complete": N 模式
 	patterns := map[string]*int{
-		`"task_complete"\s*:\s*(\d)`:        &scores.TaskComplete,
-		`"process_reliable"\s*:\s*(\d)`:     &scores.ProcessReliable,
-		`"efficiency"\s*:\s*(\d)`:           &scores.Efficiency,
-		`"failure_handling"\s*:\s*(\d)`:     &scores.FailureHandling,
+		`"task_complete"\s*:\s*(\d)`:    &scores.TaskComplete,
+		`"process_reliable"\s*:\s*(\d)`: &scores.ProcessReliable,
+		`"efficiency"\s*:\s*(\d)`:       &scores.Efficiency,
+		`"failure_handling"\s*:\s*(\d)`: &scores.FailureHandling,
 	}
 	for pat, target := range patterns {
 		re := regexp.MustCompile(pat)
