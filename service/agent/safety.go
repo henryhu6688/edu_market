@@ -109,7 +109,7 @@ func NewToolBudget() *ToolBudget {
 			ToolSearchDocuments:   10,
 			ToolSearchMaterials:   5,
 			ToolGetMaterialDetail: 10,
-				ToolMyMaterials:       5,
+			ToolMyMaterials:       5,
 			ToolGetOrders:         5,
 			ToolSearchFAQ:         5,
 		},
@@ -146,7 +146,7 @@ func ResolveMode(session *model.Session, executedTools []string) string {
 			return "shopping"
 		case t == ToolPurchase:
 			return "shopping"
-		// search_materials / my_materials / search_faq 是中立的，不改变模式
+			// search_materials / my_materials / search_faq 是中立的，不改变模式
 		}
 	}
 	return session.Mode
@@ -187,6 +187,7 @@ func getFocusMaterialID(session *model.Session) uint {
 	}
 	return 0
 }
+
 // getUserHasAccess 从 Session.State 中读取 UserHasAccess 标志。
 // 由 updateTaskState 在 my_materials / get_material_detail / search_documents 返回时写入。
 func getUserHasAccess(session *model.Session) bool {
@@ -203,4 +204,3 @@ func getUserHasAccess(session *model.Session) bool {
 	}
 	return false
 }
-

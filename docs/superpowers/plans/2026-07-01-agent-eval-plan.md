@@ -930,7 +930,7 @@ func TestScoreTask_AllPass(t *testing.T) {
 	}
 	trace := &EvalTrace{
 		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "search_documents", ToolArgs: `{"material_id":1,"query":"函数"}`},
+			{Step: "llm_response", ToolName: "search_documents", ToolArgs: `{"material_ids":[1],"query":"函数"}`},
 		},
 	}
 	results := scoreTask(task, trace)
@@ -1121,7 +1121,7 @@ func scoreTask(task *EvalTask, trace *EvalTrace) []RuleResult {
 		results = append(results, RuleResult{Rule: "premature_purchase", Passed: true, Detail: "购买卡片触发时机正常"})
 	}
 
-	// 9. invalid_args 检查（Tool args 中 material_id=0 或 query 为空）
+	// 9. invalid_args 检查（Tool args 中 material_id=0、material_ids 为空数组、query 为空）
 	invalidArgsFound := false
 	for _, s := range trace.Steps {
 		if s.ToolName == "" || s.ToolArgs == "" {
@@ -1132,6 +1132,13 @@ func scoreTask(task *EvalTask, trace *EvalTrace) []RuleResult {
 			results = append(results, RuleResult{
 				Rule: "invalid_args", Passed: false,
 				Detail: fmt.Sprintf("%s 使用了 material_id=0", s.ToolName),
+			})
+		}
+		if strings.Contains(s.ToolArgs, `"material_ids":[]`) {
+			invalidArgsFound = true
+			results = append(results, RuleResult{
+				Rule: "invalid_args", Passed: false,
+				Detail: fmt.Sprintf("%s 使用了空的 material_ids 数组", s.ToolName),
 			})
 		}
 		if strings.Contains(s.ToolArgs, `"query":""`) || strings.Contains(s.ToolArgs, `"query":" "`) {

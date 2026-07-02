@@ -185,7 +185,8 @@
 ```
 能做什么
   在资料文档中进行语义检索，返回与用户问题相关的文本片段。
-  不传 material_id 时自动搜索用户全部可访问资料。
+  不传 material_ids 时自动搜索用户全部可访问资料。
+  传 material_ids 数组可一次搜多份（如 [6,7]），只计 1 次预算。
 
 不能做什么
   不搜资料基本信息如标题、价格、目录（用 get_material_detail）
@@ -194,16 +195,17 @@
   不保证搜到结果——语义检索可能存在召回盲区
 
 何时优先使用
-  - 用户指定了一份资料并问具体知识点（如「第三章讲了什么」「关于闭包的章节有哪些」）
-  - 用户没指定资料但可通过我的资料推断范围时，先调 my_materials 获取 material_id，再调本工具
+  - 用户指定了一份或多份资料并问具体知识点 → 传 material_ids
+  - 用户没指定资料 → 不传 ID，搜全部可访问资料
   - 搜不到时诚实告知「资料中未涉及该内容」，不要反复换 query 重试
   - 来源为 "preview" 的片段只能用于介绍和引导购买，不能作为完整答案的依据
 
 参数
-  query        string  必填  1-200字。具体知识点或章节号，如「闭包的原理」「第三章重点」
-  material_id  number  可选  >=1。来自 my_materials 或 get_material_detail 返回的真实ID。
-                            留空时系统自动搜索全部可访问资料。
-                            不可编造——如果你不知道 material_id，先调 my_materials。
+  query         string  必填  1-20字。用简洁的单个关键词或术语，如「闭包」「函数」「变量」。
+                             不要展开成多个词或完整句子，否则检索命中率会降低。
+  material_ids  array   可选  资料ID列表，来自 my_materials 或 get_material_detail。
+                             可传 [6] 搜单份、[6,7] 搜多份。留空搜全部可访问资料。
+                             不可编造——不知道时先调 my_materials。
 
 返回
   {
@@ -222,9 +224,10 @@
   }
 
 错误
-  NOT_FOUND       → recoverable: true,  action: "告知用户资料中未涉及该内容"
-  INVALID_ARGUMENT → recoverable: true,  action: "修正 query 参数后重试"
-  SEARCH_ERROR     → recoverable: false, action: "告知用户检索服务暂不可用"
+  NOT_FOUND         → recoverable: true,  action: "告知用户资料中未涉及该内容"
+  INVALID_ARGUMENT   → recoverable: true,  action: "修正 query 参数后重试"
+  MISSING_PARAMETER  → recoverable: true,  action: "查询内容不能为空，请提供具体问题"
+  SEARCH_ERROR       → recoverable: false, action: "告知用户检索服务暂不可用"
 ```
 
 #### 5. `get_orders` — 订单查询
@@ -360,7 +363,7 @@ my_materials:
   DATABASE_ERROR   → "查询失败，请稍后重试"
 
 search_documents:
-  INVALID_ARGUMENT  → "query 不能为空或超过200字，请修正后重试"
+  INVALID_ARGUMENT  → "query 不能为空或超过20字，请修正后重试"
   MISSING_PARAMETER → "查询内容不能为空，请提供具体问题"
   NOT_FOUND         → "资料中未找到相关内容，建议换个问法"
   SEARCH_ERROR      → "检索服务暂不可用，请稍后重试"
