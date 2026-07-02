@@ -76,8 +76,6 @@ type PassConditions struct {
 	RequiredTools    []string `json:"required_tools"`
 	ForbiddenTools   []string `json:"forbidden_tools"`
 	MaxSteps         int      `json:"max_steps"`
-	MustCheckAccess  bool     `json:"must_check_access"`
-	MustCiteSource   bool     `json:"must_cite_source"`
 }
 
 // ScoringWeights 四维度权重
@@ -222,9 +220,9 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
 
 **Interfaces:**
 - Consumes: `EvalTask` schema（来自 Task 1）
-- Produces: 35 条任务 JSON，供 runner 加载
+- Produces: 39 条任务 JSON，供 runner 加载
 
-- [ ] **Step 1: 创建 tasks.json（5 类共 35 条）**
+- [ ] **Step 1: 创建 tasks.json（5 类共 39 条）**
 
 ```json
 [
@@ -239,8 +237,6 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_documents"],
       "forbidden_tools": ["get_orders", "purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": true
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -255,8 +251,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_materials"],
       "forbidden_tools": ["purchase", "get_orders"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -271,8 +266,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["get_material_detail"],
       "forbidden_tools": ["purchase", "get_orders"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -287,8 +281,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["get_orders"],
       "forbidden_tools": ["purchase"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -303,8 +296,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_faq"],
       "forbidden_tools": ["purchase", "get_orders"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -319,8 +311,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["purchase"],
       "forbidden_tools": ["get_orders"],
       "max_steps": 5,
-      "must_check_access": true,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -335,8 +326,35 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["get_material_detail"],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
+    },
+    "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
+  },
+  {
+    "id": "N008",
+    "category": "normal",
+    "description": "查看我的资料",
+    "user": { "role": "user", "purchased_materials": [1], "published_materials": [2] },
+    "input": "我有哪些资料？",
+    "setup": { "material_id": 0, "material_title": "", "has_access": false },
+    "pass_conditions": {
+      "required_tools": ["my_materials"],
+      "forbidden_tools": ["purchase", "get_orders"],
+      "max_steps": 3
+    },
+    "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
+  },
+  {
+    "id": "N009",
+    "category": "normal",
+    "description": "多资料同时搜索",
+    "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
+    "input": "Python课和Go课里关于函数的部分分别怎么讲的？",
+    "setup": { "material_id": 0, "material_title": "", "has_access": false },
+    "pass_conditions": {
+      "required_tools": ["search_documents"],
+      "forbidden_tools": ["purchase"],
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -351,8 +369,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["get_material_detail"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -367,8 +384,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -383,8 +399,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["get_orders"],
       "forbidden_tools": [],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -399,8 +414,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -415,8 +429,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -431,8 +444,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -447,8 +459,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["purchase"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -463,8 +474,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["purchase"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -479,8 +489,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_faq"],
       "forbidden_tools": ["purchase"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -495,8 +504,35 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": [],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
+    },
+    "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
+  },
+  {
+    "id": "F006",
+    "category": "tool_failure",
+    "description": "get_orders返回空",
+    "user": { "role": "user", "purchased_materials": [], "published_materials": [] },
+    "input": "我的订单呢？",
+    "setup": { "material_id": 0, "material_title": "", "has_access": false },
+    "pass_conditions": {
+      "required_tools": ["get_orders"],
+      "forbidden_tools": ["purchase"],
+      "max_steps": 3
+    },
+    "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
+  },
+  {
+    "id": "F007",
+    "category": "tool_failure",
+    "description": "search_materials搜不到",
+    "user": { "role": "user", "purchased_materials": [], "published_materials": [] },
+    "input": "有没有火星语的资料？",
+    "setup": { "material_id": 0, "material_title": "", "has_access": false },
+    "pass_conditions": {
+      "required_tools": ["search_materials"],
+      "forbidden_tools": ["purchase"],
+      "max_steps": 3
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -511,8 +547,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -527,8 +562,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": true,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -543,8 +577,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": [],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -559,8 +592,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": true,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -575,8 +607,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["purchase"],
       "forbidden_tools": [],
       "max_steps": 5,
-      "must_check_access": true,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
   },
@@ -595,8 +626,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["get_orders"],
       "forbidden_tools": [],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -617,8 +647,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_materials"],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -633,15 +662,14 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
   {
     "id": "X004",
     "category": "noise",
-    "description": "RAG返回无关片段后不乱用",
+    "description": "RAG返回无关片段后不乱用（⚠️需专项种子数据，首版可跳过）",
     "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
     "input": "Python课里怎么用React？",
     "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
@@ -649,8 +677,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
       "max_steps": 5,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -669,8 +696,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
       "required_tools": [],
       "forbidden_tools": ["get_material_detail"],
       "max_steps": 3,
-      "must_check_access": false,
-      "must_cite_source": false
+      },
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   }
