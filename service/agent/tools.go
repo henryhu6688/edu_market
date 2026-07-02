@@ -359,7 +359,7 @@ func (t searchDocumentsTool) Definition() ToolDef {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"query":        map[string]interface{}{"type": "string", "description": "1-20字。用简洁的单个关键词或术语，如「闭包」「函数」「变量」。不要展开成多个词或完整句子，否则检索命中率会降低。"},
+				"query":        map[string]interface{}{"type": "string", "description": "1-100字。用具体知识点或术语，如「闭包的原理」「变量作用域」「第三章重点」。不必刻意缩成单个词——语义检索对自然短语效果更好。"},
 				"material_ids": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "number"}, "description": "资料ID列表，来自 my_materials 或 get_material_detail。可传 [6] 搜单份、[6,7] 搜多份。留空搜全部可访问资料。"},
 			},
 			"required": []string{"query"},
@@ -421,7 +421,7 @@ func (t searchDocumentsTool) ValidateArgs(argsJSON string) error {
 	}
 	json.Unmarshal([]byte(argsJSON), &args)
 	if strings.TrimSpace(args.Query) == "" { return errors.New("query 不能为空") }
-	if len(args.Query) > 200 { return errors.New("query 不能超过 200 字") }
+	if len(args.Query) > 100 { return errors.New("query 不能超过 100 字") }
 	return nil
 }
 func (t searchDocumentsTool) Describe(argsJSON string, result ToolResult) string {
