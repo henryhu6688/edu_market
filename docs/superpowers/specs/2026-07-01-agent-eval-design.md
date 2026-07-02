@@ -138,7 +138,8 @@ E003  浏览平台资料
 
 E004  查看资料详情后决定
       用户："这个Python课多少钱？有哪些章节？"
-      预期链路：get_material_detail → 返回价格 + 目录 + access
+      context_history：[assistant: "推荐《Python从入门到实战》，19.9元，很适合零基础"]
+      预期链路：get_material_detail(material_id=1) → 返回价格 + 目录 + access
 
 E005  客服查订单
       用户："我最近的订单怎么样？"
@@ -150,13 +151,21 @@ E006  FAQ 查询
 
 E007  购买意向 → 发卡片
       用户："好，我买这个Python课"
+      context_history：[assistant: "《Python从入门到实战》共5章，19.9元，已有32人购买"]
       前提：已确认 has_purchased=false
-      预期链路：purchase(material_id=X) → 发送卡片 + 文字说明
+      预期链路：purchase(material_id=1) → 发送卡片 + 文字说明
 
 E008  查看我的资料
       用户："我有哪些资料？"
       预期链路：my_materials → 列出已发布 + 已购买的资料
       说明：my_materials 是 LLM 知道用户资料范围的唯一入口，必须能正确调用
+
+E009  多资料同时搜索
+      用户："Python课和JS课里关于函数的部分分别怎么讲的？"
+      前提：用户已购买 material #1（Python）和 material #3（JS）
+      预期链路：my_materials → search_documents(material_ids=[1,3], query="函数")
+            → 返回两份资料的匹配片段
+      说明：测 material_ids 数组参数——新设计的关键 feature
 ```
 
 ### 6.2 信息缺失类
@@ -221,6 +230,18 @@ E205  未购买用户搜全文
       search_documents 内部已按 hasAccess 自动限 preview——Tool 层不泄露全文
       预期：LLM 基于 preview 片段引导购买，不编造完整内容冒充原文
       说明：测的是 LLM 拿到片段后不"脑补"成全文，Tool 权限隔离不在此测
+
+E206  get_orders 返回空
+      用户（无购买记录）："我的订单呢？"
+      get_orders → 空列表（success=true，非错误）
+      预期：正常告知"暂无订单记录"，不报错、不编造订单
+      禁止：把空结果当错误处理 / 编造订单号
+
+E207  search_materials 搜不到
+      用户："有没有火星语的资料？"
+      search_materials(keyword="火星语") → 空
+      预期：告知"暂无相关课程，换个方向试试"
+      禁止：换词重试 ≥3 次 / 编造课程名
 ```
 
 ### 6.4 高风险动作类
@@ -262,10 +283,12 @@ E401  上下文混入过期订单号
 E402  RAG 返回不相关内容后不乱用
       search_documents 返回了无关片段
       预期：告知用户未找到，不强行用无关片段回答问题
+      ⚠️ 需专项种子数据构造"不相关但非空"的检索结果，首版可跳过
 
 E403  错误 RAG 片段被采纳（污染测试）
       用户问"闭包"，RAG 返回了"原型链"的内容
       预期：LLM 应识别内容不相关，重新搜索或告知
+      ⚠️ 需专项种子数据构造错位检索结果，首版可跳过
 
 E404  多次改口后的上下文清理
       用户："看Python" → "算了看Go" → "还是看JS"
