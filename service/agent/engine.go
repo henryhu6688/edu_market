@@ -311,6 +311,21 @@ func (e *AgentEngine) Run(
 			result := tool.Execute(session.UserID, argsJSON)
 			toolMs := time.Since(toolStart).Milliseconds()
 
+			// trace: 让 eval/REPL 能观测每步 tool 执行结果
+			e.trace(TraceEvent{
+				Step:  "tool_result",
+				Round: round + 1,
+				Data: map[string]interface{}{
+					"tool":        toolName,
+					"args":        argsJSON,
+					"success":     result.Success,
+					"error_code":  result.ErrorCode,
+					"recoverable": result.Recoverable,
+					"result":      TruncateRunes(result.Content, 200),
+					"ms":          toolMs,
+				},
+			})
+
 			// 存 DB
 			e.storeToolMessagesDB(session.ID, tc, toolName, result)
 
