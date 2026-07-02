@@ -359,7 +359,7 @@ func (t searchDocumentsTool) Definition() ToolDef {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"query":        map[string]interface{}{"type": "string", "description": "1-100字。用具体知识点或术语，如「闭包的原理」「变量作用域」「第三章重点」。不必刻意缩成单个词——语义检索对自然短语效果更好。"},
+				"query":        map[string]interface{}{"type": "string", "description": "1-100字。从用户问题中提取核心知识点，用自然短语而非完整问句。\n✅「闭包的作用域」「函数的参数传递」— 概念明确长度适中\n❌「闭包」— 太短精度低 | 「用户问闭包相关问题帮我搜」— 问句噪音多\n方法：用户问\"XX怎么实现的\" → 传\"XX的实现\"；问\"XX和YY区别\" → 传\"XX YY 区别\""},
 				"material_ids": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "number"}, "description": "资料ID列表，来自 my_materials 或 get_material_detail。可传 [6] 搜单份、[6,7] 搜多份。留空搜全部可访问资料。"},
 			},
 			"required": []string{"query"},
