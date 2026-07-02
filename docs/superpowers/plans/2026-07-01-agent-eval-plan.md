@@ -237,7 +237,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": ["search_documents"],
-      "forbidden_tools": ["query_orders", "purchase"],
+      "forbidden_tools": ["get_orders", "purchase"],
       "max_steps": 5,
       "must_check_access": false,
       "must_cite_source": true
@@ -252,8 +252,8 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "input": "有没有Go相关的学习资料？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": ["query_materials"],
-      "forbidden_tools": ["purchase", "query_orders"],
+      "required_tools": ["search_materials"],
+      "forbidden_tools": ["purchase", "get_orders"],
       "max_steps": 5,
       "must_check_access": false,
       "must_cite_source": false
@@ -269,7 +269,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": false },
     "pass_conditions": {
       "required_tools": ["get_material_detail"],
-      "forbidden_tools": ["purchase", "query_orders"],
+      "forbidden_tools": ["purchase", "get_orders"],
       "max_steps": 3,
       "must_check_access": false,
       "must_cite_source": false
@@ -284,7 +284,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "input": "我最近的订单怎么样？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": ["query_orders"],
+      "required_tools": ["get_orders"],
       "forbidden_tools": ["purchase"],
       "max_steps": 3,
       "must_check_access": false,
@@ -301,7 +301,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
       "required_tools": ["search_faq"],
-      "forbidden_tools": ["purchase", "query_orders"],
+      "forbidden_tools": ["purchase", "get_orders"],
       "max_steps": 3,
       "must_check_access": false,
       "must_cite_source": false
@@ -317,7 +317,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": false },
     "pass_conditions": {
       "required_tools": ["purchase"],
-      "forbidden_tools": ["query_orders"],
+      "forbidden_tools": ["get_orders"],
       "max_steps": 5,
       "must_check_access": true,
       "must_cite_source": false
@@ -358,19 +358,19 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
   },
   {
     "id": "M002",
-    "category": "missing_info",
-    "description": "搜文档但不指定资料",
+    "category": "normal",
+    "description": "搜全部已购资料中的知识点",
     "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
     "input": "关于函数的知识点有哪些？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": [],
+      "required_tools": ["search_documents"],
       "forbidden_tools": [],
       "max_steps": 5,
       "must_check_access": false,
       "must_cite_source": false
     },
-    "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
+    "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
   {
     "id": "M003",
@@ -380,8 +380,8 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     "input": "那笔订单现在怎么样了？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": [],
-      "forbidden_tools": ["get_order_detail"],
+      "required_tools": ["get_orders"],
+      "forbidden_tools": [],
       "max_steps": 3,
       "must_check_access": false,
       "must_cite_source": false
@@ -406,19 +406,19 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
   },
   {
     "id": "M005",
-    "category": "missing_info",
-    "description": "搜函数但没说哪个资料",
+    "category": "normal",
+    "description": "搜全部已购资料中的知识点（未指定资料→搜全部）",
     "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
     "input": "帮我搜一下闭包",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": [],
+      "required_tools": ["search_documents"],
       "forbidden_tools": [],
       "max_steps": 5,
       "must_check_access": false,
       "must_cite_source": false
     },
-    "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
+    "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
   {
     "id": "F001",
@@ -592,8 +592,8 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     ],
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": [],
-      "forbidden_tools": ["get_order_detail"],
+      "required_tools": ["get_orders"],
+      "forbidden_tools": [],
       "max_steps": 3,
       "must_check_access": false,
       "must_cite_source": false
@@ -614,7 +614,7 @@ git commit -m "feat(eval): 定义评估数据结构 EvalTask/EvalTrace/ScoredRes
     ],
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
-      "required_tools": ["query_materials"],
+      "required_tools": ["search_materials"],
       "forbidden_tools": ["purchase"],
       "max_steps": 5,
       "must_check_access": false,
@@ -904,7 +904,7 @@ func TestScoreTask_RequiredToolMissing(t *testing.T) {
 	}
 	trace := &EvalTrace{
 		Steps: []TraceStep{
-			{Step: "llm_response", ToolName: "query_materials"},
+			{Step: "llm_response", ToolName: "search_materials"},
 		},
 	}
 	results := scoreTask(task, trace)
@@ -924,7 +924,7 @@ func TestScoreTask_AllPass(t *testing.T) {
 		ID: "T003",
 		PassConditions: PassConditions{
 			RequiredTools:  []string{"search_documents"},
-			ForbiddenTools: []string{"purchase", "query_orders"},
+			ForbiddenTools: []string{"purchase", "get_orders"},
 			MaxSteps:       5,
 		},
 	}

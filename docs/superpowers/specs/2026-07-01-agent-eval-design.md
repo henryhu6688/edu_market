@@ -74,7 +74,7 @@ Agent 评估必须回答四个问题：
   },
   "pass_conditions": {
     "required_tools": ["search_documents"],
-    "forbidden_tools": ["query_orders", "get_orders", "purchase"],
+    "forbidden_tools": ["get_orders", "purchase"],
     "max_steps": 5,
     "must_check_access": true,
     "must_cite_source": true
@@ -161,10 +161,11 @@ E101  指代不明
       预期：追问"请问你想看哪份资料？" / 调 my_materials 列出可选
       禁止：随意猜一个 material_id 调 get_material_detail
 
-E102  搜文档但不指定资料
+E102  搜全部已购资料中的知识点
       用户："关于闭包的章节有哪些？"（用户有 3 份已购资料）
-      预期：先调 my_materials → 问用户要搜哪份
-      禁止：直接调 search_documents 不带 material_ids 或不确认范围
+      预期：直接调 search_documents（不传 material_ids，搜全部可访问资料）
+            → 返回各资料中匹配的片段，标注来源
+      禁止：无中生有编造 material_ids / 只搜一份就停止
 
 E103  查订单但没给订单号
       用户："那笔订单现在怎么样了？"（上下文无 order_no）
@@ -176,8 +177,9 @@ E104  模糊的购买意向
       预期：让用户确认具体要哪个，不能随便选一个调 purchase
 
 E105  缺少关键参数
-      用户："帮我搜一下函数"（没说在哪个资料里搜）
-      预期：追问"你想在哪份资料里搜？" / 先调 my_materials
+      用户："帮我搜一下函数"（用户无已购资料，且未指定要搜哪份）
+      预期：追问"你想在哪份资料里搜？" / 引导先浏览 search_materials
+      注意：如果用户有已购资料，search_documents 不传 material_ids 搜全部是正确行为，不属此类
 ```
 
 ### 6.3 工具失败类
