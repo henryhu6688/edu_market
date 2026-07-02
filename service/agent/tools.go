@@ -347,18 +347,20 @@ type searchDocumentsTool struct {
 func (t searchDocumentsTool) Definition() ToolDef {
 	return ToolDef{
 		Name: ToolSearchDocuments,
-		Description: "能做什么\n  在资料文档中进行语义检索，返回与用户问题相关的文本片段。不传 material_id 时自动搜索用户全部可访问资料。\n\n" +
+		Description: "能做什么\n  在资料文档中进行语义检索，返回与用户问题相关的文本片段。\n" +
+			"  不传 material_ids 时自动搜索用户全部可访问资料。\n" +
+			"  传 material_ids 数组可一次搜多份（如 [6,7]），只计 1 次预算。\n\n" +
 			"不能做什么\n  不搜资料基本信息如标题、价格、目录（用 get_material_detail）\n  不搜全平台资料（用 search_materials）\n  不搜 FAQ（用 search_faq）\n" +
 			"  不保证搜到结果——语义检索可能存在召回盲区\n\n" +
-			"何时优先使用\n  - 用户指定了一份资料并问具体知识点（如「第三章讲了什么」「关于闭包的章节有哪些」）\n" +
-			"  - 用户没指定资料但可通过我的资料推断范围时，先调 my_materials 获取 material_id，再调本工具\n" +
+			"何时优先使用\n  - 用户指定了一份或多份资料并问具体知识点 → 传 material_ids\n" +
+			"  - 用户没指定资料 → 不传 ID，搜全部可访问资料\n" +
 			"  - 搜不到时诚实告知「资料中未涉及该内容」，不要反复换 query 重试\n" +
 			"  - 来源为 preview 的片段只能用于介绍和引导购买，不能作为完整答案的依据",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"query":       map[string]interface{}{"type": "string", "description": "1-20字。用简洁的单个关键词或术语，如「闭包」「函数」「变量」。不要展开成多个词或完整句子，否则检索命中率会降低。"},
-				"material_id": map[string]interface{}{"type": "number", "description": ">=1。来自 my_materials 或 get_material_detail 返回的ID。留空=搜全部可访问资料。不可编造——不知道时先调 my_materials。"},
+				"query":        map[string]interface{}{"type": "string", "description": "1-20字。用简洁的单个关键词或术语，如「闭包」「函数」「变量」。不要展开成多个词或完整句子，否则检索命中率会降低。"},
+				"material_ids": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "number"}, "description": "资料ID列表，来自 my_materials 或 get_material_detail。可传 [6] 搜单份、[6,7] 搜多份。留空搜全部可访问资料。"},
 			},
 			"required": []string{"query"},
 		},
@@ -367,50 +369,45 @@ func (t searchDocumentsTool) Definition() ToolDef {
 
 func (t searchDocumentsTool) Execute(userID uint, argsJSON string) ToolResult {
 	var args struct {
-		Query      string `json:"query"`
-		MaterialID uint   `json:"material_id"`
+		Query       string `json:"query"`
+		MaterialIDs []uint `json:"material_ids"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-		return ToolResult{Success: false, Content: "参数解析失败，请调整参数格式后重试", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
-	}
-	slog.Info("search_documents 参数", "material_id", args.MaterialID, "query", TruncateRunes(args.Query, 60))
-
-	if strings.TrimSpace(args.Query) == "" {
-		return ToolResult{Success: false, Content: "查询内容不能为空，请提供具体问题", ErrorCode: "MISSING_PARAMETER", Recoverable: true, RecommendedAction: "ask_user_for_query"}
-	}
-	if t.searchFunc == nil {
-		return ToolResult{Success: false, Content: "资料检索服务暂不可用，请稍后重试", ErrorCode: "SERVICE_UNAVAILABLE", Recoverable: false, RecommendedAction: "tell_user_service_unavailable"}
-	}
-
-	if args.MaterialID > 0 {
-		hasAccess := checkHasAccess(userID, args.MaterialID)
-		content, err := t.searchFunc(args.MaterialID, args.Query, 5, hasAccess)
-		if err != nil {
-			return ToolResult{Success: false, Content: "文档检索失败: " + err.Error(), ErrorCode: "SEARCH_ERROR", Recoverable: true, RecommendedAction: "retry_or_narrow_query"}
+			return ToolResult{Success: false, Content: "参数解析失败，请调整参数格式后重试", ErrorCode: "INVALID_ARGUMENT", Recoverable: true, RecommendedAction: "fix_arguments_and_retry"}
 		}
-		if content == "" {
-			return ToolResult{Success: true, Content: `{"success":true,"results":[],"total":0,"searched_materials":1,"hint":"资料中未找到相关内容，建议换个问法"}`}
-		}
-		return ToolResult{Success: true, Content: content}
-	}
+		slog.Info("search_documents 参数", "material_ids", args.MaterialIDs, "query", TruncateRunes(args.Query, 60))
 
-	// 不传 material_id → 搜全部可访问资料
-	accessibleIDs := getUserAccessibleMaterialIDs(userID)
-	if len(accessibleIDs) == 0 {
+		if strings.TrimSpace(args.Query) == "" {
+			return ToolResult{Success: false, Content: "查询内容不能为空，请提供具体问题", ErrorCode: "MISSING_PARAMETER", Recoverable: true, RecommendedAction: "ask_user_for_query"}
+		}
+		if t.searchFunc == nil {
+			return ToolResult{Success: false, Content: "资料检索服务暂不可用，请稍后重试", ErrorCode: "SERVICE_UNAVAILABLE", Recoverable: false, RecommendedAction: "tell_user_service_unavailable"}
+		}
+
+		// 不传 material_ids → 搜全部可访问资料
+		if len(args.MaterialIDs) == 0 {
+			args.MaterialIDs = getUserAccessibleMaterialIDs(userID)
+		}
+		return t.searchMultiple(userID, args.MaterialIDs, args.Query)
+}
+
+// searchMultiple 搜多份资料，汇总结果。
+func (t searchDocumentsTool) searchMultiple(userID uint, materialIDs []uint, query string) ToolResult {
+	if len(materialIDs) == 0 {
 		return ToolResult{Success: true, Content: `{"success":true,"results":[],"total":0,"searched_materials":0,"hint":"未找到可访问的资料"}`}
 	}
-
 	var allResults []string
 	searched := 0
-	for _, mid := range accessibleIDs {
-		content, err := t.searchFunc(mid, args.Query, 5, true)
+	for _, mid := range materialIDs {
+		hasAccess := checkHasAccess(userID, mid)
+		content, err := t.searchFunc(mid, query, 5, hasAccess)
 		if err != nil { continue }
 		if content == "" || isSearchEmpty(content) { continue }
 		allResults = append(allResults, content)
 		searched++
 	}
 	if len(allResults) == 0 {
-		return ToolResult{Success: true, Content: `{"success":true,"results":[],"total":0,"searched_materials":0,"hint":"资料中未找到相关内容"}`}
+		return ToolResult{Success: true, Content: fmt.Sprintf(`{"success":true,"results":[],"total":0,"searched_materials":%d,"hint":"资料中未找到相关内容"}`, searched)}
 	}
 	combined := strings.Join(allResults, "\n")
 	return ToolResult{Success: true, Content: combined}

@@ -608,10 +608,10 @@ func (e *AgentEngine) updateTaskState(session *model.Session, tool Tool, toolNam
 	// 更新业务上下文
 	switch toolName {
 	case ToolSearchDocuments:
-		var args struct{ MaterialID uint `json:"material_id"` }
+		var args struct{ MaterialIDs []uint `json:"material_ids"` }
 		json.Unmarshal([]byte(argsJSON), &args)
-		if args.MaterialID > 0 {
-			state.Context.FocusID = args.MaterialID
+		if len(args.MaterialIDs) > 0 {
+			state.Context.FocusID = args.MaterialIDs[0]
 		}
 		if strings.Contains(result.Content, "full") {
 			state.Context.UserHasAccess = true
