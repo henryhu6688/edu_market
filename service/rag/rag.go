@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"edu_market/config"
@@ -153,7 +154,8 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 
 	// ====== L1 精确匹配 ======
 	if config.App.RAG.CacheEnabled && database.RDB != nil {
-		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))), accessLevel)
+		normalized := normalizeCacheKey(query)
+		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", normalized, courseID))), accessLevel)
 		if b, err := database.RDB.Get(context.Background(), exactKey).Bytes(); err == nil && len(b) > 0 {
 			var results []SearchResult
 			if json.Unmarshal(b, &results) == nil {
@@ -222,7 +224,8 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 	// ====== 写入缓存 ======
 	if config.App.RAG.CacheEnabled && database.RDB != nil  {
 		// L1
-		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", query, courseID))), accessLevel)
+		normalized := normalizeCacheKey(query)
+		exactKey := fmt.Sprintf("rag:exact:%x:%s", md5.Sum([]byte(fmt.Sprintf("%s_%d", normalized, courseID))), accessLevel)
 		b, _ := json.Marshal(results)
 		database.RDB.SetEx(context.Background(), exactKey, b, time.Duration(config.App.RAG.CacheTTL)*time.Second)
 
@@ -270,6 +273,27 @@ func Init() {
 // Get 获取全局 RAG 服务实例
 func Get() *RAGService {
 	return globalRAG
+}
+
+// normalizeCacheKey 归一化 L1 缓存 key 中的 query 部分。
+// 去掉中文停用词和标点，收起空白，使「闭包的原理」和「闭包 原理」命中同一缓存。
+//
+// 不涉及分词——只做字符级过滤。停用词列表覆盖最常见的虚词和标点。
+// 归一化后的 key 参与 md5，对 LLM 透明。
+func normalizeCacheKey(query string) string {
+	// 1. 去中文标点
+	punctuations := "，。！？；：\"\"''（）《》【】、—…"
+	for _, r := range punctuations {
+		query = strings.ReplaceAll(query, string(r), " ")
+	}
+	// 2. 去中文停用词（两侧加空格方便精确替换）
+	stopWords := []string{"的", "了", "吗", "呢", "啊", "吧", "和", "与", "及", "或", "在", "是", "有", "被", "把", "对", "从", "到", "让", "给", "为", "以", "也", "就", "都", "而", "但", "却", "所", "者", "之", "仍", "便", "则", "虽", "即"}
+	for _, sw := range stopWords {
+		query = strings.ReplaceAll(query, sw, " ")
+	}
+	// 3. 收起空白
+	fields := strings.Fields(query)
+	return strings.Join(fields, " ")
 }
 
 // truncateStr 截取字符串前 n 个字符（Unicode 安全），用于日志。
