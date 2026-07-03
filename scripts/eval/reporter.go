@@ -128,7 +128,7 @@ func saveReport(report *EvalReport, dir string) (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	filename := fmt.Sprintf("%s/report_%s.md", dir, time.Now().Format("20060102_150405"))
+	filename := fmt.Sprintf("%s/report.md", dir)
 	md := formatMarkdown(report)
 	if err := os.WriteFile(filename, []byte(md), 0644); err != nil {
 		return "", err

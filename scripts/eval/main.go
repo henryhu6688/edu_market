@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"edu_market/config"
 	"edu_market/database"
@@ -66,6 +67,11 @@ func main() {
 	evalSvc := agent.NewAgentService(agent.NewAgentEngine())
 	searchFunc := buildEvalSearchFunc()
 
+	// 按运行时间建子目录，一次跑的 trace/报告 放一起
+	runTS := time.Now().Format("20060102_150405")
+	tracesRunDir := *tracesDir + "/" + runTS
+	reportRunDir := *reportDir + "/" + runTS
+
 	// 逐任务执行 + 评分
 	var results []ScoredResult
 	for i, task := range tasks {
@@ -84,7 +90,7 @@ func main() {
 
 		// 保存单条 trace JSON
 		traceBytes, _ := json.MarshalIndent(trace, "", "  ")
-		if err := saveTrace(string(traceBytes), task.ID, *tracesDir); err != nil {
+		if err := saveTrace(string(traceBytes), task.ID, tracesRunDir); err != nil {
 			fmt.Printf("  ⚠️ 保存 trace 失败: %v\n", err)
 		}
 
@@ -130,7 +136,7 @@ func main() {
 
 	// 生成报告
 	report := generateReport(results)
-	path, err := saveReport(report, *reportDir)
+	path, err := saveReport(report, reportRunDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "保存报告失败: %v\n", err)
 		os.Exit(1)

@@ -118,7 +118,10 @@ const undeterminedModeBlock = `【识别模式】
 
 策略：
   1. 先理解用户在问什么——是找资料、问内容、还是查订单？
-  2. 用户问资料/学习内容 → search_materials / my_materials / search_documents
+  2. 用户问资料/学习内容：
+	   - 找有没有某方向的课（「有没有Python的」）→ search_materials
+	   - 我的资料（「我买了什么」「我发了哪些」）→ my_materials
+	   - 问知识点/概念/技术问题（「闭包怎么用」「函数定义」）→ search_documents
   3. 用户问订单/售后 → get_orders / search_faq
   4. 不要做任何购买/不购买的假设——系统会自动判断用户权限并切换模式
 

@@ -314,7 +314,13 @@ func (t myMaterialsTool) Execute(userID uint, _ string) ToolResult {
 	for _, o := range orders {
 		paidStr := ""
 		if o.PaidAt != nil { paidStr = o.PaidAt.Format("2006-01-02") }
-		purchased = append(purchased, item{ID: o.CourseID, Title: "", Price: o.Amount, OrderNo: o.OrderNo, PaidAt: paidStr})
+		// 查 materials 表获取资料标题
+		var m model.Material
+		title := ""
+		if database.DB.Select("title").First(&m, o.CourseID).Error == nil {
+			title = m.Title
+		}
+		purchased = append(purchased, item{ID: o.CourseID, Title: title, Price: o.Amount, OrderNo: o.OrderNo, PaidAt: paidStr})
 	}
 	if purchased == nil { purchased = []item{} }
 

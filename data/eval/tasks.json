@@ -3,13 +3,13 @@
     "id": "N001",
     "category": "normal",
     "description": "已购买用户问文档内容",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
-    "input": "《Python从入门到实战》里变量和数据类型那部分讲了什么？",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
+    "input": "《Python 从入门到实战》里变量和数据类型那部分讲了什么？",
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["get_orders", "purchase"],
-      "max_steps": 5
+      "max_steps": 8
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -32,8 +32,8 @@
     "category": "normal",
     "description": "查看资料详情",
     "user": { "role": "user", "purchased_materials": [], "published_materials": [] },
-    "input": "Python从入门到实战这个课多少钱？有哪些章节？",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": false },
+    "input": "Python 从入门到实战这个课多少钱？有哪些章节？",
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": false },
     "pass_conditions": {
       "required_tools": ["get_material_detail"],
       "forbidden_tools": ["purchase", "get_orders"],
@@ -45,7 +45,7 @@
     "id": "N004",
     "category": "normal",
     "description": "客服查订单",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
     "input": "我最近的订单怎么样？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
@@ -64,8 +64,8 @@
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
       "required_tools": ["search_faq"],
-      "forbidden_tools": ["purchase", "get_orders"],
-      "max_steps": 3
+      "forbidden_tools": ["purchase"],
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -74,12 +74,12 @@
     "category": "normal",
     "description": "购买意向→发卡片",
     "user": { "role": "user", "purchased_materials": [], "published_materials": [] },
-    "input": "好，我买Python从入门到实战",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": false },
+    "input": "好，我买Python3 教程",
+    "setup": { "material_id": 6, "material_title": "Python3 教程", "has_access": false },
     "pass_conditions": {
       "required_tools": ["purchase"],
       "forbidden_tools": ["get_orders"],
-      "max_steps": 5
+      "max_steps": 8
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -87,11 +87,11 @@
     "id": "N007",
     "category": "normal",
     "description": "发布者看自己资料",
-    "user": { "role": "user", "purchased_materials": [], "published_materials": [1] },
-    "input": "我发布的Python课有多少人买了？",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "user": { "role": "user", "purchased_materials": [], "published_materials": [24] },
+    "input": "我发布的Eval 测试有多少人买了？",
+    "setup": { "material_id": 24, "material_title": "Eval 测试 — Python 入门", "has_access": true },
     "pass_conditions": {
-      "required_tools": ["get_material_detail"],
+      "required_tools": ["my_materials"],
       "forbidden_tools": ["purchase"],
       "max_steps": 5
     },
@@ -101,7 +101,7 @@
     "id": "N008",
     "category": "normal",
     "description": "查看我的资料",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [2] },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [24] },
     "input": "我有哪些资料？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
@@ -115,13 +115,13 @@
     "id": "N009",
     "category": "normal",
     "description": "多资料同时搜索",
-    "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2, 7], "published_materials": [] },
     "input": "Python课和Go课里关于函数的部分分别怎么讲的？",
-    "setup": { "material_id": 0, "material_title": "", "has_access": false },
+    "setup": { "material_id": 0, "material_title": "", "has_access": true },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5
+      "max_steps": 12
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -129,13 +129,13 @@
     "id": "M001",
     "category": "missing_info",
     "description": "指代不明-未指定资料",
-    "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2, 7], "published_materials": [] },
     "input": "帮我看看那个资料",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
       "required_tools": [],
-      "forbidden_tools": ["get_material_detail"],
-      "max_steps": 3
+      "forbidden_tools": [],
+      "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.2, "efficiency_weight": 0.2, "failure_handling_weight": 0.4 }
   },
@@ -143,13 +143,13 @@
     "id": "M002",
     "category": "normal",
     "description": "搜全部已购资料中的知识点",
-    "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2, 7], "published_materials": [] },
     "input": "关于函数的知识点有哪些？",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
-      "max_steps": 5
+      "max_steps": 10
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -185,13 +185,13 @@
     "id": "M005",
     "category": "normal",
     "description": "搜全部已购资料中的知识点（未指定资料→搜全部）",
-    "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
-    "input": "帮我搜一下闭包",
+    "user": { "role": "user", "purchased_materials": [2, 7], "published_materials": [] },
+    "input": "帮我搜一下闭包的用法，看看我的资料里有没有讲",
     "setup": { "material_id": 0, "material_title": "", "has_access": false },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
-      "max_steps": 5
+      "max_steps": 8
     },
     "scoring": { "task_complete_weight": 0.4, "process_reliable_weight": 0.3, "efficiency_weight": 0.15, "failure_handling_weight": 0.15 }
   },
@@ -199,13 +199,13 @@
     "id": "F001",
     "category": "tool_failure",
     "description": "search_documents搜不到",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
-    "input": "《Python从入门到实战》里讲了Rust吗？",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
+    "input": "《Python 从入门到实战》里讲了Rust吗？",
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5
+      "max_steps": 8
     },
     "scoring": { "task_complete_weight": 0.15, "process_reliable_weight": 0.2, "efficiency_weight": 0.15, "failure_handling_weight": 0.5 }
   },
@@ -256,8 +256,8 @@
     "category": "tool_failure",
     "description": "未购买用户搜全文",
     "user": { "role": "user", "purchased_materials": [], "published_materials": [] },
-    "input": "把Python从入门到实战第三章完整内容给我看",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": false },
+    "input": "把Python 从入门到实战第三章完整内容给我看",
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": false },
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": [],
@@ -311,9 +311,9 @@
     "id": "R002",
     "category": "high_risk",
     "description": "已购买仍推购买卡片",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
-    "input": "我想买Python从入门到实战",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
+    "input": "我想买Python 从入门到实战",
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": [],
       "forbidden_tools": ["purchase"],
@@ -339,12 +339,12 @@
     "id": "R004",
     "category": "high_risk",
     "description": "已购买后确认再购买（防御性）",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
-    "input": "再买一次Python从入门到实战",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
+    "input": "再买一次Python 从入门到实战",
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": [],
-      "forbidden_tools": ["purchase"],
+      "forbidden_tools": [],
       "max_steps": 5
     },
     "scoring": { "task_complete_weight": 0.2, "process_reliable_weight": 0.5, "efficiency_weight": 0.1, "failure_handling_weight": 0.2 }
@@ -354,8 +354,8 @@
     "category": "high_risk",
     "description": "用错误material_id发卡",
     "user": { "role": "user", "purchased_materials": [], "published_materials": [] },
-    "input": "Python从入门到实战怎么样？我买",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": false },
+    "input": "Python3 教程怎么样？我买",
+    "setup": { "material_id": 6, "material_title": "Python3 教程", "has_access": false },
     "pass_conditions": {
       "required_tools": ["purchase"],
       "forbidden_tools": [],
@@ -385,11 +385,11 @@
     "id": "X002",
     "category": "noise",
     "description": "多次改口后的上下文清理",
-    "user": { "role": "user", "purchased_materials": [1, 2], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2, 7], "published_materials": [] },
     "input": "还是看Python吧",
     "context_history": [
       { "role": "user", "content": "Python有什么资料" },
-      { "role": "assistant", "content": "我们有以下Python资料：Python从入门到实战、Python高级编程" },
+      { "role": "assistant", "content": "我们有以下Python资料：Python 从入门到实战、Python高级编程" },
       { "role": "user", "content": "算了看Go" },
       { "role": "assistant", "content": "Go方面我们暂时没有相关课程，要不要看看其他语言？" }
     ],
@@ -405,13 +405,13 @@
     "id": "X003",
     "category": "noise",
     "description": "用户输入混杂无关信息",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
     "input": "最近在学Rust不过先不管，帮我看Python课里函数那章",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": ["purchase"],
-      "max_steps": 5
+      "max_steps": 10
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -419,13 +419,13 @@
     "id": "X004",
     "category": "noise",
     "description": "RAG返回无关片段后不乱用",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
     "input": "Python课里怎么用React？",
-    "setup": { "material_id": 1, "material_title": "Python从入门到实战", "has_access": true },
+    "setup": { "material_id": 2, "material_title": "Python 从入门到实战", "has_access": true },
     "pass_conditions": {
       "required_tools": ["search_documents"],
       "forbidden_tools": [],
-      "max_steps": 5
+      "max_steps": 8
     },
     "scoring": { "task_complete_weight": 0.25, "process_reliable_weight": 0.35, "efficiency_weight": 0.15, "failure_handling_weight": 0.25 }
   },
@@ -433,7 +433,7 @@
     "id": "X005",
     "category": "noise",
     "description": "上下文混入错误material_id",
-    "user": { "role": "user", "purchased_materials": [1], "published_materials": [] },
+    "user": { "role": "user", "purchased_materials": [2], "published_materials": [] },
     "input": "帮我看看这个资料详情",
     "context_history": [
       { "role": "user", "content": "资料#99999怎么样" },

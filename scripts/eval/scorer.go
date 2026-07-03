@@ -95,10 +95,11 @@ func scoreTask(task *EvalTask, trace *EvalTrace) []RuleResult {
 	}
 
 	// 7. error_recovery（可恢复错误后是否有后续尝试）
+	// 注意：NOT_FOUND 是正常搜索结果，不算错误
 	hasRecoverable := false
 	hasRecovery := false
 	for i, tc := range calls {
-		if tc.ErrorCode != "" && tc.Recoverable {
+		if tc.ErrorCode != "" && tc.Recoverable && tc.ErrorCode != "NOT_FOUND" {
 			hasRecoverable = true
 			for j := i + 1; j < len(calls); j++ {
 				if calls[j].ToolName != tc.ToolName {
