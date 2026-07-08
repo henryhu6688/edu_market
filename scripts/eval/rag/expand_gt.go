@@ -86,7 +86,7 @@ func judgeRelevance(query string, results []rag.SearchResult) ([]uint, error) {
 	var candidates strings.Builder
 	for _, r := range results {
 		candidates.WriteString(fmt.Sprintf(
-			"[ID:%d] %s\n", r.ChunkID, truncateRunes(r.Content, 100),
+			"[ID:%d] %s\n", r.ChunkID, r.Content,
 		))
 	}
 

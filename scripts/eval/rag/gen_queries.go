@@ -119,7 +119,7 @@ func generateQueryBatch(chunks []model.DocumentChunk) ([]RAGQuery, error) {
 	for i, c := range chunks {
 		parts = append(parts, fmt.Sprintf(
 			"[切片%d]\n内容：%s\n请为以上内容生成一个用户可能会搜索的问题（5-15字），只输出问题本身。",
-			i, truncateRunes(c.Content, 300),
+			i, c.Content,
 		))
 	}
 

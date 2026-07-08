@@ -203,6 +203,17 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 	}
 	slog.Info("rag Qdrant向量检索完成", "course_id", courseID, "results", len(results), "hybrid", config.App.RAG.HybridSearch, "qdrant_ms", time.Since(qdrantStart).Milliseconds())
 
+	// BM25 双路召回 + RRF 融合 [开关: bm25_enabled]
+	if config.App.RAG.BM25Enabled {
+		bm25Results, bm25Err := bm25Search(courseID, query, topK*2)
+		if bm25Err != nil {
+			slog.Warn("rag BM25检索失败，降级为纯向量", "err", bm25Err)
+		} else if len(bm25Results) > 0 {
+			results = rrfFuse(results, bm25Results, topK*2)
+			slog.Info("rag BM25+向量RRF融合完成", "course_id", courseID, "fused", len(results))
+		}
+	}
+
 	// Rerank [开关: rerank]
 	if config.App.RAG.Rerank && len(results) > 1 {
 		rerankStart := time.Now()

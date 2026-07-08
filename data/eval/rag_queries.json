@@ -1,0 +1,839 @@
+[
+  {
+    "id": "Q001",
+    "query": "如何让GPT返回符合Schema的JSON",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6378
+    ],
+    "category": "Python OpenAI \u003e 参考手册 \u003e 结构化输出（JSON Schema）"
+  },
+  {
+    "id": "Q002",
+    "query": "Python SHA512哈希怎么用",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6400,
+      0
+    ],
+    "category": "Python hashlib 模块 \u003e 实例"
+  },
+  {
+    "id": "Q003",
+    "query": "Python怎么将Markdown转HTML",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6402,
+      0,
+      6403,
+      6404
+    ],
+    "category": "Python Markdown 生成 HTML \u003e 实例"
+  },
+  {
+    "id": "Q004",
+    "query": "Python Thread线程方法详解",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6286
+    ],
+    "category": "Python3 多线程 \u003e 线程模块",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q005",
+    "query": "Python __name__属性有什么用",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      5999,
+      6000,
+      6001,
+      6008,
+      0
+    ],
+    "category": "Filename: using_name.py \u003e dir() 函数"
+  },
+  {
+    "id": "Q006",
+    "query": "Python subprocess模块怎么用",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6446
+    ],
+    "category": "Python subprocess 模块 \u003e 为什么使用 subprocess 模块？",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q007",
+    "query": "Python StringIO使用示例",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6456
+    ],
+    "category": "Python StringIO 模块 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q008",
+    "query": "Python隐式类型转换是什么",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      5924
+    ],
+    "category": "Python3 数据类型转换 \u003e 实例"
+  },
+  {
+    "id": "Q009",
+    "query": "Python asyncio异步调用OpenAI",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      6381
+    ],
+    "category": "Python OpenAI \u003e 参考手册 \u003e 实时 API（Realtime）",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q010",
+    "query": "Python函数参数斜杠星号用法",
+    "material_id": 6,
+    "relevant_chunk_ids": [
+      5977
+    ],
+    "category": "Python3 函数 \u003e 强制位置参数",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q011",
+    "query": "TypeScript 如何处理 null 和 undefined",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10221
+    ],
+    "category": "TypeScript null 和 undefined \u003e 总结",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q012",
+    "query": "TypeScript 元组 push pop 用法",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10253
+    ],
+    "category": "TypeScript 元组 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q013",
+    "query": "TypeScript strictNullChecks 选项",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10214
+    ],
+    "category": "TypeScript null 和 undefined \u003e null 和 undefined 基础",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q014",
+    "query": "TypeScript 联合类型数组",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10262
+    ],
+    "category": "TypeScript 联合类型 \u003e JavaScript",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q015",
+    "query": "TypeScript Symbol 属性键",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10224
+    ],
+    "category": "TypeScript Symbol \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q016",
+    "query": "TypeScript 三斜线指令",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10288,
+      10270,
+      10272,
+      10271,
+      0
+    ],
+    "category": "TypeScript 命名空间 \u003e TestShape.ts 文件代码："
+  },
+  {
+    "id": "Q017",
+    "query": "TypeScript async await 用法",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10152
+    ],
+    "category": "TypeScript Promise 详解 \u003e 为什么需要 Promise",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q018",
+    "query": "TypeScript 对象定义方法",
+    "material_id": 22,
+    "relevant_chunk_ids": [
+      10276
+    ],
+    "category": "TypeScript 对象 \u003e TypeScript",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q019",
+    "query": "C++ locale 格式化日期",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      8286
+    ],
+    "category": "C++ 标准库 \u003clocale\u003e \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q020",
+    "query": "C++ iomanip 格式化输出",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      8110
+    ],
+    "category": "C++ 标准库 \u003ciomanip\u003e \u003e 语法",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q021",
+    "query": "C++ 重载加号操作符示例",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      7927
+    ],
+    "category": "C++ 重载运算符和重载函数 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q022",
+    "query": "C++ 数组索引访问示例",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      7996
+    ],
+    "category": "C++ 数组 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q023",
+    "query": "C++ 标准输入输出头文件",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      8012
+    ],
+    "category": "C++ 基本的输入输出 \u003e 标准输出流（cout）",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q024",
+    "query": "C++ unordered_set 使用示例",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      8209
+    ],
+    "category": "C++ 容器类 `\u003cunordered_set\u003e` \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q025",
+    "query": "C++ unordered_set 清空示例",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      8210
+    ],
+    "category": "C++ 容器类 `\u003cunordered_set\u003e` \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q026",
+    "query": "HTML中插入JavaScript代码",
+    "material_id": 16,
+    "relevant_chunk_ids": [
+      8431
+    ],
+    "category": "JavaScript 用法 \u003e \u003cscript\u003e 标签",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q027",
+    "query": "JavaScript let const 作用域",
+    "material_id": 16,
+    "relevant_chunk_ids": [
+      8563
+    ],
+    "category": "JavaScript let 和 const \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q028",
+    "query": "JavaScript 插入元素到开头",
+    "material_id": 16,
+    "relevant_chunk_ids": [
+      8589
+    ],
+    "category": "JavaScript HTML DOM 元素 (节点) \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q029",
+    "query": "addEventListener 点击事件示例",
+    "material_id": 16,
+    "relevant_chunk_ids": [
+      8595
+    ],
+    "category": "JavaScript HTML DOM EventListener \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q030",
+    "query": "JavaScript 类型转换对照表",
+    "material_id": 16,
+    "relevant_chunk_ids": [
+      8524
+    ],
+    "category": "JavaScript 类型转换 \u003e 自动转换为字符串",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q031",
+    "query": "JavaScript alert怎么用",
+    "material_id": 16,
+    "relevant_chunk_ids": [
+      8325
+    ],
+    "category": "JavaScript 弹窗 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q032",
+    "query": "Java成员变量可见性示例",
+    "material_id": 13,
+    "relevant_chunk_ids": [
+      7612
+    ],
+    "category": "Java 变量类型 \u003e Employee.java 文件代码：",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q033",
+    "query": "正则表达式\\b和\\B区别",
+    "material_id": 13,
+    "relevant_chunk_ids": [
+      7335
+    ],
+    "category": "Java 正则表达式 \u003e 正则表达式语法",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q034",
+    "query": "Java void方法调用示例",
+    "material_id": 13,
+    "relevant_chunk_ids": [
+      7368
+    ],
+    "category": "Java 方法 \u003e TestVoidMethod.java 文件代码：",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q035",
+    "query": "Java数组初始化遍历例子",
+    "material_id": 13,
+    "relevant_chunk_ids": [
+      7323
+    ],
+    "category": "Java 数组 \u003e TestArray.java 文件代码：",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q036",
+    "query": "Java抽象类和抽象方法区别",
+    "material_id": 13,
+    "relevant_chunk_ids": [
+      7604
+    ],
+    "category": "Java 修饰符 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q037",
+    "query": "ServerSocket类构造方法有哪些",
+    "material_id": 13,
+    "relevant_chunk_ids": [
+      7531
+    ],
+    "category": "Java 网络编程 \u003e ServerSocket 类的方法"
+  },
+  {
+    "id": "Q038",
+    "query": "Vue3 useRoute获取参数",
+    "material_id": 20,
+    "relevant_chunk_ids": [
+      9730
+    ],
+    "category": "路由跳转 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q039",
+    "query": "Vue methods点击事件示例",
+    "material_id": 20,
+    "relevant_chunk_ids": [
+      9721
+    ],
+    "category": "Vue3 事件处理 \u003e v-on",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q040",
+    "query": "watchEffect和watch区别",
+    "material_id": 20,
+    "relevant_chunk_ids": [
+      9851
+    ],
+    "category": "watch 与搜索功能 \u003e 实例 \u003e watch vs watchEffect 对比",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q041",
+    "query": "HTML5新增了哪些标签",
+    "material_id": 20,
+    "relevant_chunk_ids": [
+      9810
+    ],
+    "category": "Vue3 Ajax(axios) \u003e 实例 \u003e 配置的默认值"
+  },
+  {
+    "id": "Q051",
+    "query": "HTML5元素可以不闭合吗？",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8834
+    ],
+    "category": "HTML(5) 代码规范 \u003e 关闭空的 HTML 元素",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q052",
+    "query": "getCurrentPosition返回哪些属性？",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8786
+    ],
+    "category": "HTML5 Geolocation（地理定位） \u003e getCurrentPosition() 方法 - 返回数据",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q053",
+    "query": "URL编码空格用什么代替？",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8914,
+      0,
+      8730,
+      8915
+    ],
+    "category": "HTML URL 编码 参考手册 \u003e 尝试一下"
+  },
+  {
+    "id": "Q054",
+    "query": "红色十六进制颜色代码表",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9226
+    ],
+    "category": "CSS 颜色 \u003e 1600多万个不同的颜色",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q055",
+    "query": "CSS列表图像标记不同浏览器不一致怎么办？",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      8979,
+      0
+    ],
+    "category": "CSS 列表 \u003e 实例"
+  },
+  {
+    "id": "Q056",
+    "query": "CSS设置元素总宽度跨浏览器方法",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9085
+    ],
+    "category": "CSS 实例 \u003e CSS边框",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q057",
+    "query": "CSS overflow属性怎么用？",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9005
+    ],
+    "category": "CSS 布局 - Overflow \u003e CSS Overflow",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q058",
+    "query": "CSS选择器参考手册",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9202
+    ],
+    "category": "CSS 选择器 \u003e 常见的 CSS 选择器",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q059",
+    "query": "fscanf读取时遇到空格就停止吗？",
+    "material_id": 14,
+    "relevant_chunk_ids": [
+      7760
+    ],
+    "category": "C 文件读写 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q060",
+    "query": "C语言可变参数函数用法",
+    "material_id": 14,
+    "relevant_chunk_ids": [
+      7783
+    ],
+    "category": "C 可变参数 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q061",
+    "query": "sprintf_s函数怎么用",
+    "material_id": 14,
+    "relevant_chunk_ids": [
+      7834,
+      0,
+      7837,
+      7838
+    ],
+    "category": "C 安全函数 \u003e 2、格式化输出安全函数"
+  },
+  {
+    "id": "Q062",
+    "query": "C语言复数运算函数有哪些",
+    "material_id": 14,
+    "relevant_chunk_ids": [
+      7882
+    ],
+    "category": "C 标准库 \u003ccomplex.h\u003e \u003e 实例 \u003e 3、 复数操作函数 \u003e 指数和对数函数",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q063",
+    "query": "React组件怎么传递props",
+    "material_id": 21,
+    "relevant_chunk_ids": [
+      10054
+    ],
+    "category": "React Props \u003e React 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q064",
+    "query": "React中useEffect如何请求数据",
+    "material_id": 21,
+    "relevant_chunk_ids": [
+      9984
+    ],
+    "category": "副作用与数据请求 — useEffect \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q065",
+    "query": "React Context如何全局共享状态",
+    "material_id": 21,
+    "relevant_chunk_ids": [
+      10000
+    ],
+    "category": "全局状态 — Context + useReducer \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q066",
+    "query": "ReactDOM.createRoot是什么",
+    "material_id": 21,
+    "relevant_chunk_ids": [
+      9929
+    ],
+    "category": "React 参考手册 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q067",
+    "query": "MySQL如何多表查询",
+    "material_id": 11,
+    "relevant_chunk_ids": [
+      7019
+    ],
+    "category": "MySQL 连接的使用 \u003e WHERE 子句",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q068",
+    "query": "MySQL数据库操作命令大全",
+    "material_id": 11,
+    "relevant_chunk_ids": [
+      7149
+    ],
+    "category": "MySQL 命令大全 \u003e 数据库相关命令",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q069",
+    "query": "MySQL插入数据语法是什么",
+    "material_id": 11,
+    "relevant_chunk_ids": [
+      7024
+    ],
+    "category": "MySQL 插入数据 \u003e 语法",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q070",
+    "query": "如何防止SQL注入攻击",
+    "material_id": 11,
+    "relevant_chunk_ids": [
+      7209
+    ],
+    "category": "MySQL PHP 连接与使用 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q071",
+    "query": "docker-machine常用命令",
+    "material_id": 9,
+    "relevant_chunk_ids": [
+      6861
+    ],
+    "category": "Docker Machine \u003e 使用 \u003e 5、启动机器",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q072",
+    "query": "Dockerfile构建镜像命令",
+    "material_id": 9,
+    "relevant_chunk_ids": [
+      6833
+    ],
+    "category": "RUN [\".",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q073",
+    "query": "docker run hello-world流程",
+    "material_id": 9,
+    "relevant_chunk_ids": [
+      6777
+    ],
+    "category": "启动Docker服务 \u003e 手动安装 \u003e 安装 Docker Engine-Community",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q074",
+    "query": "Rust泛型函数示例",
+    "material_id": 23,
+    "relevant_chunk_ids": [
+      10708
+    ],
+    "category": "Rust 泛型与特性 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q075",
+    "query": "Rust泛型结构体方法",
+    "material_id": 23,
+    "relevant_chunk_ids": [
+      10710
+    ],
+    "category": "Rust 泛型与特性 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q076",
+    "query": "Rust递归目录统计文件行数",
+    "material_id": 23,
+    "relevant_chunk_ids": [
+      10668,
+      0,
+      10669,
+      10670
+    ],
+    "category": "Cargo.toml \u003e 实例"
+  },
+  {
+    "id": "Q077",
+    "query": "Go语言接口隐式实现",
+    "material_id": 7,
+    "relevant_chunk_ids": [
+      6539
+    ],
+    "category": "go.mod 文件内容 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q078",
+    "query": "Go数组初始化方法",
+    "material_id": 7,
+    "relevant_chunk_ids": [
+      6582
+    ],
+    "category": "Go 语言数组 \u003e 实例 2",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q079",
+    "query": "Go并发worker pool示例",
+    "material_id": 7,
+    "relevant_chunk_ids": [
+      6542,
+      0,
+      6543
+    ],
+    "category": "使用 curl 测试 \u003e 实例"
+  },
+  {
+    "id": "Q080",
+    "query": "Shell条件判断语法",
+    "material_id": 8,
+    "relevant_chunk_ids": [
+      6652
+    ],
+    "category": "或 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q081",
+    "query": "什么是shell脚本？",
+    "material_id": 8,
+    "relevant_chunk_ids": [
+      6613
+    ],
+    "category": "Shell 教程 \u003e Shell 环境",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q082",
+    "query": "linux fdisk命令查看分区",
+    "material_id": 8,
+    "relevant_chunk_ids": [
+      6736
+    ],
+    "category": "Linux 磁盘管理 \u003e fdisk \u003e 实例 1",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q083",
+    "query": "操作系统三级调度是什么？",
+    "material_id": 1,
+    "relevant_chunk_ids": [
+      750,
+      0
+    ]
+  },
+  {
+    "id": "Q084",
+    "query": "源代码如何变成可执行程序？",
+    "material_id": 1,
+    "relevant_chunk_ids": [
+      742
+    ],
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q085",
+    "query": "GitHub Actions缓存依赖怎么用？",
+    "material_id": 10,
+    "relevant_chunk_ids": [
+      6940
+    ],
+    "category": "GitHub Actions \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q086",
+    "query": "GitHub Actions运行器选择",
+    "material_id": 10,
+    "relevant_chunk_ids": [
+      6937
+    ],
+    "category": "GitHub Actions \u003e 实例 \u003e 3、Job 之间的依赖（needs）"
+  },
+  {
+    "id": "Q087",
+    "query": "Java用Jedis连接Redis示例",
+    "material_id": 12,
+    "relevant_chunk_ids": [
+      7286
+    ],
+    "category": "Java 使用 Redis \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q088",
+    "query": "PHP安装Redis扩展方法",
+    "material_id": 12,
+    "relevant_chunk_ids": [
+      7221
+    ],
+    "category": "PHP 使用 Redis \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q089",
+    "query": "Go语言并发编程技能",
+    "material_id": 5,
+    "relevant_chunk_ids": [
+      766,
+      0
+    ]
+  },
+  {
+    "id": "Q090",
+    "query": "Python入门基础语法",
+    "material_id": 2,
+    "relevant_chunk_ids": [
+      5860
+    ],
+    "category": "第一章 Python 基础 \u003e 1.4 条件判断",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q091",
+    "query": "怎么用HSL生成颜色系统",
+    "material_id": 3,
+    "relevant_chunk_ids": [
+      5865,
+      0
+    ],
+    "category": "第二章 Figma 实战 \u003e 2.3 设计系统基础"
+  },
+  {
+    "id": "Q092",
+    "query": "英语字母开音节闭音节怎么读",
+    "material_id": 4,
+    "relevant_chunk_ids": [
+      0,
+      5866
+    ],
+    "category": "第二课 高频句型 50 句 \u003e 问候"
+  }
+]

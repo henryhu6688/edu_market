@@ -12,10 +12,10 @@ import (
 // defaultEvalConfigs 默认四组分层配置。
 func defaultEvalConfigs() []EvalConfig {
 	return []EvalConfig{
-		{Name: "裸向量检索", Hybrid: false, Rerank: false, CacheEnabled: false},
-		{Name: "+BM25混合检索", Hybrid: true, Rerank: false, CacheEnabled: false},
-		{Name: "+Rerank精排", Hybrid: true, Rerank: true, CacheEnabled: false},
-		{Name: "+两级缓存", Hybrid: true, Rerank: true, CacheEnabled: true},
+		{Name: "裸向量检索", Hybrid: false, Rerank: false, CacheEnabled: false, BM25Enabled: false},
+		{Name: "+BM25混合检索", Hybrid: false, Rerank: false, CacheEnabled: false, BM25Enabled: true},
+		{Name: "+Rerank精排", Hybrid: false, Rerank: true, CacheEnabled: false, BM25Enabled: true},
+		{Name: "+两级缓存", Hybrid: false, Rerank: true, CacheEnabled: true, BM25Enabled: true},
 	}
 }
 
@@ -50,6 +50,7 @@ func runOneConfig(queries []RAGQuery, cfg EvalConfig, topK int, ragSvc *rag.RAGS
 	config.App.RAG.HybridSearch = cfg.Hybrid
 	config.App.RAG.Rerank = cfg.Rerank
 	config.App.RAG.CacheEnabled = cfg.CacheEnabled
+	config.App.RAG.BM25Enabled = cfg.BM25Enabled
 
 	// Warmup：用第一条查询的 material，query 加前缀
 	if len(queries) > 0 {
@@ -106,6 +107,7 @@ type ragConfigSnapshot struct {
 	HybridSearch bool
 	Rerank       bool
 	CacheEnabled bool
+	BM25Enabled  bool
 }
 
 func saveRAGConfig() ragConfigSnapshot {
@@ -113,6 +115,7 @@ func saveRAGConfig() ragConfigSnapshot {
 		HybridSearch: config.App.RAG.HybridSearch,
 		Rerank:       config.App.RAG.Rerank,
 		CacheEnabled: config.App.RAG.CacheEnabled,
+		BM25Enabled:  config.App.RAG.BM25Enabled,
 	}
 }
 
@@ -120,4 +123,5 @@ func restoreRAGConfig(s ragConfigSnapshot) {
 	config.App.RAG.HybridSearch = s.HybridSearch
 	config.App.RAG.Rerank = s.Rerank
 	config.App.RAG.CacheEnabled = s.CacheEnabled
+	config.App.RAG.BM25Enabled = s.BM25Enabled
 }

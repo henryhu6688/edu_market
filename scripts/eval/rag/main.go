@@ -85,6 +85,7 @@ func loadRAGEvalConfig() {
 			ChunkSize:        500,
 			ChunkMin:         300,
 			ChunkMax:         800,
+			BM25Enabled:      true,
 			CacheEnabled:     true,
 			CacheTTL:         3600,
 			CacheSimThreshold: 0.85,

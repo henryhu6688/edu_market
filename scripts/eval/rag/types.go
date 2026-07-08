@@ -26,6 +26,7 @@ type EvalConfig struct {
 	Hybrid       bool   `json:"hybrid"`
 	Rerank       bool   `json:"rerank"`
 	CacheEnabled bool   `json:"cache_enabled"`
+	BM25Enabled  bool   `json:"bm25_enabled"`
 }
 
 // EvalGroupResult 单组配置的完整评测结果

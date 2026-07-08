@@ -100,6 +100,7 @@ type RAGConfig struct {
 	ChunkSize         int     `mapstructure:"chunk_size"`
 	ChunkMin          int     `mapstructure:"chunk_min"`
 	ChunkMax          int     `mapstructure:"chunk_max"`
+	BM25Enabled       bool    `mapstructure:"bm25_enabled"`
 	CacheEnabled      bool    `mapstructure:"cache_enabled"`
 	CacheTTL          int     `mapstructure:"cache_ttl"`
 	CacheSimThreshold float64 `mapstructure:"cache_sim_threshold"`

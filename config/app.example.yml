@@ -48,12 +48,13 @@ rag:
   qdrant_collection: "chunks"
   hybrid_search: true
   rerank: true
-  rerank_topk: 3
+  rerank_topk: 5
   cleaner_enabled: true
   structural_chunk: true
   chunk_size: 500
   chunk_min: 300
   chunk_max: 800
+  bm25_enabled: true
   cache_enabled: true
   cache_ttl: 3600
   cache_sim_threshold: 0.85
