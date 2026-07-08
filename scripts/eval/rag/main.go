@@ -74,6 +74,22 @@ func loadRAGEvalConfig() {
 			EmbeddingAPIURL: "https://api.siliconflow.cn/v1/embeddings",
 			EmbeddingAPIKey: readYAML("agent.embedding_api_key"),
 		},
+		RAG: config.RAGConfig{
+			QdrantURL:        "http://localhost:6335",
+			QdrantCollection: "chunks",
+			HybridSearch:     true,
+			Rerank:           true,
+			RerankTopK:       5,
+			CleanerEnabled:   true,
+			StructuralChunk:  true,
+			ChunkSize:        500,
+			ChunkMin:         300,
+			ChunkMax:         800,
+			CacheEnabled:     true,
+			CacheTTL:         3600,
+			CacheSimThreshold: 0.85,
+			CacheMaxEntries:  10,
+		},
 	}
 	if config.App.AI.Model == "" {
 		config.App.AI.Model = "deepseek-chat"

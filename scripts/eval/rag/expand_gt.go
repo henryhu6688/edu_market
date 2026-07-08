@@ -16,21 +16,24 @@ import (
 
 // expandGroundTruth 对每条查询暴力搜 topK=50，让 LLM 判断哪些结果相关。
 func expandGroundTruth(queries []RAGQuery, ragSvc *rag.RAGService) ([]RAGQuery, error) {
-	// 临时关缓存 + Rerank，确保暴力搜
+	// 临时关缓存 + Rerank + Hybrid，确保纯向量暴力搜
 	origCache := config.App.RAG.CacheEnabled
 	origRerank := config.App.RAG.Rerank
+	origHybrid := config.App.RAG.HybridSearch
 	config.App.RAG.CacheEnabled = false
 	config.App.RAG.Rerank = false
+	config.App.RAG.HybridSearch = false
 	defer func() {
 		config.App.RAG.CacheEnabled = origCache
 		config.App.RAG.Rerank = origRerank
+		config.App.RAG.HybridSearch = origHybrid
 	}()
 
 	for i := range queries {
 		q := &queries[i]
 		slog.Info("rag-eval 扩展 ground truth", "query_id", q.ID, "query", q.Query)
 
-		results, err := ragSvc.Search(q.MaterialID, q.Query, 50, true)
+		results, err := ragSvc.Search(q.MaterialID, q.Query, 20, true)
 		if err != nil {
 			slog.Warn("rag-eval 暴力搜索失败，保留原始 ground truth", "query_id", q.ID, "err", err)
 			q.GTIncomplete = true
@@ -83,7 +86,7 @@ func judgeRelevance(query string, results []rag.SearchResult) ([]uint, error) {
 	var candidates strings.Builder
 	for _, r := range results {
 		candidates.WriteString(fmt.Sprintf(
-			"[ID:%d] %s\n", r.ChunkID, truncateRunes(r.Content, 200),
+			"[ID:%d] %s\n", r.ChunkID, truncateRunes(r.Content, 100),
 		))
 	}
 
