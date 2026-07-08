@@ -74,11 +74,36 @@
             &#128269; {{ msg.content }}
           </div>
 
-          <!-- action 购买卡片 -->
-          <div v-else-if="msg.role === 'action' && msg.action?.type === 'purchase'" class="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl px-5 py-4 max-w-[75%] text-center shadow-sm">
-            <p class="text-[15px] font-semibold text-[var(--color-foreground)] mb-1.5">🛒 {{ msg.action.title }}</p>
-            <p class="text-xl font-bold text-[var(--color-destructive)] mb-3">¥{{ msg.action.price }}</p>
-            <router-link to="/orders" class="inline-block px-5 py-2 bg-[var(--color-primary)] text-white rounded-[var(--radius-btn)] text-sm font-medium no-underline hover:brightness-90 transition-all">立即购买</router-link>
+          <!-- action 资料推荐卡 (signature，用 purchase_offer 数据) -->
+          <div v-else-if="msg.role === 'action' && msg.action?.type === 'purchase'" class="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden max-w-[75%] w-[300px] shadow-sm">
+            <div
+              @click.stop="$router.push(`/materials/${msg.action.material_id}`)"
+              class="flex gap-3 p-3 cursor-pointer hover:bg-[var(--color-primary)]/5 transition-colors"
+            >
+              <!-- 封面 -->
+              <img
+                v-if="msg.action.cover_image"
+                :src="msg.action.cover_image"
+                :alt="msg.action.title"
+                class="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+              />
+              <div
+                v-else
+                class="w-16 h-16 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary)]/60 flex items-center justify-center flex-shrink-0"
+              >
+                <span class="text-[var(--color-primary-foreground)] text-2xl font-bold">{{ (msg.action.title || '?').charAt(0) }}</span>
+              </div>
+              <!-- 信息 -->
+              <div class="min-w-0 flex flex-col justify-center">
+                <div class="text-[11px] text-[var(--color-muted)] mb-0.5">为你推荐</div>
+                <div class="text-sm font-bold text-[var(--color-foreground)] leading-snug line-clamp-2">{{ msg.action.title }}</div>
+                <div class="text-lg font-bold text-[var(--color-accent)] mt-0.5">¥{{ msg.action.price }}</div>
+              </div>
+            </div>
+            <router-link
+              to="/orders"
+              class="block px-4 py-2.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-center text-sm font-medium no-underline hover:brightness-90 transition-all"
+            >立即购买 &rarr;</router-link>
           </div>
 
           <!-- 用户气泡 -->
@@ -93,27 +118,6 @@
             class="bg-[var(--color-card)] border border-[var(--color-border)] px-4 py-2.5 rounded-[12px_12px_12px_2px] text-sm leading-relaxed whitespace-pre-wrap break-words max-w-[75%] text-[var(--color-foreground)]"
           >
             {{ msg.content }}
-
-            <!-- 资料推荐卡组 (signature) -->
-            <div v-if="msg.recommendations?.length" class="mt-3 pt-3 border-t border-[var(--color-border)]">
-              <div class="text-xs text-[var(--color-muted)] mb-2">为你找到 {{ msg.recommendations.length }} 份资料：</div>
-              <div class="flex gap-2 flex-wrap">
-                <div
-                  v-for="rec in msg.recommendations"
-                  :key="rec.id"
-                  @click.stop="$router.push(`/materials/${rec.id}`)"
-                  class="flex items-center gap-2.5 bg-[var(--color-background)] rounded-lg p-2 cursor-pointer hover:bg-teal-50 transition-colors border border-[var(--color-border)] min-w-0"
-                >
-                  <div class="w-9 h-9 rounded-md bg-gradient-to-br from-teal-600 to-teal-400 flex-shrink-0 flex items-center justify-center">
-                    <span class="text-white text-xs font-bold">{{ (rec.title || '?').charAt(0) }}</span>
-                  </div>
-                  <div class="min-w-0">
-                    <div class="text-[13px] font-medium text-[var(--color-foreground)] truncate">{{ rec.title }}</div>
-                    <div class="text-xs font-bold text-[var(--color-accent)]">¥{{ rec.price }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -333,10 +337,17 @@ async function send() {
             try {
               const d = JSON.parse(payload)
               if (currentAssistantIdx === -1) {
-                messages.value.push({ role: 'assistant', content: '', recommendations: [] })
+                messages.value.push({ role: 'assistant', content: '' })
                 currentAssistantIdx = messages.value.length - 1
               }
               messages.value[currentAssistantIdx].content += d.content
+            } catch {}
+          } else if (currentEvent === 'thinking') {
+            try {
+              const d = JSON.parse(payload)
+              // 移除旧的 thinking 气泡（只保留最新一条），再插入新的
+              messages.value = messages.value.filter(m => m.role !== 'thinking')
+              messages.value.push({ role: 'thinking', content: `正在使用 ${d.tool}...` })
             } catch {}
           } else if (currentEvent === 'action') {
             try {
@@ -346,14 +357,6 @@ async function send() {
                   role: 'action',
                   action: { type: 'purchase', ...d.payload }
                 })
-              }
-              // 资料推荐 action（后端返回 material_recommendations）
-              if (d.type === 'material_recommendations' && d.materials?.length) {
-                if (currentAssistantIdx === -1) {
-                  messages.value.push({ role: 'assistant', content: '', recommendations: [] })
-                  currentAssistantIdx = messages.value.length - 1
-                }
-                messages.value[currentAssistantIdx].recommendations = d.materials
               }
             } catch {}
           } else if (currentEvent === 'done') {
