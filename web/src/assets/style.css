@@ -23,6 +23,8 @@
   --color-destructive-foreground: #FFFFFF;
   --color-ring: #0D9488;
   --color-input: #E2E8F0;
+  --color-thinking-bg: #FEF9C3;
+  --color-thinking-fg: #92400E;
 
   --radius-card: 10px;
   --radius-btn: 8px;
@@ -45,3 +47,9 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+/* thinking 气泡淡入动画 — animate-[fadeIn_0.3s_ease] */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

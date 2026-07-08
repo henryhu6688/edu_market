@@ -58,14 +58,73 @@
         </span>
       </div>
 
-      <!-- 消息区（Part 2 填充） -->
+      <!-- 消息区 -->
       <div class="flex-1 overflow-y-auto p-5" ref="msgContainer">
+        <!-- 欢迎 -->
         <div v-if="messages.length === 0 && !currentSessionId" class="text-center pt-20 text-[var(--color-muted)]">
           <MessageCircle :size="48" class="mx-auto mb-4 opacity-30" />
           <h2 class="text-lg font-semibold text-[var(--color-foreground)] mb-2">有什么可以帮你的？</h2>
           <p class="text-sm">我可以帮你解答课程问题、推荐资料、处理订单咨询</p>
         </div>
-        <!-- 消息气泡由 Part 2 实现 -->
+
+        <!-- 消息列表 -->
+        <div v-for="(msg, i) in messages" :key="i" :class="['flex mb-4', msg.role === 'user' ? 'justify-end' : 'justify-start']">
+          <!-- thinking 气泡 -->
+          <div v-if="msg.role === 'thinking'" class="bg-[var(--color-thinking-bg)] text-[var(--color-thinking-fg)] px-3 py-2 rounded-lg text-[13px] animate-[fadeIn_0.3s_ease] max-w-[75%]">
+            &#128269; {{ msg.content }}
+          </div>
+
+          <!-- action 购买卡片 -->
+          <div v-else-if="msg.role === 'action' && msg.action?.type === 'purchase'" class="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl px-5 py-4 max-w-[75%] text-center shadow-sm">
+            <p class="text-[15px] font-semibold text-[var(--color-foreground)] mb-1.5">🛒 {{ msg.action.title }}</p>
+            <p class="text-xl font-bold text-[var(--color-destructive)] mb-3">¥{{ msg.action.price }}</p>
+            <router-link to="/orders" class="inline-block px-5 py-2 bg-[var(--color-primary)] text-white rounded-[var(--radius-btn)] text-sm font-medium no-underline hover:brightness-90 transition-all">立即购买</router-link>
+          </div>
+
+          <!-- 用户气泡 -->
+          <div
+            v-else-if="msg.role === 'user'"
+            class="bg-[var(--color-primary)] text-white px-4 py-2.5 rounded-[12px_12px_2px_12px] text-sm leading-relaxed whitespace-pre-wrap break-words max-w-[75%]"
+          >{{ msg.content }}</div>
+
+          <!-- AI 气泡 -->
+          <div
+            v-else-if="msg.role === 'assistant'"
+            class="bg-[var(--color-card)] border border-[var(--color-border)] px-4 py-2.5 rounded-[12px_12px_12px_2px] text-sm leading-relaxed whitespace-pre-wrap break-words max-w-[75%] text-[var(--color-foreground)]"
+          >
+            {{ msg.content }}
+
+            <!-- 资料推荐卡组 (signature) -->
+            <div v-if="msg.recommendations?.length" class="mt-3 pt-3 border-t border-[var(--color-border)]">
+              <div class="text-xs text-[var(--color-muted)] mb-2">为你找到 {{ msg.recommendations.length }} 份资料：</div>
+              <div class="flex gap-2 flex-wrap">
+                <div
+                  v-for="rec in msg.recommendations"
+                  :key="rec.id"
+                  @click.stop="$router.push(`/materials/${rec.id}`)"
+                  class="flex items-center gap-2.5 bg-[var(--color-background)] rounded-lg p-2 cursor-pointer hover:bg-teal-50 transition-colors border border-[var(--color-border)] min-w-0"
+                >
+                  <div class="w-9 h-9 rounded-md bg-gradient-to-br from-teal-600 to-teal-400 flex-shrink-0 flex items-center justify-center">
+                    <span class="text-white text-xs font-bold">{{ (rec.title || '?').charAt(0) }}</span>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-[13px] font-medium text-[var(--color-foreground)] truncate">{{ rec.title }}</div>
+                    <div class="text-xs font-bold text-[var(--color-accent)]">¥{{ rec.price }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 加载中 dots -->
+        <div v-if="loading" class="flex mb-4">
+          <div class="bg-[var(--color-card)] border border-[var(--color-border)] px-4 py-3 rounded-[12px_12px_12px_2px] flex gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-muted)] animate-bounce"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-muted)] animate-bounce" style="animation-delay:0.15s"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-muted)] animate-bounce" style="animation-delay:0.3s"></span>
+          </div>
+        </div>
       </div>
 
       <!-- 输入区 -->
@@ -213,7 +272,7 @@ function scrollToBottom() {
   })
 }
 
-// ===== 发送消息（SSE 流式由 Part 2 实现，此处做占位） =====
+// ===== 发送消息 + SSE 流式（逻辑与原版相同，调整了气泡样式）=====
 async function send() {
   if (!input.value.trim() || loading.value) return
   const question = input.value.trim()
@@ -222,6 +281,8 @@ async function send() {
 
   messages.value.push({ role: 'user', content: question })
   scrollToBottom()
+
+  let currentAssistantIdx = -1
 
   try {
     const resp = await agentChat({
@@ -240,7 +301,6 @@ async function send() {
     let buffer = ''
     let currentEvent = ''
     let streamEnded = false
-    let currentAssistantIdx = -1
 
     while (!streamEnded) {
       let readResult
@@ -273,7 +333,7 @@ async function send() {
             try {
               const d = JSON.parse(payload)
               if (currentAssistantIdx === -1) {
-                messages.value.push({ role: 'assistant', content: '' })
+                messages.value.push({ role: 'assistant', content: '', recommendations: [] })
                 currentAssistantIdx = messages.value.length - 1
               }
               messages.value[currentAssistantIdx].content += d.content
@@ -287,9 +347,16 @@ async function send() {
                   action: { type: 'purchase', ...d.payload }
                 })
               }
+              // 资料推荐 action（后端返回 material_recommendations）
+              if (d.type === 'material_recommendations' && d.materials?.length) {
+                if (currentAssistantIdx === -1) {
+                  messages.value.push({ role: 'assistant', content: '', recommendations: [] })
+                  currentAssistantIdx = messages.value.length - 1
+                }
+                messages.value[currentAssistantIdx].recommendations = d.materials
+              }
             } catch {}
           } else if (currentEvent === 'done') {
-            console.log('SSE received done:', payload)
             streamEnded = true
             try {
               const d = JSON.parse(payload)
@@ -317,6 +384,7 @@ async function send() {
     messages.value.push({ role: 'assistant', content: `连接失败: ${e.message}` })
   } finally {
     messages.value = messages.value.filter(m => m.role !== 'thinking')
+    currentAssistantIdx = -1
     loading.value = false
   }
 }
