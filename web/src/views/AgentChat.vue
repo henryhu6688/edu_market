@@ -1,81 +1,128 @@
 <template>
-  <div class="agent-chat">
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h3>AI 助手</h3>
-        <button class="btn-new" @click="newChat">+ 新对话</button>
+  <div class="flex h-[calc(100vh-60px)] max-w-[1200px] mx-auto">
+    <!-- 侧边栏 -->
+    <aside
+      :class="[
+        'flex flex-col bg-[var(--color-background)] border-r border-[var(--color-border)] flex-shrink-0 transition-all duration-300',
+        sidebarCollapsed ? 'w-[48px]' : 'w-[260px]'
+      ]"
+    >
+      <div v-if="!sidebarCollapsed" class="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
+        <h3 class="m-0 text-base font-semibold">AI 对话</h3>
+        <div class="flex gap-1">
+          <button @click="newChat" class="px-3 py-1 text-xs border border-[var(--color-primary)] bg-white text-[var(--color-primary)] rounded-[var(--radius-btn)] cursor-pointer hover:bg-teal-50 transition-all">
+            + 新对话
+          </button>
+          <button @click="sidebarCollapsed = true" class="p-1 border-none bg-transparent cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <PanelLeftClose :size="16" />
+          </button>
+        </div>
       </div>
-      <div class="session-list">
+      <button
+        v-else
+        @click="sidebarCollapsed = false"
+        class="p-3 border-none bg-transparent cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-primary)] transition-colors"
+      >
+        <PanelLeft :size="20" />
+      </button>
+
+      <div v-if="!sidebarCollapsed" class="flex-1 overflow-y-auto">
+        <div v-if="sessions.length === 0" class="p-4 text-[13px] text-[var(--color-muted)] text-center">
+          暂无对话，点击上方按钮开始
+        </div>
         <div
           v-for="s in sessions"
           :key="s.id"
-          class="session-item"
-          :class="{ active: s.id === currentSessionId }"
           @click="switchSession(s.id)"
+          :class="[
+            'flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] cursor-pointer text-sm hover:bg-teal-50/50 transition-colors',
+            s.id === currentSessionId ? 'bg-teal-50 border-l-[3px] border-l-[var(--color-primary)]' : 'border-l-[3px] border-l-transparent'
+          ]"
         >
-          <span class="session-title">{{ s.title || '新对话' }}</span>
-          <button class="btn-del" @click.stop="removeSession(s.id)">&times;</button>
+          <span class="flex-1 truncate">{{ s.title || '新对话' }}</span>
+          <button @click.stop="removeSession(s.id)" class="border-none bg-transparent text-lg text-[var(--color-muted)] cursor-pointer p-0 leading-none hover:text-[var(--color-destructive)] transition-colors">&times;</button>
         </div>
-        <div v-if="sessions.length === 0" class="empty-hint">暂无对话，点击上方按钮开始</div>
       </div>
     </aside>
 
-    <!-- 删除确认弹窗 -->
-    <div v-if="showDelDialog" class="modal-overlay" @click.self="showDelDialog = false">
-      <div class="modal-box">
-        <p class="modal-title">删除对话</p>
-        <p class="modal-body">确定要删除这个对话吗？<br/><span class="modal-warn">删除后无法恢复。</span></p>
-        <div class="modal-actions">
-          <button class="btn-cancel" @click="showDelDialog = false">取消</button>
-          <button class="btn-danger" @click="confirmDelete">删除</button>
-        </div>
-      </div>
-    </div>
-
-    <main class="chat-area">
-      <div class="messages" ref="msgContainer">
-        <div v-if="messages.length === 0 && !currentSessionId" class="welcome">
-          <h2>有什么可以帮你的？</h2>
-          <p>我可以帮你解答课程问题、推荐资料、处理订单咨询</p>
-        </div>
-        <div v-for="(msg, i) in messages" :key="i" class="msg" :class="msg.role">
-          <div v-if="msg.role === 'thinking'" class="thinking-bubble">
-            &#128269; {{ msg.content }}
-          </div>
-          <div v-else-if="msg.role === 'action' && msg.action?.type === 'purchase'" class="action-card">
-            <div class="card-title">🛒 {{ msg.action.title }}</div>
-            <div class="card-price">¥{{ msg.action.price }}</div>
-            <button @click="$router.push('/orders')">立即购买</button>
-          </div>
-          <div v-else class="bubble" :class="msg.role">
-            {{ msg.content }}
-          </div>
-        </div>
-        <div v-if="loading" class="msg assistant">
-          <div class="bubble assistant thinking-dots">
-            <span class="dot">&#9679;</span><span class="dot">&#9679;</span><span class="dot">&#9679;</span>
-          </div>
-        </div>
+    <!-- 对话区 -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <!-- 顶栏 -->
+      <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border)] text-sm">
+        <button v-if="sidebarCollapsed" @click="sidebarCollapsed = false" class="border-none bg-transparent cursor-pointer text-[var(--color-muted)] p-1">
+          <PanelLeft :size="16" />
+        </button>
+        <span class="font-semibold text-[var(--color-foreground)]">{{ currentSessionTitle || '新对话' }}</span>
+        <span v-if="currentAgentType" class="ml-auto px-2.5 py-0.5 text-[11px] rounded-[var(--radius-pill)] bg-teal-50 text-[var(--color-primary)] font-medium">
+          {{ currentAgentType === 'shopping' ? '购物模式' : currentAgentType === 'tutoring' ? '辅导模式' : currentAgentType }}
+        </span>
       </div>
 
-      <div class="input-area">
+      <!-- 消息区（Part 2 填充） -->
+      <div class="flex-1 overflow-y-auto p-5" ref="msgContainer">
+        <div v-if="messages.length === 0 && !currentSessionId" class="text-center pt-20 text-[var(--color-muted)]">
+          <MessageCircle :size="48" class="mx-auto mb-4 opacity-30" />
+          <h2 class="text-lg font-semibold text-[var(--color-foreground)] mb-2">有什么可以帮你的？</h2>
+          <p class="text-sm">我可以帮你解答课程问题、推荐资料、处理订单咨询</p>
+        </div>
+        <!-- 消息气泡由 Part 2 实现 -->
+      </div>
+
+      <!-- 输入区 -->
+      <div class="p-4 border-t border-[var(--color-border)] flex gap-3">
         <input
           v-model="input"
           @keyup.enter="send"
           placeholder="输入你的问题..."
           :disabled="loading"
           ref="inputBox"
+          class="flex-1 px-4 py-2.5 border border-[var(--color-border)] rounded-[var(--radius-input)] text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-50"
         />
-        <button @click="send" :disabled="loading || !input.trim()">发送</button>
+        <button
+          @click="send"
+          :disabled="loading || !input.trim()"
+          class="px-6 py-2.5 bg-[var(--color-primary)] text-white border-none rounded-[var(--radius-btn)] text-sm font-medium cursor-pointer hover:brightness-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        >
+          发送
+        </button>
       </div>
     </main>
+
+    <!-- 删除确认 Dialog -->
+    <Dialog :open="showDelDialog" @update:open="showDelDialog = $event">
+      <DialogContent class="sm:max-w-[380px]">
+        <DialogHeader>
+          <DialogTitle>删除对话</DialogTitle>
+          <DialogDescription>
+            确定要删除这个对话吗？<br />
+            <span class="text-[var(--color-destructive)] text-sm">删除后无法恢复。</span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter class="flex justify-end gap-3 mt-4">
+          <Button variant="outline" @click="showDelDialog = false">取消</Button>
+          <Button variant="destructive" @click="confirmDelete">删除</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { agentChat, getSessions, deleteSession, getMessages } from '@/api/agent'
+import {
+  PanelLeft, PanelLeftClose, MessageCircle
+} from 'lucide-vue-next'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 const userStore = useUserStore()
 
@@ -89,28 +136,27 @@ const msgContainer = ref(null)
 const inputBox = ref(null)
 const showDelDialog = ref(false)
 const pendingDeleteId = ref(null)
+const sidebarCollapsed = ref(false)
 
+const currentSessionTitle = computed(() => {
+  const s = sessions.value.find(s => s.id === currentSessionId.value)
+  return s?.title || ''
+})
+
+// ===== 会话管理 =====
 async function loadSessions() {
   try {
     const res = await getSessions({ page: 1, page_size: 50 })
     sessions.value = res.data.list || []
-  } catch (e) {
-    console.error('加载会话列表失败', e)
-  }
+  } catch (e) { console.error('加载会话列表失败', e) }
 }
 
 function parseHistoryMsg(m) {
-  // 检测 action 消息：尝试 JSON.parse，检查是否包含 purchase_offer
-  // 注意：不能用 startsWith('{"type":"') 因为 Go map 序列化 key 顺序不确定，
-  // payload 可能在 type 前面
   if (m.role === 'assistant' && m.content) {
     try {
       const parsed = JSON.parse(m.content)
       if (parsed.type === 'purchase_offer' && parsed.payload) {
-        return {
-          role: 'action',
-          action: { type: 'purchase', ...parsed.payload }
-        }
+        return { role: 'action', action: { type: 'purchase', ...parsed.payload } }
       }
     } catch {}
   }
@@ -124,9 +170,7 @@ async function loadMessages(sessionId) {
       .filter(m => m.role !== 'tool')
       .map(parseHistoryMsg)
     scrollToBottom()
-  } catch (e) {
-    console.error('加载消息失败', e)
-  }
+  } catch (e) { console.error('加载消息失败', e) }
 }
 
 function newChat() {
@@ -140,9 +184,7 @@ function newChat() {
 function switchSession(id) {
   currentSessionId.value = id
   const s = sessions.value.find(s => s.id === id)
-  if (s) {
-    currentAgentType.value = s.agent_type
-  }
+  if (s) currentAgentType.value = s.agent_type
   loadMessages(id)
 }
 
@@ -160,11 +202,18 @@ async function confirmDelete() {
     await deleteSession(id)
     sessions.value = sessions.value.filter(s => s.id !== id)
     if (currentSessionId.value === id) newChat()
-  } catch (e) {
-    console.error('删除会话失败', e)
-  }
+  } catch (e) { console.error('删除会话失败', e) }
 }
 
+function scrollToBottom() {
+  nextTick(() => {
+    if (msgContainer.value) {
+      msgContainer.value.scrollTop = msgContainer.value.scrollHeight
+    }
+  })
+}
+
+// ===== 发送消息（SSE 流式由 Part 2 实现，此处做占位） =====
 async function send() {
   if (!input.value.trim() || loading.value) return
   const question = input.value.trim()
@@ -173,8 +222,6 @@ async function send() {
 
   messages.value.push({ role: 'user', content: question })
   scrollToBottom()
-
-  let currentAssistantIdx = -1
 
   try {
     const resp = await agentChat({
@@ -193,6 +240,7 @@ async function send() {
     let buffer = ''
     let currentEvent = ''
     let streamEnded = false
+    let currentAssistantIdx = -1
 
     while (!streamEnded) {
       let readResult
@@ -269,150 +317,9 @@ async function send() {
     messages.value.push({ role: 'assistant', content: `连接失败: ${e.message}` })
   } finally {
     messages.value = messages.value.filter(m => m.role !== 'thinking')
-    currentAssistantIdx = -1
     loading.value = false
   }
 }
 
-function scrollToBottom() {
-  nextTick(() => {
-    if (msgContainer.value) {
-      msgContainer.value.scrollTop = msgContainer.value.scrollHeight
-    }
-  })
-}
-
 onMounted(() => loadSessions())
 </script>
-
-<style scoped>
-.agent-chat {
-  display: flex;
-  height: calc(100vh - 60px);
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.sidebar {
-  width: 260px;
-  border-right: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  background: #f9fafb;
-  flex-shrink: 0;
-}
-.sidebar-header {
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.sidebar-header h3 { margin: 0; font-size: 16px; }
-.btn-new {
-  padding: 4px 10px;
-  border: 1px solid #3b82f6;
-  background: #fff;
-  color: #3b82f6;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.btn-new:hover { background: #eff6ff; }
-.session-list { flex: 1; overflow-y: auto; }
-.empty-hint { padding: 20px 16px; color: #9ca3af; font-size: 13px; text-align: center; }
-.session-item {
-  padding: 10px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.session-item:hover { background: #f3f4f6; }
-.session-item.active { background: #eff6ff; }
-.session-title { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btn-del { background: none; border: none; font-size: 18px; color: #9ca3af; cursor: pointer; padding: 0 4px; line-height: 1; }
-.btn-del:hover { color: #ef4444; }
-.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.messages { flex: 1; overflow-y: auto; padding: 20px; }
-.welcome { text-align: center; padding-top: 80px; color: #6b7280; }
-.welcome h2 { margin-bottom: 8px; color: #374151; }
-.msg { margin-bottom: 16px; display: flex; }
-.msg.user { justify-content: flex-end; }
-.msg.assistant { justify-content: flex-start; }
-.msg.action { justify-content: flex-start; }
-.bubble {
-  max-width: 75%;
-  padding: 10px 16px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.msg.user .bubble { background: #3b82f6; color: #fff; border-bottom-right-radius: 4px; }
-.msg.assistant .bubble { background: #f3f4f6; color: #1f2937; border-bottom-left-radius: 4px; }
-.action-card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 14px 18px;
-  max-width: 75%;
-  text-align: center;
-}
-.action-card .card-title { font-size: 15px; font-weight: 600; color: #1f2937; margin-bottom: 6px; }
-.action-card .card-price { font-size: 20px; color: #ef4444; font-weight: 700; margin-bottom: 10px; }
-.action-card button {
-  padding: 8px 20px;
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-.action-card button:hover { background: #2563eb; }
-.thinking-bubble {
-  background: #fef3c7;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #92400e;
-  animation: fadeIn 0.3s ease;
-}
-.thinking-dots .dot { animation: blink 1.4s infinite both; margin: 0 2px; color: #9ca3af; }
-.thinking-dots .dot:nth-child(2) { animation-delay: 0.2s; }
-.thinking-dots .dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes blink { 0% { opacity: 0.2; } 20% { opacity: 1; } 100% { opacity: 0.2; } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.input-area { padding: 16px 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; }
-.input-area input { flex: 1; padding: 10px 16px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; }
-.input-area input:focus { border-color: #3b82f6; }
-.input-area button { padding: 10px 24px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
-.input-area button:hover { background: #2563eb; }
-.input-area button:disabled { background: #9ca3af; cursor: not-allowed; }
-
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
-  display: flex; align-items: center; justify-content: center; z-index: 1000;
-}
-.modal-box {
-  background: #fff; border-radius: 12px; padding: 24px 28px;
-  min-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-}
-.modal-title { font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 8px; }
-.modal-body { font-size: 14px; color: #6b7280; line-height: 1.7; margin: 0 0 20px; }
-.modal-warn { color: #ef4444; font-size: 13px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.btn-cancel {
-  padding: 8px 18px; border: 1px solid #d1d5db; background: #fff;
-  color: #374151; border-radius: 6px; cursor: pointer; font-size: 14px;
-}
-.btn-cancel:hover { background: #f9fafb; }
-.btn-danger {
-  padding: 8px 18px; border: none; background: #ef4444; color: #fff;
-  border-radius: 6px; cursor: pointer; font-size: 14px;
-}
-.btn-danger:hover { background: #dc2626; }
-</style>
