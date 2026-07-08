@@ -118,7 +118,7 @@ func generateQueryBatch(chunks []model.DocumentChunk) ([]RAGQuery, error) {
 	var parts []string
 	for i, c := range chunks {
 		parts = append(parts, fmt.Sprintf(
-			"[切片%d]\n内容：%s\n请为以上内容生成一个用户可能会搜索的问题（5-15字），只输出问题本身。",
+			"[切片%d]\n内容：%s\n请为以上内容生成一个用户在学习这个知识点时可能会搜索的一般性问题（5-15字），问题要覆盖这个知识点而不只是其中的细节，只输出问题本身。",
 			i, c.Content,
 		))
 	}
