@@ -71,13 +71,13 @@ API：DeepSeek Chat，temperature=0，逐条调用
 四组配置依次执行：
   ① 裸向量: Hybrid=false  Rerank=false  Cache=false
   ② +BM25:   Hybrid=true   Rerank=false  Cache=false
-  ③ +Rerank:  Hybrid=true   Rerank=true   Cache=false  RerankTopK=5
-  ④ +缓存:    Hybrid=true   Rerank=true   Cache=true   RerankTopK=5
+  ③ +Rerank:  Hybrid=true   Rerank=true   Cache=false
+  ④ +缓存:    Hybrid=true   Rerank=true   Cache=true  (生产)
 
 每组：
   → defer 保存+恢复 config.App.RAG 原始值（防中途 panic 污染全局配置）
   → 修改 config.App.RAG 对应字段（不碰 service/rag 代码）
-  → ③④ 额外设 RerankTopK=K（默认为 5），否则 Reranker 只返回 3 条，Precision@5 不可比
+  → ③④ 的 RerankTopK 已为 5（生产默认），无需额外设置
   → 用不在测试集的 dummy query 预跑一条 warmup，排除 Embedding API 连接冷启动
   → 逐条调 ragSvc.Search(materialID, query, topK=5, true)，记录耗时 + 返回切片 ID
   → ④ 组特殊处理：每条搜两次

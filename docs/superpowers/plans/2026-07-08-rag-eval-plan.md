@@ -745,9 +745,6 @@ func runOneConfig(queries []RAGQuery, cfg EvalConfig, topK int, ragSvc *rag.RAGS
 	config.App.RAG.HybridSearch = cfg.Hybrid
 	config.App.RAG.Rerank = cfg.Rerank
 	config.App.RAG.CacheEnabled = cfg.CacheEnabled
-	if cfg.Rerank {
-		config.App.RAG.RerankTopK = topK // 确保返回 topK 条，不是默认 3 条
-	}
 
 	// Warmup：用第一条查询的 material，query 加 "warmup" 前缀
 	if len(queries) > 0 {
@@ -805,7 +802,6 @@ type ragConfigSnapshot struct {
 	HybridSearch bool
 	Rerank       bool
 	CacheEnabled bool
-	RerankTopK   int
 }
 
 func saveRAGConfig() ragConfigSnapshot {
@@ -813,7 +809,6 @@ func saveRAGConfig() ragConfigSnapshot {
 		HybridSearch: config.App.RAG.HybridSearch,
 		Rerank:       config.App.RAG.Rerank,
 		CacheEnabled: config.App.RAG.CacheEnabled,
-		RerankTopK:   config.App.RAG.RerankTopK,
 	}
 }
 
@@ -821,7 +816,6 @@ func restoreRAGConfig(s ragConfigSnapshot) {
 	config.App.RAG.HybridSearch = s.HybridSearch
 	config.App.RAG.Rerank = s.Rerank
 	config.App.RAG.CacheEnabled = s.CacheEnabled
-	config.App.RAG.RerankTopK = s.RerankTopK
 }
 ```
 
