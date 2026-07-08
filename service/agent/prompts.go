@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"edu_market/database"
@@ -48,6 +49,101 @@ type FactItem struct {
 	Content string `json:"content"`               // 数据内容（自然语言，截取 150 字以内）
 	Source  string `json:"source"`                // 来源标识（tool名+参数 或 rag:chunk_id 或 user:said 或 llm:inferred）
 	Basis   string `json:"basis,omitempty"`       // hypothesis：confidence值；discarded：废弃原因
+}
+
+// ============ Prompt 模板 ============
+
+// PromptBlock 单个 Prompt 区块。
+type PromptBlock struct {
+	Key      string `json:"key"`
+	Content  string `json:"content"`
+	Editable bool   `json:"editable"`
+}
+
+// PromptTemplate System Prompt 模板，由多个 PromptBlock 按序拼装。
+type PromptTemplate struct {
+	Name    string        `json:"name"`
+	Version int           `json:"version"`
+	Blocks  []PromptBlock `json:"blocks"`
+}
+
+// LoadPromptTemplate 从 JSON 文件加载模板。
+func LoadPromptTemplate(path string) (*PromptTemplate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("读取模板文件失败: %w", err)
+	}
+	var t PromptTemplate
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, fmt.Errorf("解析模板 JSON 失败: %w", err)
+	}
+	return &t, nil
+}
+
+// DefaultPromptTemplate 返回当前代码中 const 定义的默认模板。
+// 当未配置外部模板时可作为兜底。
+func DefaultPromptTemplate() *PromptTemplate {
+	return &PromptTemplate{
+		Name:    "agent_system_prompt",
+		Version: 1,
+		Blocks: []PromptBlock{
+			{Key: "base_persona", Editable: false, Content: basePersonaBlock},
+			{Key: "shopping_mode", Editable: true, Content: shoppingModeBlock},
+			{Key: "tutoring_mode", Editable: true, Content: tutoringModeBlock},
+			{Key: "support_mode", Editable: true, Content: supportModeBlock},
+			{Key: "undetermined_mode", Editable: true, Content: undeterminedModeBlock},
+			{Key: "rules", Editable: true, Content: rulesBlock},
+			{Key: "style", Editable: false, Content: styleBlock},
+		},
+	}
+}
+
+// GetBlock 按键查找区块。
+func (t *PromptTemplate) GetBlock(key string) *PromptBlock {
+	for i := range t.Blocks {
+		if t.Blocks[i].Key == key {
+			return &t.Blocks[i]
+		}
+	}
+	return nil
+}
+
+// SetBlock 设置指定区块的 Content。key 不存在时忽略。
+func (t *PromptTemplate) SetBlock(key, content string) {
+	b := t.GetBlock(key)
+	if b != nil {
+		b.Content = content
+	}
+}
+
+// EditableBlocks 返回所有可编辑区块的指针列表，供优化器遍历。
+func (t *PromptTemplate) EditableBlocks() []*PromptBlock {
+	var result []*PromptBlock
+	for i := range t.Blocks {
+		if t.Blocks[i].Editable {
+			result = append(result, &t.Blocks[i])
+		}
+	}
+	return result
+}
+
+// Clone 深拷贝模板，用于优化器生成变体。
+func (t *PromptTemplate) Clone() *PromptTemplate {
+	clone := &PromptTemplate{Name: t.Name, Version: t.Version}
+	clone.Blocks = make([]PromptBlock, len(t.Blocks))
+	for i, b := range t.Blocks {
+		clone.Blocks[i] = PromptBlock{Key: b.Key, Content: b.Content, Editable: b.Editable}
+	}
+	return clone
+}
+
+// Save 将模板写入 JSON 文件。
+func (t *PromptTemplate) Save(path string) error {
+	data, err := json.MarshalIndent(t, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化模板失败: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
 }
 
 // ============ 6 模块 Prompt Block ============
@@ -180,12 +276,12 @@ func (e *AgentEngine) buildPrompt(session *model.Session) string {
 	var parts []string
 
 	// 1. Base Persona
-	parts = append(parts, basePersonaBlock)
+	parts = append(parts, e.getBlockContent("base_persona", basePersonaBlock))
 
 	// 2. Mode Block
-	modeName := e.appendModeBlock(&parts, session.Mode)
+	modeName := e.getModeBlockContent(&parts, session.Mode)
 
-	// 3. State Block
+	// 3. State Block（动态生成，不从模板读取）
 	if session.State != "" {
 		var state SessionState
 		if json.Unmarshal([]byte(session.State), &state) == nil {
@@ -193,37 +289,48 @@ func (e *AgentEngine) buildPrompt(session *model.Session) string {
 		}
 	}
 
-	// 4. User Context（按 mode 筛选注入字段）
+	// 4. User Context（动态生成，不从模板读取）
 	userBlock := buildUserContextBlock(session.UserID, session.Mode)
 	if userBlock != "" {
 		parts = append(parts, userBlock)
 	}
 
 	// 5. Rules
-	parts = append(parts, rulesBlock)
+	parts = append(parts, e.getBlockContent("rules", rulesBlock))
 
 	// 6. Style
-	parts = append(parts, styleBlock)
+	parts = append(parts, e.getBlockContent("style", styleBlock))
 
 	result := strings.Join(parts, "\n\n")
 	result = strings.ReplaceAll(result, "{{mode}}", modeName)
 	return result
 }
 
-// appendModeBlock 根据 mode 追加对应的 Mode Block，返回中文模式名。
-func (e *AgentEngine) appendModeBlock(parts *[]string, mode string) string {
+// getBlockContent 优先从模板取区块内容，模板为 nil 时 fallback 到代码内 const。
+func (e *AgentEngine) getBlockContent(key string, fallback string) string {
+	if e.promptTemplate != nil {
+		if b := e.promptTemplate.GetBlock(key); b != nil {
+			return b.Content
+		}
+	}
+	return fallback
+}
+
+// getModeBlockContent 按 mode 追加 Mode Block，返回中文模式名。
+// 优先从模板取区块内容。
+func (e *AgentEngine) getModeBlockContent(parts *[]string, mode string) string {
 	switch mode {
 	case "shopping":
-		*parts = append(*parts, shoppingModeBlock)
+		*parts = append(*parts, e.getBlockContent("shopping_mode", shoppingModeBlock))
 		return "导购"
 	case "tutoring":
-		*parts = append(*parts, tutoringModeBlock)
+		*parts = append(*parts, e.getBlockContent("tutoring_mode", tutoringModeBlock))
 		return "学习助教"
 	case "support":
-		*parts = append(*parts, supportModeBlock)
+		*parts = append(*parts, e.getBlockContent("support_mode", supportModeBlock))
 		return "客服"
 	default: // mode="" 第一轮：识别模式，不做权限假设
-		*parts = append(*parts, undeterminedModeBlock)
+		*parts = append(*parts, e.getBlockContent("undetermined_mode", undeterminedModeBlock))
 		return "识别"
 	}
 }
@@ -268,19 +375,19 @@ func buildStateBlock(state *SessionState) string {
 	if len(state.Facts) > 0 {
 		sb.WriteString("\n/* ── 事实层 ── */\n")
 		for _, f := range state.Facts {
-			sb.WriteString(fmt.Sprintf("  📖 %s | 来源：%s\n", f.Content, f.Source))
+			sb.WriteString(fmt.Sprintf("  [FACT] %s | 来源：%s\n", f.Content, f.Source))
 		}
 	}
 	if len(state.Hypotheses) > 0 {
 		sb.WriteString("/* ── 假设层 ── */\n")
 		for _, h := range state.Hypotheses {
-			sb.WriteString(fmt.Sprintf("  💡 %s | 来源：%s\n", h.Content, h.Source))
+			sb.WriteString(fmt.Sprintf("  [GUESS] %s | 来源：%s\n", h.Content, h.Source))
 		}
 	}
 	if len(state.Discarded) > 0 {
 		sb.WriteString("/* ── 废弃层 ── */\n")
 		for _, d := range state.Discarded {
-			sb.WriteString(fmt.Sprintf("  🗑️ %s | 原因：%s\n", d.Content, d.Basis))
+			sb.WriteString(fmt.Sprintf("  [STALE] %s | 原因：%s\n", d.Content, d.Basis))
 		}
 	}
 	return sb.String()
@@ -341,4 +448,24 @@ func formatMemoryLine(m model.UserMemory) string {
 		return fmt.Sprintf("  已购资料ID：%s", m.MemValue)
 	}
 	return fmt.Sprintf("  %s: %s", m.MemKey, m.MemValue)
+}
+
+// buildExtractionPrompt 构建用户画像提取提示词。
+// 让 LLM 从用户消息中提取 knowledge_level / interest_tags / preferred_price_range。
+func buildExtractionPrompt(userMsgs []string) string {
+	var sb strings.Builder
+	sb.WriteString("从以下用户消息中提取用户画像信息，仅返回JSON（不含markdown代码块标记）：\n\n")
+	sb.WriteString("用户消息：\n")
+	for i, msg := range userMsgs {
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, msg))
+	}
+	sb.WriteString("\n按以下格式返回JSON：\n")
+	sb.WriteString(`{"knowledge_level":{"value":"beginner|intermediate|advanced","confidence":0.85},"interest_tags":{"value":"逗号分隔的兴趣标签","confidence":0.9},"preferred_price_range":{"value":"如 0-50元","confidence":0.7}}`)
+	sb.WriteString("\n\n规则：\n")
+	sb.WriteString("- 只返回把握较大（confidence >= 0.6）的字段\n")
+	sb.WriteString("- 没有足够信息时返回 {}\n")
+	sb.WriteString("- knowledge_level 只能从用户对技术的表述方式推断，不能从兴趣方向猜测\n")
+	sb.WriteString("- interest_tags 从用户询问的技术方向/领域名称提取，如「Python」「机器学习」「前端」\n")
+	sb.WriteString("- preferred_price_range 从用户对价格/预算的表述提取\n")
+	return sb.String()
 }

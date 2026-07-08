@@ -77,9 +77,10 @@ type llmResponse struct {
 
 // AgentEngine Agent 引擎
 type AgentEngine struct {
-	maxRounds    int
-	contextLimit int
-	traceHandler TraceHandler
+	maxRounds      int
+	contextLimit   int
+	traceHandler   TraceHandler
+	promptTemplate *PromptTemplate // nil = 用代码内 const 默认值
 }
 
 // NewAgentEngine 创建引擎实例
@@ -89,6 +90,12 @@ func NewAgentEngine() *AgentEngine {
 		maxRounds:    cfg.MaxToolRounds,
 		contextLimit: cfg.ContextMaxMsg,
 	}
+}
+
+// SetPromptTemplate 注入外部 Prompt 模板，用于 eval/DSPy 优化。
+// 传 nil 恢复默认（使用 prompts.go 中的 const 定义）。
+func (e *AgentEngine) SetPromptTemplate(t *PromptTemplate) {
+	e.promptTemplate = t
 }
 
 // SetTraceHandler 设置诊断回调（可选，仅调测用）
@@ -136,6 +143,9 @@ func (e *AgentEngine) Run(
 	if session.State == "" {
 		session.State = e.initState(userMsg)
 	}
+
+	// 2.5. 同步已购资料到 L3 长期记忆（从订单表查，确定性数据源）
+	e.syncPurchasedMaterials(session.UserID)
 
 	// ========== 3. 组装 Prompt 并加载上下文 ==========
 	prompt := systemPrompt
@@ -220,7 +230,7 @@ func (e *AgentEngine) Run(
 		// ----- 没有 Tool Call → 最终回答 -----
 		if len(choice.Message.ToolCalls) == 0 {
 			if choice.Message.Content != "" {
-				return e.finalizeAnswer(session, choice.Message.Content, sseHandler, corrector, resp.Usage.TotalTokens, requestID)
+				return e.finalizeAnswer(session, choice.Message.Content, sseHandler, corrector, resp.Usage.TotalTokens, history, requestID)
 			}
 			return e.streamFinalAnswer(session, history, sseHandler, corrector, requestID)
 		}
@@ -404,11 +414,11 @@ func (e *AgentEngine) streamFinalAnswer(session *model.Session, history []agentC
 		sseHandler("error", `{"message":"AI 服务暂时不可用，请稍后重试"}`)
 		return err
 	}
-	return e.finalizeAnswer(session, finalResp.Choices[0].Message.Content, sseHandler, corrector, finalResp.Usage.TotalTokens, requestID)
+	return e.finalizeAnswer(session, finalResp.Choices[0].Message.Content, sseHandler, corrector, finalResp.Usage.TotalTokens, history, requestID)
 }
 
 // finalizeAnswer quality 修正 → 流式输出 → 存 DB → done 事件。
-func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, sseHandler SSEHandler, corrector *HardFieldCorrector, tokens int, requestID string) error {
+func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, sseHandler SSEHandler, corrector *HardFieldCorrector, tokens int, history []agentChatMsg, requestID string) error {
 	facts := e.getFacts(session.State)
 	fullAnswer = corrector.Correct(fullAnswer, facts, requestID)
 
@@ -431,6 +441,10 @@ func (e *AgentEngine) finalizeAnswer(session *model.Session, fullAnswer string, 
 
 	e.storeAssistantMessageDB(session.ID, fullAnswer, tokens)
 	sseHandler("done", fmt.Sprintf(`{"session_id":%d,"agent_type":"%s"}`, session.ID, session.AgentType))
+
+	// 对话结束后从上下文提取用户画像写入 L3 长期记忆
+	e.extractAndSaveMemories(session.UserID, history, requestID)
+
 	return nil
 }
 
@@ -902,4 +916,113 @@ func toolCallsToTrace(tcs []toolCallItem) []interface{} {
 		}
 	}
 	return result
+}
+
+// ============ L3 长期记忆 ============
+
+// syncPurchasedMaterials 从订单表同步已购资料 ID 到 L3 长期记忆。
+// 在 buildPrompt 前调用，确保 buildUserContextBlock 能读取到用户已购资料。
+// 来源标记为 system:orders，置信度 1.0（确定性数据）。
+func (e *AgentEngine) syncPurchasedMaterials(userID uint) {
+	var materialIDs []uint
+	database.DB.Model(&model.Order{}).
+		Where("user_id = ? AND status = ?", userID, "paid").
+		Pluck("course_id", &materialIDs)
+
+	if len(materialIDs) == 0 {
+		return
+	}
+
+	parts := make([]string, len(materialIDs))
+	for i, id := range materialIDs {
+		parts[i] = fmt.Sprintf("%d", id)
+	}
+
+	if err := SaveUserMemory(userID, "purchased_material_ids", strings.Join(parts, ","), "system:orders", 1.0); err != nil {
+		slog.Warn("agent memory 同步已购资料失败", "user_id", userID, "error", err)
+	}
+}
+
+// extractAndSaveMemories 从对话历史中提取用户画像并写入 L3 长期记忆。
+// 在对话结束（done 事件已发送）后调用，不阻塞用户看到回复。
+func (e *AgentEngine) extractAndSaveMemories(userID uint, history []agentChatMsg, requestID string) {
+	// 收集用户消息
+	var userMsgs []string
+	for _, msg := range history {
+		if msg.Role == "user" && msg.Content != "" {
+			userMsgs = append(userMsgs, msg.Content)
+		}
+	}
+	if len(userMsgs) == 0 {
+		return
+	}
+
+	// 取最近 5 条用户消息
+	if len(userMsgs) > 5 {
+		userMsgs = userMsgs[len(userMsgs)-5:]
+	}
+
+	// 调用 LLM 提取画像
+	profile, err := e.extractProfileWithLLM(userMsgs, requestID)
+	if err != nil {
+		slog.Warn("agent memory 画像提取失败", "request_id", requestID, "error", err)
+		return
+	}
+
+	// 逐个写入 L3（SaveUserMemory 内置白名单 + 置信度去重）
+	for key, item := range profile {
+		if err := SaveUserMemory(userID, key, item.Value, "llm:inferred", item.Confidence); err != nil {
+			slog.Warn("agent memory 写入失败", "user_id", userID, "key", key, "error", err)
+		}
+	}
+}
+
+// extractProfileWithLLM 用 LLM 从用户消息中提取画像字段（knowledge_level / interest_tags / preferred_price_range）。
+// 返回已解析的画像 map，只包含 confidence >= 0.6 的字段。
+func (e *AgentEngine) extractProfileWithLLM(userMsgs []string, requestID string) (map[string]struct {
+	Value      string  `json:"value"`
+	Confidence float64 `json:"confidence"`
+}, error) {
+	extractHistory := []agentChatMsg{
+		{Role: "system", Content: "你是一个用户画像分析助手。只输出JSON，不包含任何其他文字。"},
+		{Role: "user", Content: buildExtractionPrompt(userMsgs)},
+	}
+
+	resp, err := e.callLLMWithRetry(extractHistory, nil, requestID)
+	if err != nil {
+		return nil, fmt.Errorf("LLM 调用失败: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("LLM 返回空 choices")
+	}
+
+	content := strings.TrimSpace(resp.Choices[0].Message.Content)
+	// 去除可能的 markdown 代码块标记
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+
+	var profile map[string]struct {
+		Value      string  `json:"value"`
+		Confidence float64 `json:"confidence"`
+	}
+	if err := json.Unmarshal([]byte(content), &profile); err != nil {
+		return nil, fmt.Errorf("JSON 解析失败: %w, content=%s", err, TruncateRunes(content, 100))
+	}
+
+	// 过滤低置信度字段
+	filtered := make(map[string]struct {
+		Value      string  `json:"value"`
+		Confidence float64 `json:"confidence"`
+	})
+	for key, item := range profile {
+		if item.Confidence >= 0.6 && item.Value != "" {
+			filtered[key] = item
+		}
+	}
+
+	slog.Info("agent memory 画像提取完成", "request_id", requestID, "fields", len(filtered), "raw_fields", len(profile))
+	return filtered, nil
 }
