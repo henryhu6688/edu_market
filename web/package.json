@@ -11,9 +11,17 @@
   "dependencies": {
     "@bytemd/plugin-gfm": "^1.22.0",
     "@bytemd/vue-next": "^1.22.0",
+    "@fontsource/inter": "^5.2.8",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.3.2",
+    "@tailwindcss/vite": "^4.3.2",
     "axios": "^1.7.0",
     "bytemd": "^1.22.0",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^1.0.0",
     "pinia": "^2.1.0",
+    "reka-ui": "^2.10.1",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.2",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"
   },
