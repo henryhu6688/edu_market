@@ -14,9 +14,8 @@ import (
 	"edu_market/service/rag"
 )
 
-// expandGroundTruth 对每条查询暴力搜 topK=50，让 LLM 判断哪些结果相关。
-func expandGroundTruth(queries []RAGQuery, ragSvc *rag.RAGService) ([]RAGQuery, error) {
-	// 临时关缓存 + Rerank + Hybrid，确保纯向量暴力搜
+// expandGroundTruth 分批扩展 ground truth，每批完成后落盘。
+func expandGroundTruth(queries []RAGQuery, ragSvc *rag.RAGService, savePath string) ([]RAGQuery, error) {
 	origCache := config.App.RAG.CacheEnabled
 	origRerank := config.App.RAG.Rerank
 	origHybrid := config.App.RAG.HybridSearch
@@ -29,48 +28,51 @@ func expandGroundTruth(queries []RAGQuery, ragSvc *rag.RAGService) ([]RAGQuery, 
 		config.App.RAG.HybridSearch = origHybrid
 	}()
 
+	batchSize := 5
+	completed := 0
 	for i := range queries {
 		q := &queries[i]
-		slog.Info("rag-eval 扩展 ground truth", "query_id", q.ID, "query", q.Query)
+		slog.Info("rag-eval 扩展 ground truth", "query_id", q.ID, "query", q.Query, "progress", fmt.Sprintf("%d/%d", i+1, len(queries)))
 
-		results, err := ragSvc.Search(q.MaterialID, q.Query, 20, true)
+		results, err := ragSvc.Search(q.MaterialID, q.Query, 5, true)
 		if err != nil {
-			slog.Warn("rag-eval 暴力搜索失败，保留原始 ground truth", "query_id", q.ID, "err", err)
+			slog.Warn("rag-eval 暴力搜索失败", "query_id", q.ID, "err", err)
 			q.GTIncomplete = true
-			continue
-		}
-
-		if len(results) == 0 {
+		} else if len(results) == 0 {
 			q.GTIncomplete = true
-			continue
-		}
-
-		// LLM 判断相关性
-		relevantIDs, err := judgeRelevance(q.Query, results)
-		if err != nil {
-			slog.Warn("rag-eval LLM 相关性判断失败，保留原始 ground truth", "query_id", q.ID, "err", err)
-			q.GTIncomplete = true
-			continue
-		}
-
-		if len(relevantIDs) == 0 {
-			relevantIDs = q.RelevantChunkIDs // 退回到原始
 		} else {
-			// 合并（去重）
-			set := make(map[uint]bool)
-			for _, id := range q.RelevantChunkIDs {
-				set[id] = true
+			// LLM 判断，失败重试一次
+			relevantIDs, err := judgeRelevance(q.Query, results)
+			if err != nil {
+				slog.Warn("rag-eval LLM 相关性判断失败，重试中", "query_id", q.ID, "err", err)
+				time.Sleep(1 * time.Second)
+				relevantIDs, err = judgeRelevance(q.Query, results)
 			}
-			for _, id := range relevantIDs {
-				set[id] = true
-			}
-			q.RelevantChunkIDs = nil
-			for id := range set {
-				q.RelevantChunkIDs = append(q.RelevantChunkIDs, id)
+			if err != nil {
+				slog.Warn("rag-eval LLM 重试仍失败", "query_id", q.ID)
+				q.GTIncomplete = true
+			} else {
+				set := make(map[uint]bool)
+				for _, id := range q.RelevantChunkIDs {
+					set[id] = true
+				}
+				for _, id := range relevantIDs {
+					set[id] = true
+				}
+				q.RelevantChunkIDs = nil
+				for id := range set {
+					q.RelevantChunkIDs = append(q.RelevantChunkIDs, id)
+				}
 			}
 		}
-		slog.Info("rag-eval ground truth 扩展完成", "query_id", q.ID, "relevant", len(q.RelevantChunkIDs))
+		completed++
 		time.Sleep(200 * time.Millisecond)
+
+		// 每批落盘
+		if completed%batchSize == 0 || i == len(queries)-1 {
+			saveQueries(queries, savePath)
+			slog.Info("rag-eval 批次落盘", "completed", completed, "total", len(queries))
+		}
 	}
 	return queries, nil
 }
@@ -82,11 +84,10 @@ func judgeRelevance(query string, results []rag.SearchResult) ([]uint, error) {
 		return nil, fmt.Errorf("AI API Key 未配置")
 	}
 
-	// 构建候选列表（每条截断到 200 字）
 	var candidates strings.Builder
 	for _, r := range results {
 		candidates.WriteString(fmt.Sprintf(
-			"[ID:%d] %s\n", r.ChunkID, r.Content,
+			"[ID:%d] %s\n", r.ChunkID, truncateRunes(r.Content, 300),
 		))
 	}
 

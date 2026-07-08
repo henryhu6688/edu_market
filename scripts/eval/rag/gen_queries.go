@@ -18,14 +18,12 @@ import (
 
 // generateQueries 分层抽样 + LLM 反向生成测试问题。
 func generateQueries(count int) ([]RAGQuery, error) {
-	// 1. 按 material 分层抽样切片
 	chunks, err := sampleChunks(count)
 	if err != nil {
 		return nil, fmt.Errorf("抽样切片失败: %w", err)
 	}
 	slog.Info("rag-eval 切片抽样完成", "count", len(chunks))
 
-	// 2. 批量调 LLM 生成问题（10 条/批）
 	var queries []RAGQuery
 	batchSize := 10
 	for i := 0; i < len(chunks); i += batchSize {
@@ -34,23 +32,33 @@ func generateQueries(count int) ([]RAGQuery, error) {
 			end = len(chunks)
 		}
 		batch := chunks[i:end]
-		batchQueries, err := generateQueryBatch(batch)
+		batchQueries, err := tryGenerateBatch(batch)
 		if err != nil {
-			slog.Warn("rag-eval LLM 批次生成失败", "batch_start", i, "err", err)
+			slog.Warn("rag-eval LLM 批次生成重试仍失败，跳过", "batch_start", i, "err", err)
 			continue
 		}
-		for j, q := range batchQueries {
-			q.ID = fmt.Sprintf("Q%03d", i+j+1)
+		for _, q := range batchQueries {
+			q.ID = fmt.Sprintf("Q%03d", len(queries)+1)
 			queries = append(queries, q)
 		}
-		time.Sleep(200 * time.Millisecond) // 限流间隔
+		time.Sleep(200 * time.Millisecond)
 	}
 	return queries, nil
 }
 
+// tryGenerateBatch 调 LLM 生成一批查询，失败重试一次。
+func tryGenerateBatch(chunks []model.DocumentChunk) ([]RAGQuery, error) {
+	batchQueries, err := generateQueryBatch(chunks)
+	if err != nil {
+		slog.Warn("rag-eval LLM 批次生成失败，重试中", "err", err)
+		time.Sleep(1 * time.Second)
+		batchQueries, err = generateQueryBatch(chunks)
+	}
+	return batchQueries, err
+}
+
 // sampleChunks 按 material 分层抽样 n 条切片。
 func sampleChunks(n int) ([]model.DocumentChunk, error) {
-	// 按 material 统计切片数
 	type matCount struct {
 		MaterialID uint
 		Count      int64
@@ -64,7 +72,6 @@ func sampleChunks(n int) ([]model.DocumentChunk, error) {
 		return nil, fmt.Errorf("document_chunks 表为空，请先入库资料")
 	}
 
-	// 分配：每资料至少 1 条，其余按比例
 	perMat := make(map[uint]int)
 	total := 0
 	for _, c := range counts {
@@ -83,7 +90,6 @@ func sampleChunks(n int) ([]model.DocumentChunk, error) {
 		}
 	}
 
-	// 从每个 material 随机取切片
 	var chunks []model.DocumentChunk
 	for _, c := range counts {
 		want := perMat[c.MaterialID]
@@ -114,7 +120,6 @@ func generateQueryBatch(chunks []model.DocumentChunk) ([]RAGQuery, error) {
 		return nil, fmt.Errorf("AI API Key 未配置")
 	}
 
-	// 构建批量 prompt
 	var parts []string
 	for i, c := range chunks {
 		parts = append(parts, fmt.Sprintf(
@@ -173,12 +178,10 @@ func generateQueryBatch(chunks []model.DocumentChunk) ([]RAGQuery, error) {
 		return nil, fmt.Errorf("LLM 返回空 choices")
 	}
 
-	// 解析 LLM 输出的每行对应一个查询
 	lines := strings.Split(strings.TrimSpace(result.Choices[0].Message.Content), "\n")
 	var queries []RAGQuery
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		// 去掉可能的序号前缀如 "1. " 或 "1、" 或 "1）"
 		line = strings.TrimLeft(line, "0123456789.、) ）")
 		line = strings.TrimSpace(line)
 		if line == "" || i >= len(chunks) {

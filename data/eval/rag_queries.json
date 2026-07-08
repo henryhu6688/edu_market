@@ -1,818 +1,1084 @@
 [
   {
     "id": "Q001",
-    "query": "Python元组为什么不可变？",
+    "query": "Python字符串操作符有哪些",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6066
+      6221
     ],
-    "category": "Python3 元组 \u003e 元组内置函数 \u003e 关于元组是不可变的",
+    "category": "Python3 字符串 \u003e Python 字符串运算符",
     "gt_incomplete": true
   },
   {
     "id": "Q002",
-    "query": "Python operator模块怎么用？",
+    "query": "Python logging如何配置使用",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6256,
-      6059,
-      6253,
-      6254
+      6303,
+      6300,
+      6297,
+      6298
     ],
-    "category": "Python3 operator 模块 \u003e 实例"
+    "category": "Python logging 模块 \u003e 实例 \u003e 2\\. 日志过滤器",
+    "gt_incomplete": true
   },
   {
     "id": "Q003",
-    "query": "Python函数如何添加类型注解？",
+    "query": "Python元组如何索引和切片",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6125
+      5917,
+      6065,
+      6062
     ],
-    "category": "Python 类型注解（Type Hints） \u003e 实例 \u003e 联合类型（Union）",
+    "category": "Python3 元组 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q004",
-    "query": "Python位运算符怎么使用？",
+    "query": "Python raise抛出异常用法",
     "material_id": 6,
     "relevant_chunk_ids": [
-      5939
+      6044,
+      6045
     ],
-    "category": "Python3 运算符 \u003e Python位运算符"
+    "category": "Python3 错误和异常 \u003e 抛出异常",
+    "gt_incomplete": true
   },
   {
     "id": "Q005",
-    "query": "Python新版本math新增哪些函数？",
+    "query": "Python列表嵌套及矩阵转置",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6261
+      5993,
+      6059
     ],
-    "category": "Python requests",
+    "category": "Python3 数据结构 \u003e 嵌套列表解析",
     "gt_incomplete": true
   },
   {
     "id": "Q006",
-    "query": "Python try except else用法？",
+    "query": "requests抓取中文乱码如何解决",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6042
+      6416,
+      0
     ],
-    "category": "Python3 错误和异常 \u003e 异常处理 \u003e try",
+    "category": "Python 爬虫 - BeautifulSoup \u003e 实例 \u003e 获取标签的文本",
     "gt_incomplete": true
   },
   {
     "id": "Q007",
-    "query": "Python os模块文件操作有哪些？",
+    "query": "Python转义字符怎么用",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6035
+      6218,
+      5911
     ],
-    "category": "Python3 OS 文件",
+    "category": "Python3 字符串 \u003e Python 转义字符",
     "gt_incomplete": true
   },
   {
     "id": "Q008",
-    "query": "Python元组推导式怎么用？",
+    "query": "Python线程join方法怎么用",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6206
+      6292,
+      6286,
+      6331
     ],
-    "category": "Python 推导式 \u003e 实例",
+    "category": "Python3 多线程 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q009",
-    "query": "Python有哪些常用数学函数？",
+    "query": "Python运算符优先级是什么",
     "material_id": 6,
     "relevant_chunk_ids": [
-      5881
+      5944,
+      5945,
+      5946
     ],
-    "category": "Python3 数字(Number) \u003e 数学函数",
+    "category": "Python3 运算符 \u003e Python运算符优先级",
     "gt_incomplete": true
   },
   {
     "id": "Q010",
-    "query": "Python pickle怎么序列化对象？",
+    "query": "Python calendar模块怎么用",
     "material_id": 6,
     "relevant_chunk_ids": [
-      6440
+      6195,
+      6200,
+      6201
     ],
-    "category": "Python Pickle 模块 \u003e 实例",
-    "gt_incomplete": true
+    "category": "Python3 日期和时间 \u003e 日历（Calendar）模块"
   },
   {
     "id": "Q011",
-    "query": "如何用可选链安全访问数组元素？",
+    "query": "TypeScript 模块系统",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10354
+      10285,
+      0,
+      10279,
+      10459,
+      10595
     ],
-    "category": "TypeScript 可选链 \u003e 实例",
+    "category": "TypeScript 模块系统 \u003e 总结",
     "gt_incomplete": true
   },
   {
     "id": "Q012",
-    "query": "TypeScript中void类型的作用是什么？",
+    "query": "TypeScript Extract 用法",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10230
+      10366
     ],
-    "category": "TypeScript 特殊类型：never、void、unknown、any \u003e 实例",
-    "gt_incomplete": true
+    "category": "TypeScript 工具类型 \u003e 实例"
   },
   {
     "id": "Q013",
-    "query": "如何用TypeScript实现任务管理服务？",
+    "query": "TypeScript 有什么好处",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10617
+      10455,
+      10386,
+      10488,
+      10461
     ],
-    "category": "TypeScript 综合项目实战 \u003e src",
+    "category": "TypeScript vs JavaScript 对比 \u003e 选择 TypeScript 的理由",
     "gt_incomplete": true
   },
   {
     "id": "Q014",
-    "query": "TypeScript中instanceof和implements怎么用？",
+    "query": "TypeScript 项目引用管理",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10128
+      10580,
+      0,
+      10576,
+      10579
     ],
-    "category": "TypeScript 类 \u003e 实例",
+    "category": "TypeScript 项目引用 References \u003e 总结",
     "gt_incomplete": true
   },
   {
     "id": "Q015",
-    "query": "React组件如何处理加载和空状态？",
+    "query": "TypeScript 映射类型怎么用",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10625
+      0,
+      10299,
+      10377,
+      10382,
+      10383
     ],
-    "category": "TypeScript 综合项目实战 \u003e src",
+    "category": "TypeScript 映射类型 \u003e 总结",
     "gt_incomplete": true
   },
   {
     "id": "Q016",
-    "query": "如何定义指定类型的Set集合？",
+    "query": "TypeScript 对象类型定义",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10237,
-      10236
+      10132,
+      10630,
+      10504,
+      10275,
+      0,
+      10122,
+      10243,
+      10581
     ],
-    "category": "TypeScript Set 和 WeakMap \u003e 实例"
+    "category": "TypeScript 对象 \u003e JavaScript",
+    "gt_incomplete": true
   },
   {
     "id": "Q017",
-    "query": "如何为TypeScript工具包配置tsconfig？",
+    "query": "TypeScript React 实战",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10571
+      10614,
+      10121
     ],
-    "category": "TypeScript Monorepo 配置 \u003e packages",
+    "category": "TypeScript 综合项目实战 \u003e 目录结构",
     "gt_incomplete": true
   },
   {
     "id": "Q018",
-    "query": "TypeScript的object和unknown类型区别？",
+    "query": "TypeScript 联合类型别名",
     "material_id": 22,
     "relevant_chunk_ids": [
-      10502
+      10295,
+      0,
+      10300
     ],
-    "category": "TypeScript 基础类型 \u003e 13、unknown 不确定的类型"
+    "category": "TypeScript type 别名 \u003e 实例",
+    "gt_incomplete": true
   },
   {
     "id": "Q019",
-    "query": "C++中如何捕获const char*异常？",
+    "query": "C++ pair 用法",
     "material_id": 15,
     "relevant_chunk_ids": [
-      8023
+      8269
     ],
-    "category": "C++ 异常处理 \u003e 实例",
+    "category": "C++ 标准库 utility \u003e 实例 \u003e std::make\\_pair：便捷创建函数",
     "gt_incomplete": true
   },
   {
     "id": "Q020",
-    "query": "C++预定义宏__LINE__怎么用？",
+    "query": "C++ 命名空间 using",
     "material_id": 15,
     "relevant_chunk_ids": [
-      8054
+      8027,
+      8028,
+      8029,
+      7898,
+      8030,
+      0
     ],
-    "category": "C++ 预处理器 \u003e 实例",
+    "category": "C++ 命名空间 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q021",
-    "query": "如何在C++中使用cmath数学函数",
+    "query": "C++ numbers库数学常量输出",
     "material_id": 15,
     "relevant_chunk_ids": [
-      8183
+      8296,
+      0,
+      8293,
+      8295,
+      8299
     ],
-    "category": "C++ 标准库 `\u003ccmath\u003e` \u003e 实例 1",
+    "category": "C++ 标准库 `\u003cnumbers\u003e` \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q022",
-    "query": "如何使用OpenCV读取并显示图像",
+    "query": "C++ 特殊运算符有哪些",
     "material_id": 15,
     "relevant_chunk_ids": [
-      7896
+      8261,
+      0,
+      7928,
+      7977,
+      8052
     ],
-    "category": "C++ OpenCV \u003e 实例",
-    "gt_incomplete": true
+    "category": "C++ 运算符 \u003e 杂项运算符"
   },
   {
     "id": "Q023",
-    "query": "如何在Mac和Windows上安装GCC编译器",
+    "query": "如何检查GCC是否安装",
     "material_id": 15,
     "relevant_chunk_ids": [
-      7908,
-      7907,
+      7906,
       0
     ],
-    "category": "C++ 环境设置 \u003e Windows 上的安装 \u003e Cygwin"
-  },
-  {
-    "id": "Q024",
-    "query": "C++运算符重载有哪些实例",
-    "material_id": 15,
-    "relevant_chunk_ids": [
-      7929
-    ],
-    "category": "C++ 数据抽象 \u003e 实例",
+    "category": "C++ 环境设置 \u003e UNIX",
     "gt_incomplete": true
   },
   {
-    "id": "Q025",
-    "query": "C++函数声明与定义的语法",
+    "id": "Q024",
+    "query": "C++ 块作用域变量覆盖",
     "material_id": 15,
     "relevant_chunk_ids": [
-      7983
+      7953,
+      0
     ],
-    "category": "C++ 函数 \u003e 函数声明",
+    "category": "C++ 变量作用域 \u003e 实例"
+  },
+  {
+    "id": "Q025",
+    "query": "vector size与capacity区别",
+    "material_id": 15,
+    "relevant_chunk_ids": [
+      8094
+    ],
+    "category": "C++ vector 容器 \u003e size 和 capacity 的区别",
     "gt_incomplete": true
   },
   {
     "id": "Q026",
-    "query": "如何使用JavaScript删除DOM元素",
+    "query": "JavaScript对象添加属性方法",
     "material_id": 16,
     "relevant_chunk_ids": [
-      8590
+      8630,
+      8627,
+      8634,
+      8638
     ],
-    "category": "JavaScript HTML DOM 元素 (节点) \u003e 实例 \u003e 实例解析",
+    "category": "JavaScript prototype（原型对象） \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q027",
-    "query": "JavaScript函数如何设置默认参数",
+    "query": "JavaScript箭头函数参数定义",
     "material_id": 16,
     "relevant_chunk_ids": [
-      8385
+      8383,
+      8384,
+      0,
+      8382
     ],
-    "category": "JavaScript 函数参数 \u003e 实例（ES6）"
+    "category": "JavaScript 函数参数 \u003e 参数规则",
+    "gt_incomplete": true
   },
   {
     "id": "Q028",
-    "query": "JavaScript中var声明变量的特点",
+    "query": "JavaScript对象方法this",
     "material_id": 16,
     "relevant_chunk_ids": [
-      8459
+      8629,
+      8580,
+      8579,
+      8390,
+      8577
     ],
-    "category": "JavaScript  变量 \u003e 一条语句，多个变量",
+    "category": "JavaScript 函数调用 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q029",
-    "query": "如何在JavaScript中调用对象方法",
+    "query": "HTML5表单验证属性",
     "material_id": 16,
     "relevant_chunk_ids": [
-      8626
+      8505,
+      8504
     ],
-    "category": "JavaScript 对象 \u003e 创建 JavaScript 对象 \u003e 使用 Object",
+    "category": "JavaScript 表单 \u003e HTML 约束验证 \u003e 约束验证 HTML 输入属性",
     "gt_incomplete": true
   },
   {
     "id": "Q030",
-    "query": "JavaScript函数中的全局和局部变量区别",
+    "query": "JavaScript类型转换为字符串",
     "material_id": 16,
     "relevant_chunk_ids": [
-      8393
+      8519,
+      8523
     ],
-    "category": "JavaScript 闭包 \u003e 实例",
+    "category": "JavaScript 类型转换 \u003e 将日期转换为字符串",
     "gt_incomplete": true
   },
   {
     "id": "Q031",
-    "query": "JavaScript类的构造方法如何定义？",
+    "query": "如何使用rangeOverflow验证输入？",
     "material_id": 16,
     "relevant_chunk_ids": [
-      8399
+      8561,
+      8560
     ],
-    "category": "JavaScript 类(class) \u003e 实例",
+    "category": "JavaScript 验证 API \u003e rangeOverflow 属性",
     "gt_incomplete": true
   },
   {
     "id": "Q032",
-    "query": "Java有哪些常用的第三方库？",
+    "query": "Java中ArrayList和LinkedList的区别？",
     "material_id": 13,
     "relevant_chunk_ids": [
-      7290
+      7461
     ],
-    "category": "Java 常用类库 \u003e 2\\. 常用第三方库",
+    "category": "Java 数据结构 \u003e 列表（Lists）",
     "gt_incomplete": true
   },
   {
     "id": "Q033",
-    "query": "如何在Java中自定义异常类？",
+    "query": "Java中如何实现类的继承？",
     "material_id": 13,
     "relevant_chunk_ids": [
-      7410
+      7433,
+      0,
+      7419,
+      7418
     ],
-    "category": "Java 异常处理 \u003e InsufficientFundsException.java 文件代码：",
+    "category": "Java 抽象类 \u003e Salary.java 文件代码：",
     "gt_incomplete": true
   },
   {
     "id": "Q034",
-    "query": "Java中throw和throws的区别？",
+    "query": "Java位运算符怎么使用？",
     "material_id": 13,
     "relevant_chunk_ids": [
-      7404
+      7629
     ],
-    "category": "Java 异常处理 \u003e 实例 \u003e throws 关键字",
-    "gt_incomplete": true
+    "category": "Java 运算符 \u003e Test.java 文件代码："
   },
   {
     "id": "Q035",
-    "query": "Java可变参数如何使用？",
+    "query": "Java的发展历史是怎样的？",
     "material_id": 13,
     "relevant_chunk_ids": [
-      7373
+      7580
     ],
-    "category": "Java 方法 \u003e VarargsDemo.java 文件代码："
+    "category": "Java 简介 \u003e 发展历史"
   },
   {
     "id": "Q036",
-    "query": "Java接口有哪些特性和规则？",
+    "query": "如何用Java发送HTML邮件？",
     "material_id": 13,
     "relevant_chunk_ids": [
-      7437
+      0,
+      7521,
+      7522
     ],
-    "category": "Java 接口 \u003e 接口特性",
-    "gt_incomplete": true
+    "category": "Java 发送邮件 \u003e SendHTMLEmail.java 文件代码："
   },
   {
     "id": "Q037",
-    "query": "Java for循环基本语法？",
+    "query": "Java构造方法如何使用？",
     "material_id": 13,
     "relevant_chunk_ids": [
-      7622
+      7372,
+      0,
+      7594,
+      7377,
+      7376
     ],
-    "category": "Java 循环结构 - for, while 及 do...while \u003e Test.java 文件代码：",
+    "category": "Java 方法 \u003e ConsDemo.java 文件代码：",
     "gt_incomplete": true
   },
   {
     "id": "Q038",
-    "query": "Vue3组件实例有哪些属性和方法？",
+    "query": "Vue3如何安装和引入？",
     "material_id": 20,
     "relevant_chunk_ids": [
-      9608
+      9642,
+      9664,
+      9864
     ],
-    "category": "Vue3 选项式 API \u003e 6\\. 组件实例",
+    "category": "Vue3 安装 \u003e 2、使用 CDN 方法",
     "gt_incomplete": true
   },
   {
     "id": "Q039",
-    "query": "Pinia如何定义和使用Store？",
+    "query": "v-text指令的用法是什么？",
     "material_id": 20,
     "relevant_chunk_ids": [
-      9860
+      9571
     ],
-    "category": "Pinia — 全局状态管理 \u003e 实例",
+    "category": "Vue3 内置指令 \u003e v-text",
     "gt_incomplete": true
   },
   {
     "id": "Q040",
-    "query": "Vue3暗黑模式如何实现？",
+    "query": "Vue项目目录结构是怎样的？",
     "material_id": 20,
     "relevant_chunk_ids": [
-      9840,
-      9833
+      9685,
+      9672,
+      9865,
+      9670,
+      9671,
+      9684
     ],
-    "category": "Composable — 封装可复用逻辑 \u003e 实例"
+    "category": "Vue3 项目说明 \u003e 实例",
+    "gt_incomplete": true
   },
   {
     "id": "Q041",
-    "query": "Vue.js 指令有哪些",
+    "query": "Vue项目的文件结构是怎样的？",
     "material_id": 20,
     "relevant_chunk_ids": [
-      9691
+      9671,
+      9670,
+      9865,
+      9685
     ],
-    "category": "Vue3 基础语法 \u003e 实例 \u003e 指令",
+    "category": "Vue3 项目说明 \u003e 实例: HelloWorld.vue \u003e src",
     "gt_incomplete": true
   },
   {
     "id": "Q042",
-    "query": "Vue 生命周期钩子有哪些",
+    "query": "Vue中如何动态绑定HTML属性？",
     "material_id": 20,
     "relevant_chunk_ids": [
-      9586
+      9754,
+      9702,
+      9844,
+      9695,
+      9691
     ],
-    "category": "Vue3 生命周期钩子 \u003e 实例",
+    "category": "模板语法渲染 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q043",
-    "query": "Vue 动态绑定class",
+    "query": "v-else-if和v-for如何一起使用？",
     "material_id": 20,
     "relevant_chunk_ids": [
-      9756
+      9838
     ],
-    "category": "Vue3 样式绑定 \u003e 实例 5",
+    "category": "Composable — 封装可复用逻辑 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q044",
-    "query": "Node.js Buffer 读取整数",
+    "query": "Node.js如何接收POST请求数据？",
     "material_id": 19,
     "relevant_chunk_ids": [
-      9515
-    ],
-    "category": "Node.js Buffer(缓冲区) \u003e 方法参考手册",
-    "gt_incomplete": true
-  },
-  {
-    "id": "Q045",
-    "query": "如何在 macOS 安装 nvm",
-    "material_id": 19,
-    "relevant_chunk_ids": [
-      9447
-    ],
-    "category": "重新加载 shell 配置",
-    "gt_incomplete": true
-  },
-  {
-    "id": "Q046",
-    "query": "Node.js 操作 MySQL 数据库",
-    "material_id": 19,
-    "relevant_chunk_ids": [
-      9391
-    ],
-    "category": "Node.js 连接 MySQL \u003e 删除数据",
-    "gt_incomplete": true
-  },
-  {
-    "id": "Q047",
-    "query": "Node.js MongoDB 增删改查",
-    "material_id": 19,
-    "relevant_chunk_ids": [
-      9410
-    ],
-    "category": "Node.js 连接 MongoDB \u003e 删除一条数据",
-    "gt_incomplete": true
-  },
-  {
-    "id": "Q048",
-    "query": "Node.js URL 查询参数操作",
-    "material_id": 19,
-    "relevant_chunk_ids": [
-      9345
+      9346,
+      9347
     ],
     "category": "Node.js GET",
     "gt_incomplete": true
   },
   {
-    "id": "Q049",
-    "query": "HTML 默认字符编码是什么",
-    "material_id": 17,
+    "id": "Q045",
+    "query": "如何安装Node.js？",
+    "material_id": 19,
     "relevant_chunk_ids": [
-      8924
+      9440,
+      9439,
+      9442,
+      9443,
+      9447
     ],
-    "category": "HTML 字符集 \u003e 在 HTML5 中：Unicode（UTF-8）",
+    "category": "配置 fnm 环境，使其在每次目录变更时自动使用",
     "gt_incomplete": true
   },
   {
-    "id": "Q050",
-    "query": "灰色色阶颜色代码表",
+    "id": "Q046",
+    "query": "Node.js事件循环机制是什么？",
+    "material_id": 19,
+    "relevant_chunk_ids": [
+      9494,
+      9454,
+      9456,
+      9425
+    ],
+    "category": "Node.js 工作机制 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q047",
+    "query": "Node.js fork方法有哪些参数？",
+    "material_id": 19,
+    "relevant_chunk_ids": [
+      9384
+    ],
+    "category": "Node.js 多进程 \u003e fork 方法 \u003e 参数",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q048",
+    "query": "Node.js有哪些常用内置模块？",
+    "material_id": 19,
+    "relevant_chunk_ids": [
+      9248,
+      0,
+      9254,
+      9354,
+      9339
+    ],
+    "category": "Node.js 内置模块 \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q049",
+    "query": "HTML formtarget属性怎么用？",
     "material_id": 17,
     "relevant_chunk_ids": [
-      8719
+      8818
     ],
-    "category": "HTML 颜色 \u003e 灰暗色调",
+    "category": "HTML5 表单属性 \u003e 实例"
+  },
+  {
+    "id": "Q050",
+    "query": "ASCII字符集是什么？",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8925
+    ],
+    "category": "HTML ASCII 参考手册 \u003e ASCII 可打印的字符",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q051",
+    "query": "HTML5新增了哪些语义标签",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8861,
+      8754,
+      8743,
+      8752
+    ],
+    "category": "HTML5 简介 \u003e 语义元素",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q052",
+    "query": "HTML5 Web Workers事件及新属性",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8896
+    ],
+    "category": "HTML 全局属性",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q053",
+    "query": "Canvas有哪些属性和方法",
+    "material_id": 17,
+    "relevant_chunk_ids": [
+      8902,
+      8762,
+      8903,
+      8904
+    ],
+    "category": "HTML5 \u003ccanvas\u003e 参考手册 \u003e 颜色、样式和阴影",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q054",
+    "query": "CSS媒体查询orientation怎么用",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9192
+    ],
+    "category": "图片"
+  },
+  {
+    "id": "Q055",
+    "query": "CSS z-index和float怎么用",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9012
+    ],
+    "category": "CSS Float(浮动) \u003e 元素怎样浮动",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q056",
+    "query": "CSS语音样式属性有哪些",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9221,
+      9058,
+      9220,
+      9216
+    ],
+    "category": "CSS 听觉参考手册 \u003e CSS 听觉参考手册",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q057",
+    "query": "CSS背景属性有哪些",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9204,
+      8961
+    ],
+    "category": "CSS 参考手册 \u003e 背景属性",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q058",
+    "query": "CSS3背景文本样式有哪些",
+    "material_id": 18,
+    "relevant_chunk_ids": [
+      9083
+    ],
+    "category": "CSS 实例 \u003e CSS文本",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q059",
+    "query": "C语言float.h浮点宏介绍",
+    "material_id": 14,
+    "relevant_chunk_ids": [
+      7824,
+      7830
+    ],
+    "category": "C 标准库 - \u003cfloat.h\u003e \u003e 实例",
+    "gt_incomplete": true
+  },
+  {
+    "id": "Q060",
+    "query": "C语言tgmath.h泛型数学用法",
+    "material_id": 14,
+    "relevant_chunk_ids": [
+      7885,
+      7884,
+      7886,
+      0
+    ],
+    "category": "C 标准库 \u003ctgmath.h\u003e \u003e 实例 \u003e 5、 实现原理",
     "gt_incomplete": true
   },
   {
     "id": "Q061",
-    "query": "C语言信号处理宏与信号类型",
+    "query": "C语言中%d的用法",
     "material_id": 14,
     "relevant_chunk_ids": [
-      7819
+      7763,
+      7707
     ],
-    "category": "C 标准库 - \u003csignal.h\u003e \u003e 库宏",
-    "gt_incomplete": true
+    "category": "C 输入 \u0026 输出 \u003e %f 格式化输出浮点型数据 \u003e scanf() 函数"
   },
   {
     "id": "Q062",
-    "query": "C语言常量表示方法",
+    "query": "C语言未定义行为有哪些",
     "material_id": 14,
     "relevant_chunk_ids": [
-      7678
+      7797,
+      7798,
+      7795,
+      7796
     ],
-    "category": "C 常量 \u003e 浮点常量",
+    "category": "C 未定义行为（Undefined behavior） \u003e 解引用空指针",
     "gt_incomplete": true
   },
   {
     "id": "Q063",
-    "query": "Vercel部署React应用教程",
+    "query": "React开发常用快捷键",
     "material_id": 21,
     "relevant_chunk_ids": [
-      9875
+      0,
+      10024
     ],
-    "category": "打包上线 — 部署到 Vercel \u003e Vercel 部署 \u003e 自动部署",
-    "gt_incomplete": true
+    "category": "使用 VSCode 开发 React \u003e 实例 \u003e 集成终端与调试技巧"
   },
   {
     "id": "Q064",
-    "query": "React Hooks使用示例",
+    "query": "React前端路由如何实现",
     "material_id": 21,
     "relevant_chunk_ids": [
-      9908
+      9963,
+      9886,
+      9892,
+      9887,
+      9888
     ],
-    "category": "React Hooks \u003e 实例",
+    "category": "路由跳转 \u003e React Router v6 核心概念",
     "gt_incomplete": true
   },
   {
     "id": "Q065",
-    "query": "React版本历史和目录结构",
+    "query": "React组件生命周期方法",
     "material_id": 21,
     "relevant_chunk_ids": [
-      10008
+      10108,
+      10100,
+      10098,
+      10099
     ],
-    "category": "React 安装(NPM) \u003e 使用 create-react-app 快速构建 React 开发环境 \u003e 目录和文件说明",
+    "category": "React 组件生命周期 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q066",
-    "query": "React博客网站完整示例",
+    "query": "React性能优化常用方法",
     "material_id": 21,
     "relevant_chunk_ids": [
-      9967
+      9914,
+      0,
+      9895,
+      9951
     ],
-    "category": "路由跳转 \u003e 实例",
+    "category": "React 参考手册 \u003e 8、常见生态工具",
     "gt_incomplete": true
   },
   {
     "id": "Q067",
-    "query": "MySQL查询NULL值的方法",
+    "query": "MySQL如何复制表结构和数据",
     "material_id": 11,
     "relevant_chunk_ids": [
-      7008
+      7100
     ],
-    "category": "MySQL NULL 值处理 \u003e 创建数据表 runoob\\_test\\_tbl",
+    "category": "MySQL 复制表 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q068",
-    "query": "mysqldump导出数据库命令",
+    "query": "MySQL中如何删除数据表",
     "material_id": 11,
     "relevant_chunk_ids": [
-      7158
+      7212,
+      7080,
+      7211,
+      7210
     ],
-    "category": "MySQL 导出数据 \u003e mysqldump 导出表作为原始数据 \u003e mysqldump 实例",
+    "category": "MySQL 删除数据表 \u003e 使用 PHP 脚本删除数据表 \u003e 语法",
     "gt_incomplete": true
   },
   {
     "id": "Q069",
-    "query": "MySQL NULL值处理函数",
+    "query": "PHP如何查询MySQL数据并展示",
     "material_id": 11,
     "relevant_chunk_ids": [
-      7005
+      7066,
+      7065,
+      7207,
+      7022
     ],
-    "category": "MySQL NULL 值处理 \u003e MySQL 中处理 NULL 值的常见注意事项和技巧",
+    "category": "MySQL ORDER BY(排序) 语句 \u003e MySQL ORDER BY 测试：",
     "gt_incomplete": true
   },
   {
     "id": "Q070",
-    "query": "MySQL查看表结构的命令",
+    "query": "ALTER TABLE修改字段属性",
     "material_id": 11,
     "relevant_chunk_ids": [
-      7137
+      7085,
+      0,
+      7087,
+      7086,
+      7082
     ],
-    "category": "MySQL 管理 \u003e 管理MySQL的命令",
+    "category": "MySQL ALTER 命令 \u003e 实例 \u003e 修改字段类型及名称",
     "gt_incomplete": true
   },
   {
     "id": "Q071",
-    "query": "Docker 镜像构建中的清理命令",
+    "query": "Docker 核心概念与常用命令",
     "material_id": 9,
     "relevant_chunk_ids": [
-      6883
+      6754,
+      0,
+      6760,
+      6919
     ],
-    "category": "https:",
+    "category": "Docker 教程 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q072",
-    "query": "如何在 Windows 启用 Hyper-V",
+    "query": "Ubuntu 安装 Docker 的步骤",
     "material_id": 9,
     "relevant_chunk_ids": [
-      6788
+      6774,
+      6776,
+      6779,
+      6781,
+      6782
     ],
-    "category": "Windows Docker 安装 \u003e Win10 系统 \u003e 开启 Hyper-V",
+    "category": "启动Docker服务 \u003e 手动安装 \u003e 设置仓库",
     "gt_incomplete": true
   },
   {
     "id": "Q073",
-    "query": "Dockerfile 中编译安装 Tomcat",
+    "query": "Docker 运行 hello-world 的流程",
     "material_id": 9,
     "relevant_chunk_ids": [
-      6882
+      6777,
+      6792
     ],
-    "category": "not all the mirrors actually carry the .asc files :'(",
+    "category": "启动Docker服务 \u003e 手动安装 \u003e 安装 Docker Engine-Community",
     "gt_incomplete": true
   },
   {
     "id": "Q074",
-    "query": "Rust 的应用场景有哪些",
+    "query": "Rust 自定义错误类型与转换",
     "material_id": 23,
     "relevant_chunk_ids": [
-      10660
+      10752
     ],
-    "category": "Rust 简介 \u003e Rust 语言的应用领域 \u003e 嵌入式与 IoT",
+    "category": "Windows PowerShell \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q075",
-    "query": "Rust 闭包的生命周期处理",
+    "query": "Rust 的 Cargo 包管理器是什么",
     "material_id": 23,
     "relevant_chunk_ids": [
-      10647
+      10651,
+      0,
+      10652,
+      10659
     ],
-    "category": "Rust 闭包 \u003e 实例",
+    "category": "Cargo 教程 \u003e Cargo 是什么",
     "gt_incomplete": true
   },
   {
     "id": "Q076",
-    "query": "如何使用 Axum 创建 HTTP API",
+    "query": "Rust 中可变与不可变借用",
     "material_id": 23,
     "relevant_chunk_ids": [
-      10666
+      10642,
+      10722,
+      0
     ],
-    "category": "Cargo.toml \u003e 实例",
+    "category": "Rust 所有权 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q077",
-    "query": "Go 语言 Hello World 程序",
+    "query": "Go 语言数据类型和变量声明",
     "material_id": 7,
     "relevant_chunk_ids": [
-      6548,
-      6537,
       0,
-      6463,
-      6525
+      6532,
+      6579,
+      6556
     ],
-    "category": "方式一：直接运行（开发调试时常用）"
+    "category": "Go 语言变量 \u003e 实例 \u003e 变量声明",
+    "gt_incomplete": true
   },
   {
     "id": "Q078",
-    "query": "Go 语言数组的使用",
+    "query": "Go 语言指针基本使用",
     "material_id": 7,
     "relevant_chunk_ids": [
-      6580
+      6596,
+      0,
+      6598,
+      6469,
+      6474
     ],
-    "category": "Go 语言数组 \u003e 访问数组元素",
+    "category": "Go 语言指针 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q079",
-    "query": "VS Code 配置 Go 开发环境",
+    "query": "Go 字符串与数字类型转换",
     "material_id": 7,
     "relevant_chunk_ids": [
-      6528
+      6609
     ],
-    "category": "使用 VSCode 开发 Go \u003e 单元测试",
+    "category": "Go 语言类型转换 \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q080",
-    "query": "apt 包管理常用命令",
+    "query": "Shell 输出重定向使用",
     "material_id": 8,
     "relevant_chunk_ids": [
-      6616
+      0,
+      6667,
+      6640,
+      6666
     ],
-    "category": "Linux apt 命令 \u003e apt 常用命令 \u003e 实例",
+    "category": "Shell 输入",
     "gt_incomplete": true
   },
   {
     "id": "Q081",
-    "query": "Linux 是什么及常见发行版",
+    "query": "Nginx常用配置参数有哪些",
     "material_id": 8,
     "relevant_chunk_ids": [
-      6683
+      6674,
+      6673,
+      6675
     ],
-    "category": "Linux  教程 \u003e Linux 是开源的",
+    "category": "Nginx 安装配置 \u003e Nginx 配置",
     "gt_incomplete": true
   },
   {
     "id": "Q082",
-    "query": "WSL 常用命令及文件互访",
+    "query": "Linux用户组管理及passwd文件详解",
     "material_id": 8,
     "relevant_chunk_ids": [
-      6692
+      6703
     ],
-    "category": "Windows WSL 安装 Linux \u003e 日常使用指南",
+    "category": "groupmod –g 10000 -n group3 group2 \u003e 三、与用户账号有关的系统文件 \u003e 1、",
     "gt_incomplete": true
   },
   {
     "id": "Q083",
-    "query": "硬链接与软链接的区别",
+    "query": "页面置换算法LFU和Clock对比",
     "material_id": 1,
     "relevant_chunk_ids": [
-      747,
-      0
+      711
     ]
   },
   {
     "id": "Q084",
-    "query": "用户级线程和内核级线程区别",
+    "query": "epoll多路复用原理与触发模式",
     "material_id": 1,
     "relevant_chunk_ids": [
-      663,
+      732,
       0
     ]
   },
   {
     "id": "Q085",
-    "query": "Git cherry-pick 和 stash 用法",
+    "query": "GitHub Actions工作流文件存放位置",
     "material_id": 10,
     "relevant_chunk_ids": [
-      6986,
-      0
+      6932,
+      6933,
+      6934
     ],
-    "category": "Git 进阶操作 \u003e 示例操作"
+    "category": "GitHub Actions \u003e 创建第一个 Workflow \u003e 1、目录结构"
   },
   {
     "id": "Q086",
-    "query": "如何配置 Git 合并工具",
+    "query": "Git分支操作常用命令有哪些",
     "material_id": 10,
     "relevant_chunk_ids": [
-      6950
+      6965,
+      6969,
+      6973,
+      0
     ],
-    "category": "dnf install git (Fedora 22 及更高新版本) \u003e Git 配置 \u003e 查看配置信息",
+    "category": "Git 分支管理 \u003e 命令手册",
     "gt_incomplete": true
   },
   {
     "id": "Q087",
-    "query": "Redis 有序集合命令",
+    "query": "Redis键操作命令有哪些",
     "material_id": 12,
     "relevant_chunk_ids": [
-      7253
+      7241,
+      7267
     ],
-    "category": "Redis 有序集合(sorted set) \u003e Redis 有序集合命令",
-    "gt_incomplete": true
+    "category": "Redis 键(key) \u003e Redis keys 命令"
   },
   {
     "id": "Q088",
-    "query": "PHP 连接 Redis 操作列表",
+    "query": "Redis有序集合如何使用",
     "material_id": 12,
     "relevant_chunk_ids": [
-      7223
+      7239,
+      0,
+      7251,
+      7252,
+      7253
     ],
-    "category": "PHP 使用 Redis \u003e 实例",
+    "category": "Redis 数据类型 \u003e zset(sorted set：有序集合) \u003e 实例",
     "gt_incomplete": true
   },
   {
     "id": "Q089",
-    "query": "Go 后端开发简历示例",
+    "query": "金融系统日终清算与对账设计",
     "material_id": 5,
     "relevant_chunk_ids": [
-      766,
+      768,
       0
     ]
   },
   {
     "id": "Q090",
-    "query": "Python 类和继承",
+    "query": "Python基础语法入门教程",
     "material_id": 2,
     "relevant_chunk_ids": [
-      5862
+      5860,
+      0,
+      5861,
+      5862,
+      5863
     ],
-    "category": "第三章 面向对象编程 \u003e 3.3 魔法方法"
+    "category": "第一章 Python 基础 \u003e 1.4 条件判断",
+    "gt_incomplete": true
   },
   {
     "id": "Q091",
-    "query": "如何在Figma中建立按钮设计系统",
+    "query": "如何设计按钮组件系统",
     "material_id": 3,
     "relevant_chunk_ids": [
-      5865,
-      0
+      5865
     ],
     "category": "第二章 Figma 实战 \u003e 2.3 设计系统基础"
   },
   {
     "id": "Q092",
-    "query": "常用英语自我介绍和旅行短语",
+    "query": "基础英语自我介绍和常用短语",
     "material_id": 4,
     "relevant_chunk_ids": [
-      5867
+      5867,
+      0,
+      5866
     ],
     "category": "第二课 高频句型 50 句 \u003e 日常对话"
   }

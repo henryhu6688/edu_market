@@ -136,7 +136,7 @@ func runFull(count int, file string, topK int, ragSvc *rag.RAGService, reportDir
 
 	// Step 2
 	fmt.Println("\n=== Step 2: 扩展 ground truth ===")
-	queries, err = expandGroundTruth(queries, ragSvc)
+	queries, err = expandGroundTruth(queries, ragSvc, file)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "扩展 ground truth 失败: %v\n", err)
 	}
@@ -185,7 +185,7 @@ func runExpand(file string, ragSvc *rag.RAGService) {
 		fmt.Fprintf(os.Stderr, "加载标注数据失败: %v\n", err)
 		os.Exit(1)
 	}
-	queries, err = expandGroundTruth(queries, ragSvc)
+	queries, err = expandGroundTruth(queries, ragSvc, file)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "扩展失败: %v\n", err)
 	}
