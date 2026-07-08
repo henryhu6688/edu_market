@@ -4,16 +4,25 @@
 
 @theme {
   --color-primary: #0D9488;
-  --color-primary-fg: #FFFFFF;
+  --color-primary-fg: #FFFFFF;    /* Task 1 向下兼容 */
+  --color-primary-foreground: #FFFFFF;
   --color-accent: #F59E0B;
+  --color-accent-foreground: #78350F;
+  --color-secondary: #F1F5F9;
+  --color-secondary-foreground: #0F172A;
   --color-foreground: #0F172A;
   --color-muted: #475569;
+  --color-muted-foreground: #64748B;
   --color-border: #E2E8F0;
   --color-background: #F8FAFC;
   --color-card: #FFFFFF;
+  --color-card-foreground: #0F172A;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0F172A;
   --color-destructive: #EF4444;
-  --color-thinking-bg: #FEF9C3;
-  --color-thinking-fg: #92400E;
+  --color-destructive-foreground: #FFFFFF;
+  --color-ring: #0D9488;
+  --color-input: #E2E8F0;
 
   --radius-card: 10px;
   --radius-btn: 8px;
