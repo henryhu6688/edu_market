@@ -12,7 +12,6 @@
     "@bytemd/plugin-gfm": "^1.22.0",
     "@bytemd/vue-next": "^1.22.0",
     "@fontsource/inter": "^5.2.8",
-    "@tailwindcss/oxide-win32-x64-msvc": "^4.3.2",
     "@tailwindcss/vite": "^4.3.2",
     "axios": "^1.7.0",
     "bytemd": "^1.22.0",
