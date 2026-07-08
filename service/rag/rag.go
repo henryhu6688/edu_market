@@ -196,20 +196,29 @@ func (r *RAGService) Search(courseID uint, query string, topK int, hasAccess boo
 		return nil, errors.New("向量存储未初始化")
 	}
 
+	// Rerank 时扩大召回量，粗筛 Net  → Rerank 精选
+	candidateTopK := topK
+	if config.App.RAG.Rerank {
+		candidateTopK = topK * 4
+		if candidateTopK > 50 {
+			candidateTopK = 50
+		}
+	}
+
 	qdrantStart := time.Now()
-	results, err := r.vectorStore.Search(courseID, query, topK)
+	results, err := r.vectorStore.Search(courseID, query, candidateTopK)
 	if err != nil {
 		return nil, err
 	}
-	slog.Info("rag Qdrant向量检索完成", "course_id", courseID, "results", len(results), "hybrid", config.App.RAG.HybridSearch, "qdrant_ms", time.Since(qdrantStart).Milliseconds())
+	slog.Info("rag Qdrant向量检索完成", "course_id", courseID, "results", len(results), "candidate_topk", candidateTopK, "hybrid", config.App.RAG.HybridSearch, "qdrant_ms", time.Since(qdrantStart).Milliseconds())
 
 	// BM25 双路召回 + RRF 融合 [开关: bm25_enabled]
 	if config.App.RAG.BM25Enabled {
-		bm25Results, bm25Err := bm25Search(courseID, query, topK*2)
+		bm25Results, bm25Err := bm25Search(courseID, query, candidateTopK)
 		if bm25Err != nil {
 			slog.Warn("rag BM25检索失败，降级为纯向量", "err", bm25Err)
 		} else if len(bm25Results) > 0 {
-			results = rrfFuse(results, bm25Results, topK*2)
+			results = rrfFuse(results, bm25Results, candidateTopK)
 			slog.Info("rag BM25+向量RRF融合完成", "course_id", courseID, "fused", len(results))
 		}
 	}
