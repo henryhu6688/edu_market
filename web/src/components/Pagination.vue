@@ -1,11 +1,11 @@
 <template>
   <div v-if="totalPages > 1" class="flex items-center justify-center gap-1.5 mt-6">
-    <button :disabled="page <= 1" class="px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-indigo-600 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" @click="$emit('change', page - 1)">上一页</button>
+    <button :disabled="page <= 1" class="px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" @click="$emit('change', page - 1)">上一页</button>
     <template v-for="p in pages" :key="p">
-      <button v-if="p !== '...'" :class="p === page ? 'px-3 py-1.5 border border-indigo-600 bg-indigo-600 text-white rounded-[6px] text-sm cursor-pointer transition-colors' : 'px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-indigo-600 hover:text-indigo-600 transition-colors'" @click="$emit('change', p)">{{ p }}</button>
+      <button v-if="p !== '...'" :class="p === page ? 'px-3 py-1.5 border border-[var(--color-primary)] bg-[var(--color-primary)] text-white rounded-[6px] text-sm cursor-pointer transition-colors' : 'px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors'" @click="$emit('change', p)">{{ p }}</button>
       <span v-else class="px-1 py-1.5 text-[#999]">...</span>
     </template>
-    <button :disabled="page >= totalPages" class="px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-indigo-600 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" @click="$emit('change', page + 1)">下一页</button>
+    <button :disabled="page >= totalPages" class="px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" @click="$emit('change', page + 1)">下一页</button>
     <span class="ml-3 text-[13px] text-[#999]">共 {{ total }} 条</span>
   </div>
 </template>

@@ -13,7 +13,7 @@
           <button @click="newChat" class="px-3 py-1 text-xs border border-[var(--color-primary)] bg-white text-[var(--color-primary)] rounded-[var(--radius-btn)] cursor-pointer hover:bg-teal-50 transition-all">
             + 新对话
           </button>
-          <button @click="sidebarCollapsed = true" class="p-1 border-none bg-transparent cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+          <button @click="sidebarCollapsed = true" aria-label="折叠侧边栏" class="p-1 border-none bg-transparent cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
             <PanelLeftClose :size="16" />
           </button>
         </div>
@@ -21,6 +21,7 @@
       <button
         v-else
         @click="sidebarCollapsed = false"
+        aria-label="展开侧边栏"
         class="p-3 border-none bg-transparent cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-primary)] transition-colors"
       >
         <PanelLeft :size="20" />
@@ -40,7 +41,7 @@
           ]"
         >
           <span class="flex-1 truncate">{{ s.title || '新对话' }}</span>
-          <button @click.stop="removeSession(s.id)" class="border-none bg-transparent text-lg text-[var(--color-muted)] cursor-pointer p-0 leading-none hover:text-[var(--color-destructive)] transition-colors">&times;</button>
+          <button @click.stop="removeSession(s.id)" aria-label="删除对话" class="border-none bg-transparent text-lg text-[var(--color-muted)] cursor-pointer p-0 leading-none hover:text-[var(--color-destructive)] transition-colors">&times;</button>
         </div>
       </div>
     </aside>
@@ -49,7 +50,7 @@
     <main class="flex-1 flex flex-col min-w-0">
       <!-- 顶栏 -->
       <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border)] text-sm">
-        <button v-if="sidebarCollapsed" @click="sidebarCollapsed = false" class="border-none bg-transparent cursor-pointer text-[var(--color-muted)] p-1">
+        <button v-if="sidebarCollapsed" @click="sidebarCollapsed = false" aria-label="展开侧边栏" class="border-none bg-transparent cursor-pointer text-[var(--color-muted)] p-1">
           <PanelLeft :size="16" />
         </button>
         <span class="font-semibold text-[var(--color-foreground)]">{{ currentSessionTitle || '新对话' }}</span>

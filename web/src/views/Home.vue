@@ -1,5 +1,5 @@
 <template>
-  <div class="home">
+  <div class="home max-w-[1200px] mx-auto px-5 py-6">
     <!-- Hero -->
     <section class="rounded-2xl bg-gradient-to-br from-teal-600 to-teal-500 text-white mb-8 overflow-hidden">
       <div class="flex flex-col md:flex-row items-center gap-8 px-8 py-12 md:py-14">

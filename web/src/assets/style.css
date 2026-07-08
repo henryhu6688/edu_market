@@ -50,7 +50,7 @@ body {
 
 /* Navbar active state — Vue Router auto-adds .router-link-exact-active */
 .nav-link.router-link-exact-active {
-  background: #ECFDF5;
+  background: #f0fdfa;
   color: var(--color-primary);
 }
 
