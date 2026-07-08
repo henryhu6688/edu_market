@@ -27,8 +27,8 @@
             <div class="bg-white rounded-lg px-3 py-2.5 text-xs text-[var(--color-foreground)]">
               <div class="text-[var(--color-muted)] mb-1.5">为你找到 2 份资料：</div>
               <div class="flex flex-col gap-1">
-                <span class="text-[var(--color-primary)] font-medium">📄 Python 零基础入门 ¥49</span>
-                <span class="text-[var(--color-primary)] font-medium">📄 数据分析实战 ¥79</span>
+                <span class="text-[var(--color-primary)] font-medium">Python 零基础入门 ¥49</span>
+                <span class="text-[var(--color-primary)] font-medium">数据分析实战 ¥79</span>
               </div>
             </div>
           </div>

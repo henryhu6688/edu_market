@@ -1,12 +1,12 @@
 <template>
-  <div class="pagination" v-if="totalPages > 1">
-    <button :disabled="page <= 1" @click="$emit('change', page - 1)">上一页</button>
-    <span v-for="p in pages" :key="p">
-      <button v-if="p !== '...'" :class="{ active: p === page }" @click="$emit('change', p)">{{ p }}</button>
-      <span v-else class="ellipsis">...</span>
-    </span>
-    <button :disabled="page >= totalPages" @click="$emit('change', page + 1)">下一页</button>
-    <span class="total">共 {{ total }} 条</span>
+  <div v-if="totalPages > 1" class="flex items-center justify-center gap-1.5 mt-6">
+    <button :disabled="page <= 1" class="px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-indigo-600 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" @click="$emit('change', page - 1)">上一页</button>
+    <template v-for="p in pages" :key="p">
+      <button v-if="p !== '...'" :class="p === page ? 'px-3 py-1.5 border border-indigo-600 bg-indigo-600 text-white rounded-[6px] text-sm cursor-pointer transition-colors' : 'px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-indigo-600 hover:text-indigo-600 transition-colors'" @click="$emit('change', p)">{{ p }}</button>
+      <span v-else class="px-1 py-1.5 text-[#999]">...</span>
+    </template>
+    <button :disabled="page >= totalPages" class="px-3 py-1.5 border border-[var(--color-border)] bg-white rounded-[6px] text-sm cursor-pointer hover:border-indigo-600 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" @click="$emit('change', page + 1)">下一页</button>
+    <span class="ml-3 text-[13px] text-[#999]">共 {{ total }} 条</span>
   </div>
 </template>
 
@@ -32,36 +32,3 @@ const pages = computed(() => {
   return [1, '...', p - 1, p, p + 1, '...', t]
 })
 </script>
-
-<style scoped>
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 24px;
-  justify-content: center;
-}
-.pagination button {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  background: #fff;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-.pagination button:hover:not(:disabled) {
-  border-color: #4f46e5;
-  color: #4f46e5;
-}
-.pagination button.active {
-  background: #4f46e5;
-  color: #fff;
-  border-color: #4f46e5;
-}
-.pagination button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.ellipsis { padding: 6px 4px; color: #999; }
-.total { margin-left: 12px; font-size: 13px; color: #999; }
-</style>

@@ -48,6 +48,12 @@ body {
 ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #aaa; }
 
+/* Navbar active state — Vue Router auto-adds .router-link-exact-active */
+.nav-link.router-link-exact-active {
+  background: #ECFDF5;
+  color: var(--color-primary);
+}
+
 /* thinking 气泡淡入动画 — animate-[fadeIn_0.3s_ease] */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

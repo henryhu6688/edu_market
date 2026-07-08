@@ -6,18 +6,18 @@
         EduMarket
       </router-link>
       <div class="flex items-center gap-2">
-        <router-link to="/" class="nav-link">首页</router-link>
-        <router-link to="/materials" class="nav-link">
+        <router-link to="/" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50">首页</router-link>
+        <router-link to="/materials" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50">
           <BookOpen :size="16" class="inline mr-0.5" />学习资料
         </router-link>
-        <router-link v-if="userStore.isLoggedIn" to="/agent" class="nav-link">
+        <router-link v-if="userStore.isLoggedIn" to="/agent" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50">
           <Sparkles :size="16" class="inline mr-0.5" />AI 助手
         </router-link>
         <template v-if="userStore.isLoggedIn">
-          <router-link to="/orders" class="nav-link">我的订单</router-link>
-          <router-link to="/profile" class="nav-link">个人中心</router-link>
-          <router-link v-if="userStore.isAdmin" to="/admin" class="nav-link">管理后台</router-link>
-          <a href="#" @click.prevent="handleLogout" class="nav-link">退出</a>
+          <router-link to="/orders" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50">我的订单</router-link>
+          <router-link to="/profile" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50">个人中心</router-link>
+          <router-link v-if="userStore.isAdmin" to="/admin" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50">管理后台</router-link>
+          <a href="#" @click.prevent="handleLogout" class="nav-link text-[var(--color-foreground)] no-underline px-3.5 py-2 rounded-[var(--radius-btn)] text-sm transition-all duration-200 hover:text-[var(--color-primary)] hover:bg-teal-50 cursor-pointer">退出</a>
         </template>
         <template v-else>
           <router-link to="/login" class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-[var(--radius-btn)] text-sm font-medium no-underline hover:brightness-90 transition-all">登录 / 注册</router-link>
@@ -41,18 +41,3 @@ function handleLogout() {
 }
 </script>
 
-<style scoped>
-.nav-link {
-  color: var(--color-foreground);
-  text-decoration: none;
-  padding: 8px 14px;
-  border-radius: var(--radius-btn);
-  font-size: 14px;
-  transition: all 0.2s;
-}
-.nav-link:hover,
-.nav-link.router-link-exact-active {
-  background: #ECFDF5;
-  color: var(--color-primary);
-}
-</style>
