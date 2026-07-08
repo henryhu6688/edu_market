@@ -7,13 +7,13 @@
     <div v-if="material.cover_image" class="h-[140px]">
       <img :src="material.cover_image" :alt="material.title" class="w-full h-full object-cover" />
     </div>
-    <div v-else class="h-[140px] bg-gradient-to-br from-teal-600 to-teal-400 flex items-center justify-center">
-      <span class="text-white text-3xl font-bold">{{ (material.title || '?').charAt(0) }}</span>
+    <div v-else class="h-[140px] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary)]/60 flex items-center justify-center">
+      <span class="text-[var(--color-primary-foreground)] text-3xl font-bold">{{ (material.title || '?').charAt(0) }}</span>
     </div>
 
     <!-- 信息 -->
     <div class="p-3.5">
-      <span class="inline-block px-2 py-0.5 text-[11px] rounded-[var(--radius-pill)] bg-teal-50 text-[var(--color-primary)] font-medium mb-1.5">
+      <span class="inline-block px-2 py-0.5 text-[11px] rounded-[var(--radius-pill)] bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium mb-1.5">
         {{ material.category_name || '未分类' }}
       </span>
       <h3 class="font-semibold text-[15px] text-[var(--color-foreground)] truncate mb-0.5">{{ material.title }}</h3>
