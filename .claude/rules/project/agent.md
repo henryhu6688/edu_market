@@ -115,7 +115,7 @@ rag:
   qdrant_url: "http://localhost:6333"
   hybrid_search: true
   rerank: true
-  rerank_topk: 3
+  rerank_topk: 5
   cache_enabled: true
   cache_ttl: 3600
   # ... 完整见 config/app.example.yml
